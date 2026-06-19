@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash([ -f \"$F\" ])",
+      "Bash(npm -v)",
+      "Bash(echo \"npm: $\\(npm -v || echo MISSING\\)\")",
+      "Bash(pnpm -v)",
+      "Bash(echo \"pnpm: $\\(pnpm -v || echo MISSING\\)\")",
+      "Bash(yarn -v)",
+      "Read(//usr/local/bin/**)",
+      "Bash(command -v nvm fnm volta asdf)",
+      "Bash([ -s \"$HOME/.nvm/nvm.sh\" ])",
+      "Bash(command -v apt-get)",
+      "Bash(sudo -n true)",
+      "Bash(command -v curl)",
+      "Bash(echo \"curl: $\\(command -v curl || echo MISSING\\)\")",
+      "Bash(command -v wget)",
+      "Bash(echo \"wget: $\\(command -v wget || echo MISSING\\)\")",
+      "Bash(command -v xz)",
+      "Bash(curl -fsSI --max-time 20 https://registry.npmjs.org/)",
+      "Bash(curl -s --retry 20 --retry-delay 1 --retry-connrefused --max-time 120 \"http://localhost:3000/api/_smoke\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s --max-time 60 \"http://localhost:3000/api/_smoke\")",
+      "Bash(curl -s -o /tmp/smoke.txt -w \"%{http_code}\" --max-time 90 \"http://localhost:3000/api/_smoke\")",
+      "Read(//tmp/**)",
+      "Bash(mkdir -p src/app/api/smoke)",
+      "Bash(mv src/app/api/_smoke/route.ts src/app/api/smoke/route.ts)",
+      "Bash(rmdir src/app/api/_smoke)",
+      "Bash(command -v git)",
+      "Bash(echo \"git: $\\(command -v git || echo MISSING\\)\")",
+      "Read(//usr/bin/**)",
+      "Bash(git --version)",
+      "Bash(git init *)",
+      "Bash(git branch *)",
+      "Bash(git config *)",
+      "Bash(git add *)"
+    ]
+  }
+}

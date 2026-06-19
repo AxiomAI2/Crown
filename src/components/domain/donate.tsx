@@ -1,0 +1,224 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { Amount, FeeSplit } from "./amount";
+import { TierBadge } from "./standing";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/components/ui/toast";
+import { useDonate } from "@/lib/data/hooks";
+import { cn, toMicro } from "@/lib/utils";
+import type { Channel, ChannelConfig, DonationResult, Session } from "@/lib/data/types";
+
+const PRESETS = [5, 10, 25, 100];
+const SOFT_WORDS = ["худший", "лох", "scam", "idiot"];
+
+export function DonateWidget({
+  channel,
+  config,
+  session,
+}: {
+  channel: Channel;
+  config: ChannelConfig;
+  session: Session;
+}) {
+  const [amount, setAmount] = useState("");
+  const [withText, setWithText] = useState(false);
+  const [text, setText] = useState("");
+  const [open, setOpen] = useState(false);
+  const [result, setResult] = useState<DonationResult | null>(null);
+  const donate = useDonate(channel.id);
+
+  const connected = Boolean(session.address);
+  const isBasic = channel.status === "BASIC";
+  const amountNum = Number(amount);
+  const amountValid = amount !== "" && Number.isFinite(amountNum) && amountNum > 0;
+  const min = withText ? config.minDonationWithText : config.minDonation;
+  const micro = amountValid ? toMicro(amountNum) : 0n;
+  const meetsMin = amountValid && micro >= min;
+  const textOk = !withText || text.trim().length > 0;
+  const canDonate = connected && amountValid && meetsMin && textOk && !(withText && isBasic);
+  const softWarn = withText && SOFT_WORDS.some((w) => text.toLowerCase().includes(w));
+
+  function openFlow() {
+    setResult(null);
+    donate.reset();
+    setOpen(true);
+  }
+  function confirm() {
+    donate.mutate(
+      { amountUSDC: amountNum, text: withText ? text.trim() : undefined },
+      {
+        onSuccess: (r) => setResult(r),
+        onError: (e) =>
+          toast({
+            variant: "error",
+            title: "Донат не прошёл",
+            description: e instanceof Error ? e.message : String(e),
+          }),
+      },
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4">
+      <h3 className="text-h3 text-fg">Задонатить</h3>
+
+      <div className="flex flex-col gap-2">
+        <Input
+          label="Сумма, USDC"
+          mono
+          inputMode="decimal"
+          placeholder="0.00"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          error={amountValid && !meetsMin ? "Ниже минимума канала" : undefined}
+        />
+        <div className="flex flex-wrap gap-2">
+          {PRESETS.map((p) => (
+            <Button key={p} variant="secondary" size="sm" onClick={() => setAmount(String(p))}>
+              ${p}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      <label className="flex items-center gap-2 text-small text-fg-muted">
+        <input
+          type="checkbox"
+          checked={withText}
+          disabled={isBasic}
+          onChange={(e) => setWithText(e.target.checked)}
+        />
+        Добавить сообщение
+        {isBasic ? <span className="text-fg-faint">— канал ещё не активирован</span> : null}
+      </label>
+
+      {withText && !isBasic ? (
+        <Textarea
+          label="Сообщение"
+          placeholder="Текст к донату…"
+          maxLength={config.messageMaxLen}
+          showCount
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          helper={
+            softWarn
+              ? "В тексте есть слово, которое может попасть под фильтр стримера (не блокирует)."
+              : "Текст приватен до показа — стример решит, публиковать ли его."
+          }
+          className={cn(softWarn && "border-warn")}
+        />
+      ) : null}
+
+      {amountValid ? <FeeSplit amount={micro} /> : null}
+
+      {connected ? (
+        <Button disabled={!canDonate} onClick={openFlow}>
+          Задонатить
+        </Button>
+      ) : (
+        <Button asChild variant="secondary">
+          <Link href="/connect">Подключи кошелёк, чтобы задонатить</Link>
+        </Button>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          {result ? (
+            <DoneView result={result} hadText={withText} onClose={() => setOpen(false)} />
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Подтверждение</DialogTitle>
+                <DialogDescription>Донат необратим. Возврата нет.</DialogDescription>
+              </DialogHeader>
+              <FeeSplit amount={micro} />
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="ghost" disabled={donate.isPending}>
+                    Отмена
+                  </Button>
+                </DialogClose>
+                <Button variant="money" loading={donate.isPending} onClick={confirm}>
+                  {donate.isPending ? "Подписываем…" : "Подтвердить и подписать"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/** Финальность доната — сигнатурный момент: суммы 97/3 расходятся, «печать», переключение в --money. */
+export function FinalityMoment({ result }: { result: DonationResult }) {
+  return (
+    <div className="animate-stamp flex flex-col items-center gap-3 rounded-lg border border-money bg-money-bg p-5 text-center">
+      <div className="flex w-full items-center justify-between text-small">
+        <span className="text-fg-muted">Стримеру</span>
+        <Amount micro={result.donation.netToStreamer} variant="money" />
+      </div>
+      <div className="flex w-full items-center justify-between text-small">
+        <span className="text-fg-muted">Платформе</span>
+        <Amount micro={result.donation.feeAmount} variant="money" />
+      </div>
+      <p className="text-h3 text-money">Готово. Деньги ушли стримеру.</p>
+    </div>
+  );
+}
+
+function DoneView({
+  result,
+  hadText,
+  onClose,
+}: {
+  result: DonationResult;
+  hadText: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Донат прошёл</DialogTitle>
+      </DialogHeader>
+      <div className="flex flex-col gap-3">
+        <FinalityMoment result={result} />
+        {result.tierChanged ? (
+          <div
+            className="animate-stamp flex items-center justify-center gap-2 rounded-lg border-2 p-3"
+            style={{ borderColor: result.standing.tier.color }}
+          >
+            <span className="text-small text-fg-muted">Новый тир!</span>
+            <TierBadge tier={result.standing.tier} />
+          </div>
+        ) : null}
+        <p className="text-small text-fg-muted">
+          Твой standing уже зачтён:{" "}
+          <span className="mono text-status">{result.standing.points}</span> очков.
+        </p>
+        {hadText ? (
+          <p className="rounded border border-border bg-surface p-3 text-small text-fg-muted">
+            Сообщение на модерации у стримера (HELD). Деньги и standing уже зачтены — публикация текста
+            от них не зависит.
+          </p>
+        ) : null}
+      </div>
+      <DialogFooter>
+        <Button onClick={onClose}>Готово</Button>
+      </DialogFooter>
+    </>
+  );
+}

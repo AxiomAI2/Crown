@@ -1,0 +1,195 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Дизайн-токены — единственный источник истины (design-system.md).
+ * Dark-first: :root уже несёт тёмные значения. Светлая тема позже = переопределение
+ * этих же семантических переменных, без правки компонентов.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Поверхности (ink, не чёрный) */
+  --bg: #0e0f13;
+  --surface: #16181f;
+  --surface-2: #1e212b;
+  --border: #2a2e3a;
+  --border-strong: #3a4050;
+
+  /* Текст */
+  --text: #eceef3;
+  --text-muted: #9aa1b2;
+  --text-faint: #6b7282;
+
+  /* Акцент СТАТУСА (заработанное, «отчеканенное») — янтарь/золото */
+  --status: #e8b04b;
+  --status-dim: #b5832f;
+  --status-bg: #2a2114;
+
+  /* Акцент ДЕНЕГ/ДОВЕРИЯ — строго под подтверждённое/финальное */
+  --money: #3dd6a0;
+  --money-dim: #2a9c74;
+  --money-bg: #11241d;
+
+  /* Семантика */
+  --danger: #f0566b;
+  --danger-bg: #2a1419;
+  --warn: #f0a84b;
+  --info: #6e8bff;
+
+  /* Пространство, ритм, форма */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --maxw: 1200px;
+
+  /* Движение */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 320ms;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body), Inter, system-ui, sans-serif;
+    font-size: 1rem;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Видимый фокус с клавиатуры на всех интерактивных элементах (design-system.md §6). */
+  :focus-visible {
+    outline: 2px solid var(--info);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  ::selection {
+    background: var(--status-bg);
+    color: var(--text);
+  }
+}
+
+@layer components {
+  /* Типографическая шкала (1.250 — major third). display-роль с плотным трекингом. */
+  .text-display-xl {
+    font-family: var(--font-display), "Hanken Grotesk", system-ui, sans-serif;
+    font-size: 3.05rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+  }
+  .text-display-l {
+    font-family: var(--font-display), "Hanken Grotesk", system-ui, sans-serif;
+    font-size: 2.44rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  .text-h1 {
+    font-family: var(--font-display), "Hanken Grotesk", system-ui, sans-serif;
+    font-size: 1.95rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+  }
+  .text-h2 {
+    font-family: var(--font-display), "Hanken Grotesk", system-ui, sans-serif;
+    font-size: 1.56rem;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+  .text-h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.25;
+  }
+  .text-body {
+    font-size: 1rem;
+    font-weight: 400;
+  }
+  .text-small {
+    font-size: 0.875rem;
+    font-weight: 400;
+  }
+  .text-caption {
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+  }
+
+  /* Числа/адреса/суммы — всегда моноширинные, tabular (design-system.md §3). */
+  .mono {
+    font-family: var(--font-mono), "JetBrains Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+/* Оркестрованные моменты (design-system.md §5): финальность доната и тир-ап. */
+@keyframes standing-stamp {
+  0% {
+    transform: scale(0.82);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes standing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-stamp {
+  animation: standing-stamp var(--dur-slow) var(--ease);
+}
+.animate-rise {
+  animation: standing-rise var(--dur) var(--ease);
+}
+
+/* Лишняя анимация = ощущение «сгенерировано AI». Уважаем reduced-motion везде. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
