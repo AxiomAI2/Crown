@@ -5,7 +5,7 @@ import {
 } from "@solana/spl-token";
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { FEE_BPS, USDC_DECIMALS } from "./config";
-import { buildMemoInstruction, encodeMemo } from "./memo";
+import { buildMemoInstruction, encodeActivationMemo, encodeMemo } from "./memo";
 
 /** Целочисленное расщепление суммы: fee = 3%, net = остаток (те же числа, что считает бэкенд/мок). */
 export function splitAmount(amountMicro: bigint): { fee: bigint; net: bigint } {
@@ -49,6 +49,35 @@ export async function buildDonationInstructions(
   ix.push(createTransferCheckedInstruction(donorAta, p.mint, streamerAta, p.donor, net, USDC_DECIMALS));
   ix.push(createTransferCheckedInstruction(donorAta, p.mint, treasuryAta, p.donor, fee, USDC_DECIMALS));
   ix.push(buildMemoInstruction(encodeMemo({ c: p.creatorId, d: p.donationId, m: p.msgRef ?? null })));
+  return ix;
+}
+
+export interface ActivationTxParams {
+  payer: PublicKey; // владелец канала
+  treasury: PublicKey;
+  mint: PublicKey;
+  channelId: string;
+  feeMicro: bigint;
+}
+
+/**
+ * Инструкции сбора активации (core-spec §3/§9): один перевод payer→трежери (~$2) + memo `{act}`.
+ * Сбор, не залог — оператор не возвращает (некастодиальность). ATA трежери создаётся при отсутствии.
+ */
+export async function buildActivationInstructions(
+  connection: Connection,
+  p: ActivationTxParams,
+): Promise<TransactionInstruction[]> {
+  const payerAta = await getAssociatedTokenAddress(p.mint, p.payer);
+  const treasuryAta = await getAssociatedTokenAddress(p.mint, p.treasury);
+  const ix: TransactionInstruction[] = [];
+  if (!(await accountExists(connection, treasuryAta))) {
+    ix.push(createAssociatedTokenAccountInstruction(p.payer, treasuryAta, p.treasury, p.mint));
+  }
+  ix.push(
+    createTransferCheckedInstruction(payerAta, p.mint, treasuryAta, p.payer, p.feeMicro, USDC_DECIMALS),
+  );
+  ix.push(buildMemoInstruction(encodeActivationMemo(p.channelId)));
   return ix;
 }
 

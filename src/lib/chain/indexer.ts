@@ -6,7 +6,7 @@ import {
   PublicKey,
 } from "@solana/web3.js";
 import { splitAmount } from "./donation-tx";
-import { decodeMemo, type MemoAttribution } from "./memo";
+import { decodeActivationMemo, decodeMemo, type MemoAttribution } from "./memo";
 
 /** Истина о деньгах — цепочка, не клиент (crypto/spec.md §4). Реконструированный донат из ончейна. */
 export interface IndexedDonation {
@@ -99,6 +99,67 @@ export function extractDonation(
     netMicro: netLeg.amount,
     streamerAta: netLeg.dest,
     memo,
+    blockTime: tx.blockTime ?? null,
+  };
+}
+
+/** Реконструированный сбор активации из ончейна: один перевод payer→treasuryATA + memo `{act}`. */
+export interface IndexedActivation {
+  signature: string;
+  payer: string; // authority перевода — сверяется с владельцем канала вызывающим
+  amountMicro: bigint;
+  channelId: string;
+  blockTime: number | null;
+}
+
+export async function parseActivationTx(
+  connection: Connection,
+  signature: string,
+  opts: { mint: PublicKey; treasuryAta: PublicKey; commitment?: "confirmed" | "finalized" },
+): Promise<IndexedActivation | null> {
+  const tx = await connection.getParsedTransaction(signature, {
+    commitment: opts.commitment ?? "confirmed",
+    maxSupportedTransactionVersion: 0,
+  });
+  return extractActivation(tx, signature, opts);
+}
+
+/**
+ * Чистый разбор сбора активации: ищет transferChecked нужного mint в treasuryAta + memo `{act}`.
+ * Сумму НЕ валидирует здесь (порог проверяет ingest против ACTIVATION_FEE_MICRO). Выделено для тестов.
+ */
+export function extractActivation(
+  tx: ParsedTransactionWithMeta | null,
+  signature: string,
+  opts: { mint: PublicKey; treasuryAta: PublicKey },
+): IndexedActivation | null {
+  if (!tx || tx.meta?.err) return null;
+  const mint = opts.mint.toBase58();
+  const treasury = opts.treasuryAta.toBase58();
+
+  let leg: { amount: bigint; authority: string } | null = null;
+  let act: string | null = null;
+
+  for (const ix of tx.transaction.message.instructions) {
+    if (!isParsed(ix)) continue;
+    if (ix.program === "spl-memo" && typeof ix.parsed === "string") {
+      act = decodeActivationMemo(ix.parsed)?.act ?? act;
+      continue;
+    }
+    if (ix.program === "spl-token") {
+      const parsed = ix.parsed as SplTransferParsed;
+      if (parsed.type !== "transferChecked" || parsed.info?.mint !== mint) continue;
+      if (parsed.info.destination !== treasury) continue;
+      leg = { amount: BigInt(parsed.info.tokenAmount.amount), authority: parsed.info.authority };
+    }
+  }
+
+  if (!leg || !act) return null;
+  return {
+    signature,
+    payer: leg.authority,
+    amountMicro: leg.amount,
+    channelId: act,
     blockTime: tx.blockTime ?? null,
   };
 }

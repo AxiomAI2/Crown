@@ -1,7 +1,13 @@
 import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { assertMoneyConfig, DEVNET_RPC, mintPubkey, treasuryPubkey } from "@/lib/chain/config";
-import { parseDonationTx } from "@/lib/chain/indexer";
+import {
+  ACTIVATION_FEE_MICRO,
+  assertMoneyConfig,
+  DEVNET_RPC,
+  mintPubkey,
+  treasuryPubkey,
+} from "@/lib/chain/config";
+import { parseActivationTx, parseDonationTx } from "@/lib/chain/indexer";
 import { hashContent } from "@/lib/data/moderation";
 import { CHAIN_MODE } from "@/server/runtime";
 import type { MockDataProvider } from "@/lib/data/mock-provider";
@@ -57,4 +63,38 @@ export async function ingestSignature(
   });
   if (!res) return { ok: false, reason: "уже принято или канал отсутствует" };
   return { ok: true, points: res.standing.points };
+}
+
+/**
+ * Доверенный приём ончейн-сбора активации по подписи: сервер сам достаёт tx, проверяет перевод
+ * payer→treasuryATA ≥ ACTIVATION_FEE и memo `{act}`, сверяет payer === владелец канала (трастлесс — не
+ * верит клиенту) и идемпотентно переводит канал в ACTIVE. Деньги сбора — оператору, не возврат (§4.1).
+ */
+export async function ingestActivation(
+  store: MockDataProvider,
+  signature: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  assertMoneyConfig(); // fail-closed: на mainnet без денежной конфигурации сбор не принимаем (C2)
+  const connection = new Connection(DEVNET_RPC, "confirmed");
+  const mint = mintPubkey();
+  const treasuryAta = await getAssociatedTokenAddress(mint, treasuryPubkey());
+
+  const indexed = await parseActivationTx(connection, signature, {
+    mint,
+    treasuryAta,
+    commitment: CHAIN_MODE ? "finalized" : "confirmed",
+  });
+  if (!indexed) return { ok: false, reason: "не валидная транзакция активации (нет перевода + memo {act})" };
+
+  const channel = store.__getChannelById(indexed.channelId);
+  if (!channel) return { ok: false, reason: `канал ${indexed.channelId} не найден` };
+  if (indexed.payer !== channel.ownerAddress) {
+    return { ok: false, reason: "сбор уплачен не владельцем канала" };
+  }
+  if (indexed.amountMicro < ACTIVATION_FEE_MICRO) {
+    return { ok: false, reason: "сумма сбора активации ниже требуемой" };
+  }
+
+  store.activateFromChain(indexed.channelId);
+  return { ok: true };
 }

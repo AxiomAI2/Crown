@@ -12,10 +12,14 @@ import {
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { Connection, Keypair, type ParsedTransactionWithMeta } from "@solana/web3.js";
-import { DEVNET_RPC, MEMO_PROGRAM_ID } from "../src/lib/chain/config";
-import { buildDonationInstructions, splitAmount } from "../src/lib/chain/donation-tx";
-import { extractDonation } from "../src/lib/chain/indexer";
-import { decodeMemo, encodeMemo } from "../src/lib/chain/memo";
+import { ACTIVATION_FEE_MICRO, DEVNET_RPC, MEMO_PROGRAM_ID } from "../src/lib/chain/config";
+import {
+  buildActivationInstructions,
+  buildDonationInstructions,
+  splitAmount,
+} from "../src/lib/chain/donation-tx";
+import { extractActivation, extractDonation } from "../src/lib/chain/indexer";
+import { decodeMemo, encodeActivationMemo, encodeMemo } from "../src/lib/chain/memo";
 
 let failures = 0;
 function check(name: string, cond: boolean, detail?: string) {
@@ -151,9 +155,92 @@ async function verifyIndexer() {
   check("tx с ошибкой отклонена (null)", errored === null);
 }
 
+async function verifyActivation() {
+  console.log("\n— (3) Сбор активации: сборщик (devnet) + индексер (extractActivation) —");
+  const connection = new Connection(DEVNET_RPC, "confirmed");
+  const owner = Keypair.generate();
+  const treasury = Keypair.generate();
+  const mint = Keypair.generate().publicKey;
+
+  const ix = await buildActivationInstructions(connection, {
+    payer: owner.publicKey,
+    treasury: treasury.publicKey,
+    mint,
+    channelId: "ch-lumi",
+    feeMicro: ACTIVATION_FEE_MICRO,
+  });
+  const progs = ix.map((i) => i.programId.toBase58());
+  check("2 инструкции (createATA трежери + transfer + memo)", ix.length === 3, `got ${ix.length}`);
+  check("первая — createATA (ATA-программа)", progs[0] === ASSOCIATED_TOKEN_PROGRAM_ID.toBase58());
+  check("вторая — transferChecked (Token-программа)", progs[1] === TOKEN_PROGRAM_ID.toBase58());
+  const memoIx = ix[2];
+  check("последняя — memo (Memo-программа)", memoIx?.programId.toBase58() === MEMO_PROGRAM_ID.toBase58());
+  check(
+    "memo декодируется в {act: channelId}",
+    memoIx ? memoIx.data.toString("utf8") === encodeActivationMemo("ch-lumi") : false,
+  );
+
+  // — индексер на синтетических tx —
+  const treasuryAta = await getAssociatedTokenAddress(mint, treasury.publicKey);
+  const otherAta = await getAssociatedTokenAddress(mint, Keypair.generate().publicKey);
+  const opts = { mint, treasuryAta };
+  const makeAct = (dest: string, amount: string, memo: string | null) =>
+    ({
+      blockTime: 1_700_000_000,
+      slot: 1,
+      meta: { err: null, fee: 5000, preBalances: [], postBalances: [] },
+      transaction: {
+        message: {
+          instructions: [
+            {
+              program: "spl-token",
+              programId: TOKEN_PROGRAM_ID,
+              parsed: {
+                type: "transferChecked",
+                info: {
+                  authority: owner.publicKey.toBase58(),
+                  destination: dest,
+                  mint: mint.toBase58(),
+                  source: "ownerAta",
+                  tokenAmount: { amount, decimals: 6 },
+                },
+              },
+            },
+            ...(memo === null
+              ? []
+              : [{ program: "spl-memo", programId: MEMO_PROGRAM_ID, parsed: memo }]),
+          ],
+        },
+        signatures: ["sig"],
+      },
+    }) as unknown as ParsedTransactionWithMeta;
+
+  const ok = extractActivation(
+    makeAct(treasuryAta.toBase58(), "2000000", encodeActivationMemo("ch-lumi")),
+    "asig1",
+    opts,
+  );
+  check("корректный сбор распознан", ok !== null);
+  check(
+    "payer, channelId, amount извлечены",
+    ok?.payer === owner.publicKey.toBase58() && ok?.channelId === "ch-lumi" && ok?.amountMicro === 2_000_000n,
+  );
+
+  const noMemo = extractActivation(makeAct(treasuryAta.toBase58(), "2000000", null), "asig2", opts);
+  check("без memo {act} отклонено (null)", noMemo === null);
+
+  const wrongDest = extractActivation(
+    makeAct(otherAta.toBase58(), "2000000", encodeActivationMemo("ch-lumi")),
+    "asig3",
+    opts,
+  );
+  check("перевод не в трежери отклонён (null)", wrongDest === null);
+}
+
 async function main() {
   await verifyBuilder();
   await verifyIndexer();
+  await verifyActivation();
   console.log(failures === 0 ? "\n✅ ВСЕ ПРОВЕРКИ ПРОШЛИ" : `\n❌ ПРОВАЛОВ: ${failures}`);
   if (failures > 0) process.exit(1);
 }

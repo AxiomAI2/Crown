@@ -350,6 +350,18 @@ export class MockDataProvider implements DataProvider {
     this.channelsById.set(channelId, updated);
     return updated;
   }
+  /**
+   * Активация из ончейн-сбора (server/ingest.ts): без сессии — личность/право уже проверены сервером
+   * (payer === ownerAddress). Идемпотентно: повторный приём той же tx не меняет уже активный канал.
+   */
+  activateFromChain(channelId: string): Channel | null {
+    const ch = this.channelsById.get(channelId);
+    if (!ch) return null;
+    if (ch.status === "ACTIVE") return ch;
+    const updated: Channel = { ...ch, status: "ACTIVE", activatedAt: this.now() };
+    this.channelsById.set(channelId, updated);
+    return updated;
+  }
   async updateChannelConfig(channelId: string, patch: ConfigPatch): Result<ChannelConfig> {
     await this.gate("updateChannelConfig");
     this.requireChannelOwner(channelId);

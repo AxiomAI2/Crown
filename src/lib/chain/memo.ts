@@ -24,6 +24,21 @@ export function decodeMemo(raw: string): MemoAttribution | null {
   return null;
 }
 
+/** memo сбора активации канала: `{ act: channelId }`. Не пересекается с донат-memo (там нужны c+d). */
+export function encodeActivationMemo(channelId: string): string {
+  return JSON.stringify({ act: channelId });
+}
+
+export function decodeActivationMemo(raw: string): { act: string } | null {
+  try {
+    const o = JSON.parse(raw) as { act?: unknown };
+    if (typeof o.act === "string") return { act: o.act };
+  } catch {
+    /* не наш memo */
+  }
+  return null;
+}
+
 export function buildMemoInstruction(memo: string): TransactionInstruction {
   return new TransactionInstruction({
     keys: [],

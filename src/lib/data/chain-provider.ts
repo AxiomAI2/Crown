@@ -1,7 +1,11 @@
 import type { WalletContextState } from "@solana/wallet-adapter-react";
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
-import { DEVNET_RPC, DEVNET_USDC_MINT, TREASURY_OWNER } from "../chain/config";
-import { buildDonationInstructions, splitAmount } from "../chain/donation-tx";
+import { ACTIVATION_FEE_MICRO, DEVNET_RPC, DEVNET_USDC_MINT, TREASURY_OWNER } from "../chain/config";
+import {
+  buildActivationInstructions,
+  buildDonationInstructions,
+  splitAmount,
+} from "../chain/donation-tx";
 import { toMicro } from "../utils";
 import { ApiDataProvider } from "./api-provider";
 import { hashContent } from "./moderation";
@@ -257,8 +261,42 @@ export class ChainDataProvider implements DataProvider {
   createChannel(i: CreateChannelInput): Result<Channel> {
     return this.api.createChannel(i);
   }
-  activateChannel(id: string): Result<Channel> {
-    return this.api.activateChannel(id); // полноценно — ончейн-сбор; пока оффчейн-флип
+  /**
+   * Активация канала = ончейн-сбор (~$2 USDC владелец→трежери) + memo `{act}`. Сервер сам достаёт tx
+   * из цепочки, сверяет payer === владелец и порог суммы, и переводит канал в ACTIVE (см. ingestActivation).
+   * Оффчейн-флип в chain-режиме запрещён (CHAIN_FORBIDDEN), поэтому идём строго через кошелёк.
+   */
+  async activateChannel(id: string): Result<Channel> {
+    const w = this.wallet;
+    if (!w?.publicKey || !w.sendTransaction) throw new DataError("NO_WALLET", "Подключи кошелёк.");
+    if (!DEVNET_USDC_MINT || !TREASURY_OWNER) {
+      throw new DataError(
+        "NOT_CONFIGURED",
+        "Не заданы NEXT_PUBLIC_DEVNET_USDC_MINT и NEXT_PUBLIC_TREASURY_OWNER.",
+      );
+    }
+    await this.ensureAuth(); // владелец активирует свой канал → нужна проверенная личность для getMyChannel
+
+    const ix = await buildActivationInstructions(this.connection, {
+      payer: w.publicKey,
+      treasury: new PublicKey(TREASURY_OWNER),
+      mint: new PublicKey(DEVNET_USDC_MINT),
+      channelId: id,
+      feeMicro: ACTIVATION_FEE_MICRO,
+    });
+    const tx = new Transaction().add(...ix);
+    tx.feePayer = w.publicKey;
+    const latest = await this.connection.getLatestBlockhash();
+    tx.recentBlockhash = latest.blockhash;
+    const signature = await w.sendTransaction(tx, this.connection);
+
+    await this.connection.confirmTransaction({ signature, ...latest }, "confirmed");
+    const res = await this.api.ingestActivation(signature);
+    if (!res.ok) throw new DataError("ACTIVATION_FAILED", res.reason ?? "Сбор активации не принят.");
+
+    const channel = await this.api.getMyChannel();
+    if (!channel) throw new DataError("NO_CHANNEL", "Канал не найден после активации.");
+    return channel;
   }
   updateChannelConfig(id: string, p: ConfigPatch): Result<ChannelConfig> {
     return this.api.updateChannelConfig(id, p);

@@ -7,6 +7,10 @@ export const DEVNET_RPC = process.env.NEXT_PUBLIC_DEVNET_RPC ?? "https://api.dev
 export const USDC_DECIMALS = 6;
 export const FEE_BPS = 300; // 3%
 
+/** Одноразовый сбор активации канала (~$2 в трежери), анти-флуд-якорь (core-spec §3/§9). */
+export const ACTIVATION_FEE_USDC = 2;
+export const ACTIVATION_FEE_MICRO = BigInt(ACTIVATION_FEE_USDC) * 1_000_000n;
+
 export const USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 const IS_PROD = process.env.NODE_ENV === "production";

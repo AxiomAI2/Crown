@@ -1,7 +1,7 @@
 import { decode, encode } from "@/lib/data/codec";
 import type { Address } from "@/lib/data/types";
 import { issueNonce, resolveToken, revokeToken, verifyAndIssueToken } from "@/server/auth";
-import { ingestSignature } from "@/server/ingest";
+import { ingestActivation, ingestSignature } from "@/server/ingest";
 import { runWithIdentity } from "@/server/request-context";
 import { CHAIN_MODE, IS_PROD } from "@/server/runtime";
 import { getStore } from "@/server/store";
@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
 // C1/M2: IS_PROD и серверный CHAIN_MODE живут в @/server/runtime (единая формула для гейта и зачёта).
 // CHAIN_MODE → оффчейн-симуляция доната запрещена: любой вошедший по SIWS кошелёк иначе наколдовал бы
 // донат+репутацию+оверлей мимо цепочки (нарушение §4.4/§4.7). Репутацию даёт только ingestSignature.
-const CHAIN_FORBIDDEN = new Set<string>(["createDonation"]);
+// activateChannel так же: оффчейн-флип в ACTIVE мимо сбора → только ингест ончейн-сбора (ingestActivation).
+const CHAIN_FORBIDDEN = new Set<string>(["createDonation", "activateChannel"]);
 
 // Белый список разрешённых методов стора (методы DataProvider). Авторизацию каждой мутации делает сам
 // store по проверенной личности; здесь — только транспорт. Dev-методы (__reset) и auth-методы (__auth*)
@@ -112,6 +113,22 @@ export async function POST(req: Request): Promise<Response> {
       return json({ ok: true, result });
     } catch (e) {
       // Кривая/неизвестная подпись (или сбой RPC) роняла публичный эндпоинт в 500 — отдаём чистую ошибку.
+      const err = e as { code?: string; message?: string };
+      return json({
+        ok: false,
+        error: { code: err.code ?? "INGEST_ERROR", message: err.message ?? String(e) },
+      });
+    }
+  }
+
+  // Спец-метод: приём ончейн-сбора активации по подписи (сервер валидирует из цепочки, см. server/ingest.ts).
+  if (body.method === "ingestActivation") {
+    const sig = body.args?.[0];
+    if (typeof sig !== "string") return rpcError("BAD_ARGS", "нужна signature", 400);
+    try {
+      const result = await ingestActivation(store, sig);
+      return json({ ok: true, result });
+    } catch (e) {
       const err = e as { code?: string; message?: string };
       return json({
         ok: false,

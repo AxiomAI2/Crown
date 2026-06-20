@@ -5,10 +5,11 @@ import { Amount } from "@/components/domain/amount";
 import { Button } from "@/components/ui/button";
 import { EmptyState, Skeleton } from "@/components/ui/feedback";
 import { toast } from "@/components/ui/toast";
+import { ACTIVATION_FEE_MICRO } from "@/lib/chain/addresses";
 import { useActivateChannel, useMyChannel } from "@/lib/data/hooks";
-import { timeAgo, toMicro } from "@/lib/utils";
+import { timeAgo } from "@/lib/utils";
 
-const ACTIVATION_FEE = toMicro(2);
+const ACTIVATION_FEE = ACTIVATION_FEE_MICRO;
 
 export default function ActivationPage() {
   const myChannelQ = useMyChannel();
