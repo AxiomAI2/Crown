@@ -105,9 +105,10 @@ export async function POST(req: Request): Promise<Response> {
   // Спец-метод: приём ончейн-доната по подписи (сервер валидирует из цепочки, см. server/ingest.ts).
   if (body.method === "ingestSignature") {
     const sig = body.args?.[0];
+    const text = body.args?.[1];
     if (typeof sig !== "string") return rpcError("BAD_ARGS", "нужна signature", 400);
     try {
-      const result = await ingestSignature(store, sig);
+      const result = await ingestSignature(store, sig, typeof text === "string" ? text : undefined);
       return json({ ok: true, result });
     } catch (e) {
       // Кривая/неизвестная подпись (или сбой RPC) роняла публичный эндпоинт в 500 — отдаём чистую ошибку.

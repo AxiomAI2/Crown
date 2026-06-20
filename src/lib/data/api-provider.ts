@@ -80,8 +80,11 @@ export class ApiDataProvider implements DataProvider {
     return p;
   }
   /** Приём ончейн-доната по подписи (сервер валидирует из цепочки). Вне DataProvider — для chain. */
-  ingestSignature(signature: string): Promise<{ ok: boolean; reason?: string; points?: number }> {
-    return this.rpc("ingestSignature", [signature]);
+  ingestSignature(
+    signature: string,
+    text?: string,
+  ): Promise<{ ok: boolean; reason?: string; points?: number }> {
+    return this.rpc("ingestSignature", [signature, text]);
   }
   /** SIWS шаг 1: получить nonce + каноническое сообщение для подписи. Вне DataProvider — для chain. */
   authNonce(address: Address): Promise<{ nonce: string; message: string }> {

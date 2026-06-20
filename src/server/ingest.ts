@@ -2,6 +2,7 @@ import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { assertMoneyConfig, DEVNET_RPC, mintPubkey, treasuryPubkey } from "@/lib/chain/config";
 import { parseDonationTx } from "@/lib/chain/indexer";
+import { hashContent } from "@/lib/data/moderation";
 import { CHAIN_MODE } from "@/server/runtime";
 import type { MockDataProvider } from "@/lib/data/mock-provider";
 
@@ -14,6 +15,7 @@ import type { MockDataProvider } from "@/lib/data/mock-provider";
 export async function ingestSignature(
   store: MockDataProvider,
   signature: string,
+  text?: string,
 ): Promise<{ ok: boolean; reason?: string; points?: number }> {
   assertMoneyConfig(); // fail-closed: на mainnet без явной денежной конфигурации донат не принимаем (C2)
   const connection = new Connection(DEVNET_RPC, "confirmed");
@@ -39,6 +41,11 @@ export async function ingestSignature(
     return { ok: false, reason: "97%-нога ушла не на payout канала" };
   }
 
+  // Трастлесс-привязка текста: memo.m несёт contentHash(текста). Принимаем текст ТОЛЬКО если его хэш
+  // совпал с ончейн-memo (донор подписал именно его). Иначе текст игнорируем — деньги/репутация не зависят.
+  const verifiedText =
+    text && indexed.memo.m && hashContent(text) === indexed.memo.m ? text : undefined;
+
   const res = store.recordDonationFromChain({
     signature,
     donor: indexed.donor,
@@ -46,6 +53,7 @@ export async function ingestSignature(
     amountMicro: indexed.amountMicro,
     feeMicro: indexed.feeMicro,
     netMicro: indexed.netMicro,
+    text: verifiedText,
   });
   if (!res) return { ok: false, reason: "уже принято или канал отсутствует" };
   return { ok: true, points: res.standing.points };

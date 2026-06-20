@@ -4,6 +4,7 @@ import { DEVNET_RPC, DEVNET_USDC_MINT, TREASURY_OWNER } from "../chain/config";
 import { buildDonationInstructions, splitAmount } from "../chain/donation-tx";
 import { toMicro } from "../utils";
 import { ApiDataProvider } from "./api-provider";
+import { hashContent } from "./moderation";
 import { DataError, type DataProvider, type Result } from "./provider";
 import type {
   Address,
@@ -179,6 +180,9 @@ export class ChainDataProvider implements DataProvider {
     const amountMicro = toMicro(input.amountUSDC);
     const { fee, net } = splitAmount(amountMicro);
     const donationId = `d-${this.address()}-${list.items.length}`;
+    // Текст приватен и оффчейн; в memo кладём ТОЛЬКО его хэш — сервер потом сверит присланный текст с ним
+    // (трастлесс-привязка, см. server/ingest.ts). Без текста m = null.
+    const text = input.text?.trim() || undefined;
     const ix = await buildDonationInstructions(this.connection, {
       donor: w.publicKey,
       payout: new PublicKey(channel.payoutAddress),
@@ -187,7 +191,7 @@ export class ChainDataProvider implements DataProvider {
       amountMicro,
       creatorId: input.channelId,
       donationId,
-      msgRef: input.text ? `${donationId}-m` : null,
+      msgRef: text ? hashContent(text) : null,
     });
     const tx = new Transaction().add(...ix);
     tx.feePayer = w.publicKey;
@@ -198,9 +202,10 @@ export class ChainDataProvider implements DataProvider {
     // Дожидаемся подтверждения и просим сервер ПРИНЯТЬ донат из цепочки (он сам валидирует tx).
     await this.connection.confirmTransaction({ signature, ...latest }, "confirmed");
     try {
-      await this.api.ingestSignature(signature);
+      // Шлём текст вместе с подписью — сервер сверит его хэш с memo и заведёт сообщение → HELD/модерация.
+      await this.api.ingestSignature(signature, text);
     } catch {
-      // не страшно: индексер-сервис подхватит инфлоу позже
+      // не страшно: индексер-сервис подхватит инфлоу позже (текст привяжется при повторном ingest)
     }
 
     const donation: Donation = {

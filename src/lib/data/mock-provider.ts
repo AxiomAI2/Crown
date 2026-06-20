@@ -435,7 +435,11 @@ export class MockDataProvider implements DataProvider {
     return result;
   }
 
-  /** Запись ончейн-доната (после валидации сервером из цепочки). Идемпотентно по signature. */
+  /**
+   * Запись ончейн-доната (после валидации сервером из цепочки). Идемпотентно по signature. `text` —
+   * уже сверенный по хэшу из memo (см. server/ingest.ts); если донат уже принят без текста, а текст
+   * пришёл позже (клиент/индексер в разном порядке) — привязываем сообщение к существующему донату.
+   */
   recordDonationFromChain(params: {
     signature: string;
     donor: Address;
@@ -443,8 +447,20 @@ export class MockDataProvider implements DataProvider {
     amountMicro: bigint;
     feeMicro: bigint;
     netMicro: bigint;
+    text?: string;
   }): DonationResult | null {
-    if (this.ledger.some((e) => e.txSignature === params.signature)) return null; // уже принято
+    const existing = this.donations.find((d) => d.txSignature === params.signature);
+    if (existing) {
+      if (params.text && !existing.message) {
+        const msg = this.buildMessage(existing, params.text, this.now());
+        const standing = this.standingFor(existing.channelId, existing.donor);
+        if (msg.state === "SHOWN" && standing) {
+          this.emitOverlay(existing.channelId, { kind: "donation_shown", donation: existing, standing });
+        }
+        if (standing) return { donation: existing, standing, tierChanged: false };
+      }
+      return null; // уже принято, нечего добавить
+    }
     const ch = this.channelsById.get(params.channelId);
     if (!ch) return null;
     return this.record({
@@ -454,7 +470,44 @@ export class MockDataProvider implements DataProvider {
       fee: params.feeMicro,
       net: params.netMicro,
       signature: params.signature,
+      text: params.text,
+      textShowMode: this.latestConfig(params.channelId).textShowMode,
     });
+  }
+
+  /** Создаёт сообщение к донату: прогон модерации, дедуп, карантин-инцидент. Привязка donation.message. */
+  private buildMessage(donation: Donation, text: string, ts: string): MessageRef {
+    const cfg = this.latestConfig(donation.channelId);
+    const { verdict, lang, contentHash, deduped } = runPipeline(text, this.modCache, {
+      scope: donation.channelId,
+    });
+    const isHardBlock = verdict === "HARD_BLOCK";
+    const autoShow = !isHardBlock && cfg.textShowMode === "auto_if_clean" && verdict === "CLEAR";
+    const messageId = this.nextId("m");
+    const message: MessageRef = {
+      id: messageId,
+      donationId: donation.id,
+      channelId: donation.channelId,
+      text,
+      lang,
+      state: isHardBlock ? "QUARANTINED" : autoShow ? "SHOWN" : "HELD",
+      autoVerdict: verdict,
+      contentHash,
+      shownAt: autoShow ? ts : undefined,
+      createdAt: ts,
+    };
+    this.messages.set(messageId, message);
+    donation.message = message;
+    if (isHardBlock && !deduped) {
+      this.incidents.push({
+        id: this.nextId("inc"),
+        channelId: donation.channelId,
+        kind: "hard_block",
+        detail: "Авто-карантин: hard-block в тексте доната.",
+        ts,
+      });
+    }
+    return message;
   }
 
   /** Общая запись доната: банкинг очков СРАЗУ, текст → HELD/модерация (инварианты §4). */
@@ -495,37 +548,7 @@ export class MockDataProvider implements DataProvider {
       txSignature: p.signature,
       ts,
     });
-    if (p.text) {
-      const { verdict, lang, contentHash, deduped } = runPipeline(p.text, this.modCache, {
-        scope: p.channelId,
-      });
-      const isHardBlock = verdict === "HARD_BLOCK";
-      const autoShow = !isHardBlock && p.textShowMode === "auto_if_clean" && verdict === "CLEAR";
-      const messageId = this.nextId("m");
-      const message: MessageRef = {
-        id: messageId,
-        donationId,
-        channelId: p.channelId,
-        text: p.text,
-        lang,
-        state: isHardBlock ? "QUARANTINED" : autoShow ? "SHOWN" : "HELD",
-        autoVerdict: verdict,
-        contentHash,
-        shownAt: autoShow ? ts : undefined,
-        createdAt: ts,
-      };
-      this.messages.set(messageId, message);
-      donation.message = message;
-      if (isHardBlock && !deduped) {
-        this.incidents.push({
-          id: this.nextId("inc"),
-          channelId: p.channelId,
-          kind: "hard_block",
-          detail: "Авто-карантин: hard-block в тексте доната.",
-          ts,
-        });
-      }
-    }
+    if (p.text) this.buildMessage(donation, p.text, ts);
     this.donations.push(donation);
     const standing = this.standingFor(p.channelId, p.donor)!;
     const tierChanged = tierBefore !== undefined && tierBefore !== standing.tier.name;
