@@ -36,7 +36,8 @@ interface RpcResponse<T> {
  * /connect работают и под `api`. Оверлей-подписка — заглушка (SSE — дальнейший шаг).
  */
 export class ApiDataProvider implements DataProvider {
-  private address: Address | null = null;
+  private address: Address | null = null; // DEV-личность (mock/api без кошелька); в проде сервер игнорит
+  private token: string | null = null; // session-токен после проверки SIWS-подписи — реальная личность
   private failMode = false;
 
   private async rpc<T>(method: string, args: unknown[]): Promise<T> {
@@ -45,7 +46,7 @@ export class ApiDataProvider implements DataProvider {
       res = await fetch("/api/v1/rpc", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: encode({ method, args, address: this.address, failMode: this.failMode }),
+        body: encode({ method, args, token: this.token, address: this.address, failMode: this.failMode }),
       });
     } catch {
       throw new DataError("NETWORK", "Сеть недоступна или сервер не отвечает.");
@@ -73,12 +74,22 @@ export class ApiDataProvider implements DataProvider {
     return this.rpc("connect", []);
   }
   disconnect(): Result<void> {
+    const p = this.rpc<void>("disconnect", []); // пока токен ещё в теле — сервер его погасит
     this.address = null;
-    return this.rpc("disconnect", []);
+    this.token = null;
+    return p;
   }
   /** Приём ончейн-доната по подписи (сервер валидирует из цепочки). Вне DataProvider — для chain. */
   ingestSignature(signature: string): Promise<{ ok: boolean; reason?: string; points?: number }> {
     return this.rpc("ingestSignature", [signature]);
+  }
+  /** SIWS шаг 1: получить nonce + каноническое сообщение для подписи. Вне DataProvider — для chain. */
+  authNonce(address: Address): Promise<{ nonce: string; message: string }> {
+    return this.rpc("__authNonce", [address]);
+  }
+  /** SIWS шаг 3: отдать подпись, получить session-токен. Вне DataProvider — для chain. */
+  authVerify(address: Address, signatureB64: string): Promise<{ token: string; exp: number }> {
+    return this.rpc("__authVerify", [address, signatureB64]);
   }
   getProfile(address: Address): Result<LightProfile | null> {
     return this.rpc("getProfile", [address]);
@@ -182,6 +193,13 @@ export class ApiDataProvider implements DataProvider {
   __getAddress(): Address | null {
     return this.address;
   }
+  /** Проверенный session-токен (выставляет chain-слой после SIWS). */
+  __setToken(token: string | null) {
+    this.token = token;
+  }
+  __getToken(): string | null {
+    return this.token;
+  }
   __setFailMode(on: boolean) {
     this.failMode = on;
   }
@@ -193,6 +211,7 @@ export class ApiDataProvider implements DataProvider {
   }
   __reset() {
     this.address = null;
+    this.token = null;
     this.failMode = false;
     void this.rpc("__reset", []);
   }

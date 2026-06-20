@@ -42,32 +42,9 @@ export interface Channel {
   createdAt: Iso;
 }
 
-// — Конфиг канала (версионируемый, хэшируемый) —
-export type Curve =
-  | { kind: "linear"; pointsPerUSDC: number } // дефолт: 100
-  | { kind: "sublinear"; alpha: number } // amount^alpha
-  | { kind: "bracket"; brackets: Bracket[] }; // анти-плутократия
-
-export interface Bracket {
-  upToUSDC: number | null; // null = и выше
-  rate: number;
-}
-
-export interface Multiplier {
-  kind: "first_donation" | "streak" | "event";
-  factor: number;
-}
-
-export interface DecayConfig {
-  enabled: boolean; // дефолт false
-  halfLifeDays?: number;
-}
-
-export interface ReputationConfig {
-  curve: Curve;
-  multipliers: Multiplier[];
-  decay: DecayConfig;
-}
+// — Конфиг канала —
+// Курс репутации ФИКСИРОВАН (1 USDC = 100 очков, ADR 0007), не настраивается. Стример настраивает только
+// тиры/пороги (Tier.threshold) — сколько очков нужно для перков/участия в мини-играх.
 
 export interface Perk {
   label: string;
@@ -97,8 +74,7 @@ export interface ModeratorRef {
 export interface ChannelConfig {
   channelId: string;
   version: number;
-  hash: string; // хэш версии конфига (проверяемость)
-  reputation: ReputationConfig;
+  hash: string; // версия конфига (метаданные; курс репутации фиксирован, не версионируется)
   tiers: Tier[];
   minDonation: MicroUSDC;
   minDonationWithText: MicroUSDC;
@@ -273,7 +249,6 @@ export interface CreateChannelInput {
 export type ConfigPatch = Partial<
   Pick<
     ChannelConfig,
-    | "reputation"
     | "tiers"
     | "minDonation"
     | "minDonationWithText"

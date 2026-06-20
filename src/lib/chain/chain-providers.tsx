@@ -23,8 +23,8 @@ export function ChainProviders({ children }: { children: React.ReactNode }) {
 
   return (
     <SolanaWalletProvider>
-      <ChainWalletBridge provider={provider} />
       <QueryClientProvider client={queryClient}>
+        <ChainWalletBridge provider={provider} />
         <DataProviderProvider value={provider}>
           <TooltipProvider delayDuration={200}>
             {children}

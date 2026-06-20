@@ -42,6 +42,17 @@ export function shortAddress(address: string): string {
   return `${address.slice(0, 4)}…${address.slice(-4)}`;
 }
 
+const BASE58_ALPHABET = /^[1-9A-HJ-NP-Za-km-z]+$/;
+
+/**
+ * Дешёвая проверка формата Solana-адреса БЕЗ web3.js (чтобы не тащить Solana-стек в bundle mock/api).
+ * Защищает денежный путь от мусорного payout/адреса (иначе `new PublicKey()` падает на хот-пути).
+ * Это не валидация кривой ed25519 — авторитетную проверку делает сервер (PublicKey) при аутентификации.
+ */
+export function isLikelyBase58Address(s: unknown): s is string {
+  return typeof s === "string" && s.length >= 32 && s.length <= 44 && BASE58_ALPHABET.test(s);
+}
+
 /** Относительное время («3 мин назад»). Только для отображения; абсолютное — в тултипе. */
 export function timeAgo(iso: string): string {
   const diffMs = Date.now() - Date.parse(iso);

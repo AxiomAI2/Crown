@@ -14,7 +14,7 @@ import { Connection, Keypair, LAMPORTS_PER_SOL, sendAndConfirmTransaction, Trans
 import { DEVNET_RPC } from "../src/lib/chain/config";
 import { buildDonationInstructions, splitAmount } from "../src/lib/chain/donation-tx";
 import { parseDonationTx } from "../src/lib/chain/indexer";
-import { bankPoints } from "../src/lib/reputation";
+import { pointsForAmount } from "../src/lib/reputation";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -80,11 +80,7 @@ async function main(): Promise<void> {
   if (!indexed) throw new Error("indexer did not recognize the donation");
 
   const split = splitAmount(amountMicro);
-  const points = bankPoints(
-    indexed.amountMicro,
-    { curve: { kind: "linear", pointsPerUSDC: 100 }, multipliers: [], decay: { enabled: false } },
-    { isFirstDonation: true },
-  );
+  const points = pointsForAmount(indexed.amountMicro);
 
   console.log("\n=== RESULT ===");
   console.log(

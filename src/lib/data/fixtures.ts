@@ -28,13 +28,12 @@ export const DEFAULT_TIERS: Tier[] = [
   },
 ];
 
-/** Конфиг нового канала по умолчанию (linear 100/USDC, дефолтные тиры). */
+/** Конфиг нового канала по умолчанию (курс репутации фиксирован 1$=100; настраиваются тиры и минимумы). */
 export function defaultChannelConfig(channelId: string): ChannelConfig {
   return {
     channelId,
     version: 1,
     hash: `cfg-${channelId}-v1`,
-    reputation: { curve: { kind: "linear", pointsPerUSDC: 100 }, multipliers: [], decay: { enabled: false } },
     tiers: DEFAULT_TIERS,
     minDonation: toMicro(0.1),
     minDonationWithText: toMicro(0.5),

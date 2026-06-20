@@ -1,6 +1,6 @@
 import { OPERATOR_ADDRESS } from "../chain/addresses";
-import { bankPoints, computePoints, resolveTier } from "../reputation";
-import { toMicro } from "../utils";
+import { computePoints, pointsForAmount, resolveTier } from "../reputation";
+import { isLikelyBase58Address, toMicro } from "../utils";
 import { defaultChannelConfig } from "./fixtures";
 import { runPipeline } from "./moderation";
 import {
@@ -110,11 +110,66 @@ export class MockDataProvider implements DataProvider {
     const isCreator = [...this.channelsById.values()].some((c) => c.ownerAddress === address);
     return { address, level: "address_only", isCreator, isOperator: address === OPERATOR_ADDRESS };
   }
+
+  // — Авторизация. Личность = ПРОВЕРЕННЫЙ адрес сессии (выставлен из токена SIWS, см. server/auth.ts).
+  // До этих проверок любой мог слать `address` в теле и выдавать себя за оператора/владельца (дыра C1/C3).
+  private requireSession(): Address {
+    const addr = this.sessionAddress;
+    if (!addr) throw new DataError("NO_SESSION", "Сначала подключи кошелёк и войди (подпись).");
+    return addr;
+  }
+  private requireOperator(): Address {
+    const addr = this.requireSession();
+    if (addr !== OPERATOR_ADDRESS) {
+      throw new DataError("FORBIDDEN", "Действие доступно только оператору платформы.");
+    }
+    return addr;
+  }
+  private channelOr404(channelId: string): Channel {
+    const ch = this.channelsById.get(channelId);
+    if (!ch) throw new DataError("NO_CHANNEL", "Канал не найден.");
+    return ch;
+  }
+  private requireChannelOwner(channelId: string): Channel {
+    const addr = this.requireSession();
+    const ch = this.channelOr404(channelId);
+    if (ch.ownerAddress !== addr) {
+      throw new DataError("FORBIDDEN", "Только владелец канала может это сделать.");
+    }
+    return ch;
+  }
+  /** Владелец или модератор канала. needBlock → нужен скоуп queue_and_block (бан-операции). */
+  private requireChannelManager(channelId: string, needBlock = false): Channel {
+    const addr = this.requireSession();
+    const ch = this.channelOr404(channelId);
+    if (ch.ownerAddress === addr) return ch;
+    const mod = this.latestConfig(channelId).moderators.find((m) => m.address === addr);
+    if (!mod || (needBlock && mod.scope !== "queue_and_block")) {
+      throw new DataError("FORBIDDEN", "Нужны права модератора этого канала.");
+    }
+    return ch;
+  }
+  /** Не бросает — для редакции приватного текста в публичных чтениях (инвариант §4.6). */
+  private isChannelManager(channelId: string): boolean {
+    const addr = this.sessionAddress;
+    if (!addr) return false;
+    const ch = this.channelsById.get(channelId);
+    if (!ch) return false;
+    if (ch.ownerAddress === addr) return true;
+    const cfg = this.configsByChannel.get(channelId)?.slice(-1)[0];
+    return Boolean(cfg?.moderators.some((m) => m.address === addr));
+  }
+  /** Приватный текст (HELD/HIDDEN/QUARANTINED) виден только менеджерам канала; иначе вырезаем (§4.6). */
+  private redactDonation(d: Donation, isManager: boolean): Donation {
+    const m = d.message;
+    if (!m || isManager || m.state === "SHOWN") return d;
+    return { ...d, message: { ...m, text: "" } };
+  }
   private standingFor(channelId: string, donor: Address): ViewerStanding | null {
     const events = this.eventsFor(donor, channelId);
     if (events.length === 0) return null;
     const cfg = this.latestConfig(channelId);
-    const points = computePoints(events, cfg.reputation, this.now());
+    const points = computePoints(events);
     const { tier, nextTier, progressToNext } = resolveTier(points, cfg.tiers);
     const donations = events.filter((e) => e.type === "DONATION");
     const totalDonated = donations.reduce((s, e) => s + e.amount, 0n);
@@ -210,7 +265,7 @@ export class MockDataProvider implements DataProvider {
   }
   async getChannel(handle: string): Result<Channel | null> {
     await this.gate("getChannel");
-    const id = this.handleToId.get(handle);
+    const id = this.handleToId.get(handle.trim().toLowerCase());
     return id ? (this.channelsById.get(id) ?? null) : null;
   }
   async getMyChannel(): Result<Channel | null> {
@@ -229,54 +284,49 @@ export class MockDataProvider implements DataProvider {
   }
   async createChannel(input: CreateChannelInput): Result<Channel> {
     await this.gate("createChannel");
-    const addr = this.session().address;
-    if (!addr) throw new DataError("NO_SESSION", "Сначала подключи кошелёк.");
+    const addr = this.requireSession();
+    // Валидация входов на денежном пути: кривой payout уронил бы сборку tx; handle нормализуем и
+    // проверяем по строгому шаблону, уникальность — БЕЗ учёта регистра (анти-имперсонация @Foo/@foo).
+    const handle = (input.handle ?? "").trim().toLowerCase();
+    if (!/^[a-z0-9_]{3,32}$/.test(handle)) {
+      throw new DataError("BAD_HANDLE", "Handle: 3–32 символа [a-z0-9_].");
+    }
+    if (!isLikelyBase58Address(input.payoutAddress)) {
+      throw new DataError("BAD_PAYOUT", "payoutAddress не похож на Solana-адрес.");
+    }
     if ([...this.channelsById.values()].some((c) => c.ownerAddress === addr)) throw ErrChannelAlreadyExists;
-    if (this.handleToId.has(input.handle)) {
-      throw new DataError("HANDLE_TAKEN", `Handle @${input.handle} уже занят.`);
+    if (this.handleToId.has(handle)) {
+      throw new DataError("HANDLE_TAKEN", `Handle @${handle} уже занят.`);
     }
     const id = this.nextId("ch");
     const channel: Channel = {
       id,
       ownerAddress: addr,
       payoutAddress: input.payoutAddress,
-      handle: input.handle,
+      handle,
       status: "BASIC",
       configVersion: 1,
       createdAt: this.now(),
     };
     this.channelsById.set(id, channel);
-    this.handleToId.set(input.handle, id);
+    this.handleToId.set(handle, id);
     this.configsByChannel.set(id, [defaultChannelConfig(id)]);
     return channel;
   }
   async activateChannel(channelId: string): Result<Channel> {
     await this.gate("activateChannel");
-    const ch = this.channelsById.get(channelId);
-    if (!ch) throw new DataError("NO_CHANNEL", "Канал не найден.");
+    const ch = this.requireChannelOwner(channelId);
     const updated: Channel = { ...ch, status: "ACTIVE", activatedAt: this.now() };
     this.channelsById.set(channelId, updated);
     return updated;
   }
   async updateChannelConfig(channelId: string, patch: ConfigPatch): Result<ChannelConfig> {
     await this.gate("updateChannelConfig");
+    this.requireChannelOwner(channelId);
     const list = this.configsByChannel.get(channelId);
     const current = list?.[list.length - 1];
     if (!list || !current) throw new DataError("NO_CONFIG", "Нет конфига канала.");
-    if (patch.reputation !== undefined) {
-      const version = current.version + 1;
-      const next: ChannelConfig = {
-        ...current,
-        ...patch,
-        version,
-        hash: `cfg-${channelId}-v${version}`,
-        updatedAt: this.now(),
-      };
-      list.push(next);
-      const ch = this.channelsById.get(channelId);
-      if (ch) this.channelsById.set(channelId, { ...ch, configVersion: version });
-      return next;
-    }
+    // Курс репутации фиксирован → версионировать нечего. Тиры/минимумы/настройки применяются сразу.
     const updated: ChannelConfig = { ...current, ...patch, updatedAt: this.now() };
     list[list.length - 1] = updated;
     return updated;
@@ -302,7 +352,7 @@ export class MockDataProvider implements DataProvider {
     const entries: LeaderboardEntry[] = [];
     for (const donor of donors) {
       const events = this.eventsFor(donor, channelId).filter((e) => inPeriod(e.ts));
-      const points = computePoints(events, cfg.reputation, this.now());
+      const points = computePoints(events);
       if (points <= 0) continue;
       const totalDonated = events.filter((e) => e.type === "DONATION").reduce((s, e) => s + e.amount, 0n);
       entries.push({
@@ -384,8 +434,7 @@ export class MockDataProvider implements DataProvider {
     signature?: string;
   }): DonationResult {
     const cfg = this.latestConfig(p.channelId);
-    const isFirst = this.eventsFor(p.donor, p.channelId).every((e) => e.type !== "DONATION");
-    const pointsDelta = bankPoints(p.amount, cfg.reputation, { isFirstDonation: isFirst });
+    const pointsDelta = pointsForAmount(p.amount); // фиксировано: 1 USDC = 100 очков
     const ts = this.now();
     const tierBefore = this.standingFor(p.channelId, p.donor)?.tier.name;
     const donationId = this.nextId("d");
@@ -452,15 +501,18 @@ export class MockDataProvider implements DataProvider {
 
   async listDonations(channelId: string, _opts?: ListOpts): Result<Page<Donation>> {
     await this.gate("listDonations");
+    const isManager = this.isChannelManager(channelId);
     const items = this.donations
       .filter((d) => d.channelId === channelId)
-      .sort((a, b) => (a.ts < b.ts ? 1 : -1));
+      .sort((a, b) => (a.ts < b.ts ? 1 : -1))
+      .map((d) => this.redactDonation(d, isManager));
     return { items };
   }
 
   // — Модерация —
   async getModerationQueue(channelId: string): Result<MessageRef[]> {
     await this.gate("getModerationQueue");
+    this.requireChannelManager(channelId); // приватный текст — только менеджерам (§4.6)
     return [...this.messages.values()]
       .filter((m) => m.channelId === channelId && m.state === "HELD")
       .sort((a, b) => {
@@ -474,6 +526,7 @@ export class MockDataProvider implements DataProvider {
     await this.gate("setMessageState");
     const msg = this.messages.get(messageId);
     if (!msg) throw new DataError("NO_MESSAGE", "Сообщение не найдено.");
+    this.requireChannelManager(msg.channelId); // показ/скрытие — решение публикации, только менеджер
     const updated: MessageRef = { ...msg, state, shownAt: state === "SHOWN" ? this.now() : msg.shownAt };
     this.messages.set(messageId, updated);
     const donation = this.donations.find((d) => d.id === msg.donationId);
@@ -488,15 +541,17 @@ export class MockDataProvider implements DataProvider {
   // — Канальный блок-лист —
   async getChannelBlocklist(channelId: string): Result<ChannelBlock[]> {
     await this.gate("getChannelBlocklist");
+    this.requireChannelManager(channelId);
     return this.blocks.filter((b) => b.channelId === channelId);
   }
   async addChannelBlock(channelId: string, address: Address, reason?: string): Result<ChannelBlock> {
     await this.gate("addChannelBlock");
+    const byModerator = this.requireChannelManager(channelId, true) && this.requireSession();
     const block: ChannelBlock = {
       channelId,
       blockedAddress: address,
       reason,
-      byModerator: this.session().address ?? "unknown",
+      byModerator,
       ts: this.now(),
     };
     this.blocks.push(block);
@@ -504,29 +559,32 @@ export class MockDataProvider implements DataProvider {
   }
   async removeChannelBlock(channelId: string, address: Address): Result<void> {
     await this.gate("removeChannelBlock");
+    this.requireChannelManager(channelId, true);
     this.blocks = this.blocks.filter((b) => !(b.channelId === channelId && b.blockedAddress === address));
   }
 
   // — Оператор / T&S —
   async getOperatorQueue(): Result<IncidentLog[]> {
     await this.gate("getOperatorQueue");
+    this.requireOperator();
     return [...this.incidents].sort((a, b) => (a.ts < b.ts ? 1 : -1));
   }
   async applyOperatorAction(
     action: Omit<OperatorAction, "id" | "ts" | "byOperator">,
   ): Result<OperatorAction> {
     await this.gate("applyOperatorAction");
+    const operator = this.requireOperator(); // только оператор: бан/заморозка каналов, ADMIN_VOID (§4.5)
     const full: OperatorAction = {
       ...action,
       id: this.nextId("op"),
       ts: this.now(),
-      byOperator: this.session().address ?? "operator",
+      byOperator: operator,
     };
     this.operatorActions.push(full);
     if (action.action === "ADMIN_VOID" && action.targetAddress && action.targetChannelId) {
       const events = this.eventsFor(action.targetAddress, action.targetChannelId);
       const cfg = this.latestConfig(action.targetChannelId);
-      const points = computePoints(events, cfg.reputation, this.now());
+      const points = computePoints(events);
       this.ledger.push({
         id: this.nextId("l"),
         donor: action.targetAddress,
@@ -561,6 +619,7 @@ export class MockDataProvider implements DataProvider {
   }
   async getIncidentLog(_opts?: ListOpts): Result<Page<IncidentLog>> {
     await this.gate("getIncidentLog");
+    this.requireOperator();
     const items = [...this.incidents].sort((a, b) => (a.ts < b.ts ? 1 : -1));
     return { items };
   }

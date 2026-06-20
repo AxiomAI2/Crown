@@ -37,41 +37,127 @@ import type {
  *
  * Кошелёк инжектится из React-дерева (useWallet) через setWallet — класс не вызывает хуки.
  */
+const SIWS_STORAGE_KEY = "standing.siws.v1";
+
+/** Uint8Array → base64 без Buffer (браузер). Подпись 64 байта — простая реализация достаточна. */
+function toBase64(bytes: Uint8Array): string {
+  let s = "";
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s);
+}
+
 export class ChainDataProvider implements DataProvider {
   private api = new ApiDataProvider();
   private connection = new Connection(DEVNET_RPC, "confirmed");
   private wallet: WalletContextState | null = null;
+  private authedAddress: string | null = null; // адрес, по которому уже есть проверенный токен
+  private authing: Promise<boolean> | null = null;
 
   setWallet(wallet: WalletContextState | null) {
     this.wallet = wallet;
-    // Адрес кошелька — личность бэкенд-запросов (создание канала, чтение standing и т.д.).
-    this.api.__setAddress(wallet?.publicKey?.toBase58() ?? null);
+    // Личность бэкенда теперь = ПРОВЕРЕННЫЙ токен (ensureAuth), не голый pubkey (закрыта дыра C1).
+    // Сменился/отключился кошелёк → роняем токен; новый вход потребует подписи.
+    const addr = wallet?.publicKey?.toBase58() ?? null;
+    if (addr !== this.authedAddress) this.clearAuth();
   }
   private address(): string | null {
     return this.wallet?.publicKey?.toBase58() ?? null;
   }
 
+  // — Аутентификация (SIWS): nonce от сервера → подпись кошельком → session-токен —
+  private clearAuth() {
+    this.authedAddress = null;
+    this.api.__setToken(null);
+  }
+  private loadStoredToken(address: string): string | null {
+    if (typeof localStorage === "undefined") return null;
+    try {
+      const o = JSON.parse(localStorage.getItem(SIWS_STORAGE_KEY) ?? "null") as {
+        address: string;
+        token: string;
+        exp: number;
+      } | null;
+      if (o && o.address === address && o.exp > Date.now()) return o.token;
+    } catch {
+      /* битый/пустой стор */
+    }
+    return null;
+  }
+  private storeToken(address: string, token: string, exp: number) {
+    try {
+      localStorage?.setItem(SIWS_STORAGE_KEY, JSON.stringify({ address, token, exp }));
+    } catch {
+      /* приватный режим/квота — не критично, останемся без персистентности */
+    }
+  }
+  private clearStoredToken() {
+    try {
+      localStorage?.removeItem(SIWS_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * Гарантирует проверенную личность для подключённого кошелька. Идемпотентно: при уже валидном токене
+   * (в памяти или localStorage) НЕ просит подпись повторно. Возвращает true, если состояние изменилось
+   * (повод инвалидировать кэш запросов). Донаты не зовут этот метод — донатить можно без входа.
+   */
+  async ensureAuth(): Promise<boolean> {
+    const w = this.wallet;
+    if (!w?.connected || !w.publicKey) {
+      if (this.authedAddress) {
+        this.clearAuth();
+        return true;
+      }
+      return false;
+    }
+    const address = w.publicKey.toBase58();
+    if (this.authedAddress === address) return false;
+    if (this.authing) return this.authing;
+
+    const p = (async () => {
+      const stored = this.loadStoredToken(address);
+      if (stored) {
+        this.api.__setToken(stored);
+        this.authedAddress = address;
+        return true;
+      }
+      if (!w.signMessage) throw new DataError("NO_SIGN", "Кошелёк не умеет подписывать сообщения.");
+      const { message } = await this.api.authNonce(address);
+      const sig = await w.signMessage(new TextEncoder().encode(message));
+      const { token, exp } = await this.api.authVerify(address, toBase64(sig));
+      this.api.__setToken(token);
+      this.storeToken(address, token, exp);
+      this.authedAddress = address;
+      return true;
+    })();
+    this.authing = p;
+    p.finally(() => {
+      if (this.authing === p) this.authing = null;
+    });
+    return p;
+  }
+
   // — Кошелёк (ончейн) —
   async getSession(): Result<Session> {
-    // Бэкенд считает isCreator/isOperator по адресу (его установил setWallet).
-    return this.api.getSession();
+    return this.api.getSession(); // личность сервер берёт из проверенного токена (ensureAuth)
   }
   async connect(): Result<Session> {
     const w = this.wallet;
     if (!w) throw new DataError("NO_WALLET", "Кошелёк не подключён.");
     if (!w.connected) await w.connect();
-    this.api.__setAddress(w.publicKey?.toBase58() ?? null);
-    // Sign-In-With-Solana: подпись сообщения без газа.
-    if (w.signMessage && w.publicKey) {
-      const msg = new TextEncoder().encode(
-        `Standing — вход\naddress: ${w.publicKey.toBase58()}\nnonce: ${w.publicKey.toBase58().slice(0, 8)}`,
-      );
-      await w.signMessage(msg);
-    }
+    await this.ensureAuth(); // настоящий SIWS: серверный nonce + проверка подписи на бэкенде
     return this.api.getSession();
   }
   async disconnect(): Result<void> {
-    this.api.__setAddress(null);
+    try {
+      await this.api.disconnect(); // пока токен в теле — сервер его погасит
+    } catch {
+      /* всё равно чистим локально */
+    }
+    this.clearAuth();
+    this.clearStoredToken();
     await this.wallet?.disconnect?.();
   }
 

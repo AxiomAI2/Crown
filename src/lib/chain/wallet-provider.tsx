@@ -4,6 +4,7 @@ import { ConnectionProvider, useWallet, WalletProvider } from "@solana/wallet-ad
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import type { ChainDataProvider } from "@/lib/data/chain-provider";
 import { DEVNET_RPC } from "./config";
@@ -26,11 +27,28 @@ export function SolanaWalletProvider({ children }: { children: React.ReactNode }
   );
 }
 
-/** Инжектит состояние кошелька (useWallet) в ChainDataProvider — класс не вызывает хуки. */
+/**
+ * Инжектит состояние кошелька (useWallet) в ChainDataProvider — класс не вызывает хуки. После подключения
+ * запускает SIWS-вход (серверный nonce + проверка подписи); при смене авторизации инвалидирует кэш, чтобы
+ * session/myChannel перечитались под новой личностью. Должен жить ВНУТРИ QueryClientProvider.
+ */
 export function ChainWalletBridge({ provider }: { provider: ChainDataProvider }) {
   const wallet = useWallet();
+  const qc = useQueryClient();
   useEffect(() => {
     provider.setWallet(wallet);
-  }, [provider, wallet]);
+    let cancelled = false;
+    provider
+      .ensureAuth()
+      .then((changed) => {
+        if (changed && !cancelled) void qc.invalidateQueries();
+      })
+      .catch(() => {
+        // Пользователь отклонил подпись — остаёмся анонимом. Донатить всё равно можно (вход не нужен).
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [provider, wallet, qc]);
   return null;
 }

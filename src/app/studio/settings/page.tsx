@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ReputationFormulaEditor, TierEditor } from "@/components/domain/settings";
+import { TierEditor } from "@/components/domain/settings";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
@@ -10,17 +10,9 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import { useChannelConfig, useMyChannel, useUpdateConfig } from "@/lib/data/hooks";
 import { fromMicro, toMicro } from "@/lib/utils";
-import type {
-  ChannelConfig,
-  ConfigPatch,
-  ModeratorRef,
-  OverlaySettings,
-  ReputationConfig,
-  Tier,
-} from "@/lib/data/types";
+import type { ChannelConfig, ConfigPatch, ModeratorRef, OverlaySettings, Tier } from "@/lib/data/types";
 
 interface Draft {
-  reputation: ReputationConfig;
   tiers: Tier[];
   minDonation: bigint;
   minDonationWithText: bigint;
@@ -34,7 +26,6 @@ interface Draft {
 
 function deriveDraft(c: ChannelConfig): Draft {
   return {
-    reputation: c.reputation,
     tiers: c.tiers,
     minDonation: c.minDonation,
     minDonationWithText: c.minDonationWithText,
@@ -53,7 +44,6 @@ const eq = (a: unknown, b: unknown) => enc(a) === enc(b);
 
 function buildPatch(draft: Draft, original: ChannelConfig): ConfigPatch {
   const patch: ConfigPatch = {};
-  if (!eq(draft.reputation, original.reputation)) patch.reputation = draft.reputation;
   if (!eq(draft.tiers, original.tiers)) patch.tiers = draft.tiers;
   if (draft.minDonation !== original.minDonation) patch.minDonation = draft.minDonation;
   if (draft.minDonationWithText !== original.minDonationWithText)
@@ -96,12 +86,7 @@ export default function ChannelSettingsPage() {
 
   function save() {
     update.mutate(patch, {
-      onSuccess: () =>
-        toast({
-          variant: "success",
-          title: "Сохранено",
-          description: patch.reputation ? "Формула изменена — поднята версия конфига." : undefined,
-        }),
+      onSuccess: () => toast({ variant: "success", title: "Сохранено" }),
       onError: (e) => toast({ variant: "error", title: "Ошибка сохранения", description: String(e) }),
     });
   }
@@ -110,11 +95,11 @@ export default function ChannelSettingsPage() {
     <div className="flex flex-col gap-8 pb-24">
       <h1 className="text-display-l text-fg">Настройки канала</h1>
 
-      <Section title="Репутационная формула">
-        <ReputationFormulaEditor value={draft.reputation} onChange={(r) => set("reputation", r)} />
-      </Section>
-
-      <Section title="Тиры и статус">
+      <Section title="Тиры и пороги участия">
+        <p className="text-small text-fg-muted">
+          Репутация начисляется фиксированно: <span className="mono">1 USDC = 100 очков</span>. Здесь ты
+          задаёшь пороги в очках — сколько нужно для тира, перков и участия в мини-играх.
+        </p>
         <TierEditor value={draft.tiers} onChange={(t) => set("tiers", t)} />
       </Section>
 

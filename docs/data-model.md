@@ -67,26 +67,13 @@ interface Channel {
 
 ---
 
-## 4. Конфиг канала (версионируемый, хэшируемый)
+## 4. Конфиг канала
+
+> Курс репутации ФИКСИРОВАН: `1 USDC = 100 очков` (ADR 0007), не настраивается. Поэтому нет
+> `ReputationConfig`/`Curve`/`Multiplier`/`Decay` и нет версионирования формулы. Стример настраивает
+> только тиры/пороги (`Tier.threshold`) и прочие параметры ниже.
 
 ```ts
-type Curve =
-  | { kind: "linear"; pointsPerUSDC: number }            // дефолт: 100
-  | { kind: "sublinear"; alpha: number }                 // amount^alpha
-  | { kind: "bracket"; brackets: Bracket[] };            // анти-плутократия
-
-interface Bracket { upToUSDC: number | null; rate: number } // null = и выше
-
-interface Multiplier { kind: "first_donation" | "streak" | "event"; factor: number }
-
-interface DecayConfig { enabled: boolean; halfLifeDays?: number } // дефолт enabled:false
-
-interface ReputationConfig {
-  curve: Curve;
-  multipliers: Multiplier[];
-  decay: DecayConfig;
-}
-
 interface Tier {
   name: string;
   threshold: Points;          // порог в очках
@@ -99,9 +86,8 @@ interface Perk { label: string; condition?: string }   // в ядре — фла
 
 interface ChannelConfig {
   channelId: string;
-  version: number;
-  hash: string;               // хэш версии конфига (проверяемость §arch)
-  reputation: ReputationConfig;
+  version: number;            // метаданные (курс репутации фиксирован, не версионируется)
+  hash: string;
   tiers: Tier[];
   minDonation: MicroUSDC;          // обычный донат
   minDonationWithText: MicroUSDC;  // донат-с-текстом (раздельно)
@@ -121,9 +107,9 @@ interface OverlaySettings {
 interface ModeratorRef { address: Address; scope: "queue" | "queue_and_block" }
 ```
 
-> **Банкинг:** при создании события DONATION в журнал пишется `config_version`, по которому посчитаны
-> очки. Последующая смена `curve`/rate **не** пересчитывает прошлые события (защита от рагпулла статуса).
-> Тиры и косметика — чистая презентация, меняются свободно и применяются к текущему числу очков.
+> **Очки:** при создании события DONATION пишется `points_delta = round(amount_usdc × 100)` (фиксировано,
+> ADR 0007). Тиры/пороги и косметика — чистая презентация, меняются свободно и применяются к текущему
+> числу очков (прошлое не пересчитывается).
 
 ---
 

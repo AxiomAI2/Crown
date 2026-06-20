@@ -58,7 +58,12 @@
       "Bash(curl -s -o /dev/null -w '%{http_code}' --retry 30 --retry-delay 1 --retry-connrefused --max-time 90 http://localhost:3000/)",
       "Bash(echo \"/ → $\\(curl -s -o /dev/null -w '%{http_code}' --retry 30 --retry-delay 1 --retry-connrefused --max-time 90 http://localhost:3000/\\)\")",
       "Bash(curl -s -o /dev/null -w '%{http_code}' --max-time 60 http://localhost:3000/c/lumi)",
-      "Bash(echo \"/c/lumi → $\\(curl -s -o /dev/null -w '%{http_code}' --max-time 60 http://localhost:3000/c/lumi\\)\")"
+      "Bash(echo \"/c/lumi → $\\(curl -s -o /dev/null -w '%{http_code}' --max-time 60 http://localhost:3000/c/lumi\\)\")",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(python3 -m json.tool ~/.claude/settings.json)",
+      "Bash(python3 -c 'import json;print\\(json.load\\(open\\('\\\\''/home/jab/.claude/settings.json'\\\\''\\)\\)['\\\\''permissions'\\\\'']['\\\\''defaultMode'\\\\'']\\)')",
+      "Bash(grep -iE 'env|secret|key|treasury|wallet|\\\\.json$')"
     ]
   }
 }
