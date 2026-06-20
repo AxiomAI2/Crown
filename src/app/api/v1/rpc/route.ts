@@ -1,4 +1,5 @@
 import { decode, encode } from "@/lib/data/codec";
+import { DataError } from "@/lib/data/provider";
 import type { Address } from "@/lib/data/types";
 import { issueNonce, resolveToken, revokeToken, verifyAndIssueToken } from "@/server/auth";
 import { ingestActivation, ingestSignature } from "@/server/ingest";
@@ -58,6 +59,13 @@ function json(payload: unknown, status = 200): Response {
 function rpcError(code: string, message: string, status = 200): Response {
   return json({ ok: false, error: { code, message } }, status);
 }
+// R4 (ADR 0012): клиенту отдаём текст ошибки ТОЛЬКО для доменных DataError (они написаны для пользователя).
+// Прочие (web3.js/PublicKey/сбой RPC/баг) → общий текст, а детали — в серверный лог, чтобы не утекали.
+function caughtError(e: unknown, fallbackCode = "ERROR"): Response {
+  if (e instanceof DataError) return json({ ok: false, error: { code: e.code, message: e.message } });
+  console.error("[rpc] необработанная ошибка:", e);
+  return json({ ok: false, error: { code: fallbackCode, message: "Внутренняя ошибка сервера." } });
+}
 
 export async function POST(req: Request): Promise<Response> {
   let body: RpcBody;
@@ -66,6 +74,11 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return rpcError("BAD_BODY", "Невалидное тело запроса", 400);
   }
+  if (typeof body?.method !== "string") return rpcError("BAD_BODY", "нужен method", 400);
+  // args нормализуем здесь: не-массив (объект/строка/число) ловим до dispatch, иначе fn.apply бросил бы
+  // сырой TypeError, утекающий клиенту (R3, ADR 0012). undefined → пустой список аргументов.
+  if (body.args === undefined || body.args === null) body.args = [];
+  if (!Array.isArray(body.args)) return rpcError("BAD_ARGS", "args должен быть массивом", 400);
 
   // — Аутентификация (публичные методы: устанавливают личность, сами её не требуют) —
   if (body.method === "__authNonce") {
@@ -89,12 +102,15 @@ export async function POST(req: Request): Promise<Response> {
   store.__setLatencyScale(0);
   store.__setFailMode(!IS_PROD && Boolean(body.failMode)); // L1: инъекция ошибок — только dev-тулинг, не из прода
 
-  // Личность запроса — ТОЛЬКО из проверенного токена. В dev (не prod) допускаем вход по адресу без
-  // подписи для mock/api-тулинга; в проде `address` игнорируется полностью (дыра C1 закрыта).
-  // H3: личность НЕ кладётся в поле singleton-стора — она несётся per-request через AsyncLocalStorage
+  // Личность запроса — ТОЛЬКО из проверенного токена. Вход по голому адресу без подписи допускается
+  // лишь как dev-тулинг для mock/api и ТОЛЬКО когда это безопасно: не prod И не денежный chain-режим.
+  // Иначе (prod, либо staging в chain-режиме без NODE_ENV=production) `address` игнорируется — иначе
+  // любой бы выдал себя за владельца/оператора при работающих деньгах (расширение C1-защиты, ADR 0012).
+  // Личность НЕ кладётся в поле singleton-стора — она несётся per-request через AsyncLocalStorage
   // (runWithIdentity вокруг диспатча ниже), иначе конкурентные RPC перетирали бы сессию друг друга.
+  const allowDevIdentity = !IS_PROD && !CHAIN_MODE;
   const verified = resolveToken(body.token);
-  const identity = verified ?? (IS_PROD ? null : (body.address ?? null));
+  const identity = verified ?? (allowDevIdentity ? (body.address ?? null) : null);
 
   // Dev-сброс стора — только вне прода и никогда из обычного диспатча.
   if (body.method === "__reset") {
@@ -112,12 +128,8 @@ export async function POST(req: Request): Promise<Response> {
       const result = await ingestSignature(store, sig, typeof text === "string" ? text : undefined);
       return json({ ok: true, result });
     } catch (e) {
-      // Кривая/неизвестная подпись (или сбой RPC) роняла публичный эндпоинт в 500 — отдаём чистую ошибку.
-      const err = e as { code?: string; message?: string };
-      return json({
-        ok: false,
-        error: { code: err.code ?? "INGEST_ERROR", message: err.message ?? String(e) },
-      });
+      // Кривая/неизвестная подпись или сбой RPC иначе ронял публичный эндпоинт в 500 (детали — в лог).
+      return caughtError(e, "INGEST_ERROR");
     }
   }
 
@@ -129,11 +141,7 @@ export async function POST(req: Request): Promise<Response> {
       const result = await ingestActivation(store, sig);
       return json({ ok: true, result });
     } catch (e) {
-      const err = e as { code?: string; message?: string };
-      return json({
-        ok: false,
-        error: { code: err.code ?? "INGEST_ERROR", message: err.message ?? String(e) },
-      });
+      return caughtError(e, "INGEST_ERROR");
     }
   }
 
@@ -163,13 +171,9 @@ export async function POST(req: Request): Promise<Response> {
   try {
     // H3: диспатч идёт в контексте per-request личности (AsyncLocalStorage), а не из поля singleton —
     // конкурентные RPC не перетирают друг другу сессию, в т.ч. при реальных await (Postgres).
-    const result = await runWithIdentity(identity, () => fn.apply(store, body.args ?? []));
+    const result = await runWithIdentity(identity, () => fn.apply(store, body.args));
     return json({ ok: true, result });
   } catch (e) {
-    const err = e as { code?: string; message?: string };
-    return json({
-      ok: false,
-      error: { code: err.code ?? "ERROR", message: err.message ?? String(e) },
-    });
+    return caughtError(e);
   }
 }

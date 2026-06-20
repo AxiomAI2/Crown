@@ -13,7 +13,8 @@ export const ACTIVATION_FEE_MICRO = BigInt(ACTIVATION_FEE_USDC) * 1_000_000n;
 
 export const USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
-const IS_PROD = process.env.NODE_ENV === "production";
+/** Единая точка истины для prod-гейта (реэкспортируется из @/server/runtime). */
+export const IS_PROD = process.env.NODE_ENV === "production";
 
 // Известные devnet-дефолты (адрес трежери + Circle devnet USDC). Их происхождение/секрет публичны
 // (.treasury-devnet.json, faucet), поэтому на mainnet они ЗАПРЕЩЕНЫ: использовать devnet-трежери в проде =

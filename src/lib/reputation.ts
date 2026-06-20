@@ -5,14 +5,21 @@
  * (CLAUDE.md §4.4): одинаковый журнал → одинаковая цифра везде.
  */
 import type { LedgerEvent, MicroUSDC, Points, Tier } from "./data/types";
-import { fromMicro } from "./utils";
 
 /** Фиксированный курс начисления. */
 export const POINTS_PER_USDC = 100;
 
-/** Очки за донат: ровно сумма × 100, округление до целого. Не настраивается. */
+/** Сколько micro-USDC даёт 1 очко: 1e6 micro/USDC ÷ 100 очков/USDC = 10_000 micro/очко. */
+const MICRO_PER_POINT = 1_000_000n / BigInt(POINTS_PER_USDC);
+
+/**
+ * Очки за донат: сумма × 100, округление до целого. Считаем ЦЕЛОЧИСЛЕННО в bigint (не через float),
+ * иначе на больших суммах Number(micro) теряет точность и независимый пересчёт не сойдётся (инвариант
+ * §4.4 — детерминизм; R1/ADR 0012). Округление к ближайшему: (micro + полшага) / шаг. Суммы доната ≥ 0.
+ */
 export function pointsForAmount(amountMicro: MicroUSDC): Points {
-  return Math.round(fromMicro(amountMicro) * POINTS_PER_USDC);
+  if (amountMicro <= 0n) return 0;
+  return Number((amountMicro + MICRO_PER_POINT / 2n) / MICRO_PER_POINT);
 }
 
 /**

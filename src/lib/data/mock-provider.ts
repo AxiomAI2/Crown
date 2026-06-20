@@ -49,6 +49,11 @@ const FAILABLE = new Set([
   "getIncidentLog",
 ]);
 
+// R6 (ADR 0012): верхняя граница кэша дедупа модерации (in-memory стенд-ин под Postgres). При переполнении
+// вытесняем старейшие записи (Map хранит порядок вставки) — повтор вытесненного контента просто
+// будет переоценён заново, корректности не ломает.
+const MOD_CACHE_CAP = 5000;
+
 /**
  * In-memory backend-store. Личность — РЕАЛЬНЫЙ адрес кошелька (Фаза 3): нет фикстур и dev-личностей,
  * каналы создают пользователи, ончейн-донаты принимаются через recordDonationFromChain (после валидации
@@ -89,11 +94,12 @@ export class MockDataProvider implements DataProvider {
     return `${prefix}-${this.now()}-${this.seq}`;
   }
   private async gate(method: string): Promise<void> {
+    // На сервере latencyScale=0 и failMode выкл → ни задержки, ни инъекции сбоев: пропускаем всю работу
+    // (R8/ADR 0012). Личность несётся per-request через AsyncLocalStorage (ADR 0010), не перетирая чужую.
+    if (this.latencyScale === 0 && !this.failMode) return;
     let h = 0;
     for (const ch of method) h = (h * 31 + ch.charCodeAt(0)) % 997;
     const ms = (120 + (h / 997) * 380) * this.latencyScale;
-    // latencyScale=0 на сервере — лишь чтобы не добавлять искусственную задержку. Личность теперь несётся
-    // per-request через AsyncLocalStorage (H3), поэтому уступка macrotask больше НЕ перетирает чужую сессию.
     if (ms > 0) await new Promise((r) => setTimeout(r, ms));
     if (this.failMode && FAILABLE.has(method)) {
       throw new DataError("MOCK_FAIL", `Сбой (${method}) — для проверки error-стейтов.`);
@@ -464,14 +470,15 @@ export class MockDataProvider implements DataProvider {
     const existing = this.donations.find((d) => d.txSignature === params.signature);
     if (existing) {
       if (params.text && !existing.message) {
+        // Поздняя привязка текста к уже принятому донату (клиент/индексер пришли в разном порядке).
         const msg = this.buildMessage(existing, params.text, this.now());
-        const standing = this.standingFor(existing.channelId, existing.donor);
-        if (msg.state === "SHOWN" && standing) {
+        const standing = this.standingFor(existing.channelId, existing.donor)!; // донат уже в журнале
+        if (msg.state === "SHOWN") {
           this.emitOverlay(existing.channelId, { kind: "donation_shown", donation: existing, standing });
         }
-        if (standing) return { donation: existing, standing, tierChanged: false };
+        return { donation: existing, standing, tierChanged: false }; // R7 (ADR 0012): успех, а не null
       }
-      return null; // уже принято, нечего добавить
+      return null; // дубль подписи без нового текста — идемпотентно, добавлять нечего
     }
     const ch = this.channelsById.get(params.channelId);
     if (!ch) return null;
@@ -493,6 +500,11 @@ export class MockDataProvider implements DataProvider {
     const { verdict, lang, contentHash, deduped } = runPipeline(text, this.modCache, {
       scope: donation.channelId,
     });
+    while (this.modCache.size > MOD_CACHE_CAP) {
+      const oldest = this.modCache.keys().next().value;
+      if (oldest === undefined) break;
+      this.modCache.delete(oldest);
+    }
     const isHardBlock = verdict === "HARD_BLOCK";
     const autoShow = !isHardBlock && cfg.textShowMode === "auto_if_clean" && verdict === "CLEAR";
     const messageId = this.nextId("m");
@@ -627,7 +639,9 @@ export class MockDataProvider implements DataProvider {
     reason?: string,
   ): Result<ChannelBlock> {
     await this.gate("addChannelBlock");
-    const byModerator = this.requireChannelManager(channelId, true) && this.requireSession();
+    // R9 (ADR 0012): право и автор — явными вызовами, не через && (было хрупко: значение от side-effect).
+    this.requireChannelManager(channelId, true); // право: владелец или модератор со скоупом бана
+    const byModerator = this.requireSession(); // адрес, записываемый как автор бана
     const block: ChannelBlock = {
       channelId,
       blockedAddress: address,

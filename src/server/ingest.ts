@@ -48,9 +48,13 @@ export async function ingestSignature(
   }
 
   // Трастлесс-привязка текста: memo.m несёт contentHash(текста). Принимаем текст ТОЛЬКО если его хэш
-  // совпал с ончейн-memo (донор подписал именно его). Иначе текст игнорируем — деньги/репутация не зависят.
+  // совпал с ончейн-memo (донор подписал именно его) И длина в пределах лимита канала (R5/ADR 0012 — иначе
+  // донор прислал бы мегабайты на хранение/модерацию/SSE). Иначе текст игнорируем — деньги/репутация не зависят.
+  const maxLen = (await store.getChannelConfig(channelId)).messageMaxLen;
   const verifiedText =
-    text && indexed.memo.m && hashContent(text) === indexed.memo.m ? text : undefined;
+    text && text.length <= maxLen && indexed.memo.m && hashContent(text) === indexed.memo.m
+      ? text
+      : undefined;
 
   const res = store.recordDonationFromChain({
     signature,

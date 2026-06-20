@@ -92,8 +92,6 @@ export class DataError extends Error {
   }
 }
 
-export const ErrNotImplemented = (what: string) =>
-  new DataError("NOT_IMPLEMENTED", `Не реализовано на текущей фазе: ${what}`);
 export const ErrChannelAlreadyExists = new DataError(
   "CHANNEL_ALREADY_EXISTS",
   "У этого кошелька уже есть канал (один канал на кошелёк).",
@@ -115,7 +113,10 @@ export function createDataProvider(source: string | undefined): DataProvider {
     case "api":
       return new ApiDataProvider();
     case "chain":
-      throw ErrNotImplemented("ChainDataProvider (Фаза 3)");
+      // ChainDataProvider РЕАЛИЗОВАН, но включается отдельным путём (app/providers.tsx → chain-providers.tsx,
+      // динамический chunk: Solana-стек не попадает в bundle mock/api, ADR 0004). Через эту фабрику он не
+      // инстанцируется намеренно — она для серверного/SSR-пути, где кошелька нет.
+      throw new DataError("CHAIN_VIA_PROVIDERS", "chain-провайдер подключается в app/providers.tsx (ADR 0004).");
     default:
       throw new DataError("BAD_DATA_SOURCE", `Неизвестный NEXT_PUBLIC_DATA_SOURCE: ${source}`);
   }

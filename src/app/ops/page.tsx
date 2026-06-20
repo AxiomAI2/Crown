@@ -108,7 +108,7 @@ export default function OpsConsolePage() {
             ))}
           </Select>
           <Input label="Причина" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="CSAM / flood / sanctions" />
-          <Input label="ID канала (опц.)" mono value={channelId} onChange={(e) => setChannelId(e.target.value)} placeholder="ch-lumi" />
+          <Input label="ID канала (опц.)" mono value={channelId} onChange={(e) => setChannelId(e.target.value)} placeholder="ch-…" />
           <Input label="Адрес (опц.)" mono value={address} onChange={(e) => setAddress(e.target.value)} />
           <Switch checked={preservation} onCheckedChange={setPreservation} label="Preservation + репорт (NCMEC)" />
         </div>

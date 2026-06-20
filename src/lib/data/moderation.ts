@@ -12,15 +12,15 @@ export interface AutoModerator {
   classify(text: string, lang: string): ModerationVerdict;
 }
 
-const MOCK_HARD_LIST = ["csam", "hardblock", "убейс"];
-const MOCK_FLAG_LIST = ["худший", "лох", "idiot", "scam"];
+const DEFAULT_HARD_LIST = ["csam", "hardblock", "убейс"];
+const DEFAULT_FLAG_LIST = ["худший", "лох", "idiot", "scam"];
 
 /** Локальный авто-модератор по словарю (дефолт). Дёшево закрывает базу; обходится мисспеллингом. */
 export const localAutoModerator: AutoModerator = {
   classify(text) {
     const lower = text.toLowerCase();
-    if (MOCK_HARD_LIST.some((w) => lower.includes(w))) return "HARD_BLOCK";
-    if (MOCK_FLAG_LIST.some((w) => lower.includes(w))) return "FLAG";
+    if (DEFAULT_HARD_LIST.some((w) => lower.includes(w))) return "HARD_BLOCK";
+    if (DEFAULT_FLAG_LIST.some((w) => lower.includes(w))) return "FLAG";
     return "CLEAR";
   },
 };

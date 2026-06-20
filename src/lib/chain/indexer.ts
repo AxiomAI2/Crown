@@ -82,9 +82,12 @@ export function extractDonation(
     }
   }
 
+  // Добросовестный разбор (R2/ADR 0012): донат-tx нашего сборщика несёт РОВНО две ноги этого mint (нетто +
+  // комиссия). Иное число → не наша tx (лишние ноги могли бы сместить netLeg на чужой ATA) — отбраковываем.
+  if (transfers.length !== 2 || !memo) return null;
   const feeLeg = transfers.find((t) => t.dest === treasury);
   const netLeg = transfers.find((t) => t.dest !== treasury);
-  if (!feeLeg || !netLeg || !memo) return null;
+  if (!feeLeg || !netLeg) return null;
   if (feeLeg.authority !== netLeg.authority) return null;
 
   const amount = feeLeg.amount + netLeg.amount;
@@ -137,7 +140,7 @@ export function extractActivation(
   const mint = opts.mint.toBase58();
   const treasury = opts.treasuryAta.toBase58();
 
-  let leg: { amount: bigint; authority: string } | null = null;
+  const transfers: { dest: string; amount: bigint; authority: string }[] = [];
   let act: string | null = null;
 
   for (const ix of tx.transaction.message.instructions) {
@@ -149,12 +152,18 @@ export function extractActivation(
     if (ix.program === "spl-token") {
       const parsed = ix.parsed as SplTransferParsed;
       if (parsed.type !== "transferChecked" || parsed.info?.mint !== mint) continue;
-      if (parsed.info.destination !== treasury) continue;
-      leg = { amount: BigInt(parsed.info.tokenAmount.amount), authority: parsed.info.authority };
+      transfers.push({
+        dest: parsed.info.destination,
+        amount: BigInt(parsed.info.tokenAmount.amount),
+        authority: parsed.info.authority,
+      });
     }
   }
 
-  if (!leg || !act) return null;
+  // Активация-tx нашего сборщика несёт РОВНО одну ногу этого mint — в трежери. Иное → не наша tx.
+  if (transfers.length !== 1 || !act) return null;
+  const leg = transfers[0];
+  if (!leg || leg.dest !== treasury) return null;
   return {
     signature,
     payer: leg.authority,

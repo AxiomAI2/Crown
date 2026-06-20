@@ -99,10 +99,6 @@ export function useOperatorQueue() {
   const data = useData();
   return useQuery({ queryKey: qk.operatorQueue(), queryFn: () => data.getOperatorQueue() });
 }
-export function useIncidentLog() {
-  const data = useData();
-  return useQuery({ queryKey: qk.incidentLog(), queryFn: () => data.getIncidentLog() });
-}
 export function useProfile(address: Address | null | undefined) {
   const data = useData();
   return useQuery({
@@ -113,22 +109,6 @@ export function useProfile(address: Address | null | undefined) {
 }
 
 // — Мутации —
-export function useConnect() {
-  const data = useData();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => data.connect(),
-    onSuccess: () => qc.invalidateQueries(),
-  });
-}
-export function useDisconnect() {
-  const data = useData();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => data.disconnect(),
-    onSuccess: () => qc.invalidateQueries(),
-  });
-}
 export function useDonate(channelId: string) {
   const data = useData();
   const qc = useQueryClient();

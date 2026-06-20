@@ -14,12 +14,6 @@ export type TxSignature = string; // подпись транзакции Solana 
 // — Идентичность и профиль —
 export type ProfileLevel = "address_only" | "light" | "creator";
 
-export interface Identity {
-  address: Address;
-  level: ProfileLevel; // дефолт address_only
-  sns?: string; // опц. .sol-имя
-}
-
 export interface LightProfile {
   address: Address;
   displayName?: string;

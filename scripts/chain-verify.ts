@@ -20,6 +20,7 @@ import {
 } from "../src/lib/chain/donation-tx";
 import { extractActivation, extractDonation } from "../src/lib/chain/indexer";
 import { decodeMemo, encodeActivationMemo, encodeMemo } from "../src/lib/chain/memo";
+import { pointsForAmount } from "../src/lib/reputation";
 
 let failures = 0;
 function check(name: string, cond: boolean, detail?: string) {
@@ -153,6 +154,48 @@ async function verifyIndexer() {
     opts,
   );
   check("tx с ошибкой отклонена (null)", errored === null);
+
+  // R2: лишняя нога того же mint (помимо нетто+комиссии) → не наша tx → null
+  const otherAta = (await getAssociatedTokenAddress(mint, Keypair.generate().publicKey)).toBase58();
+  const leg = (dest: string, amount: string) => ({
+    program: "spl-token",
+    programId: TOKEN_PROGRAM_ID,
+    parsed: {
+      type: "transferChecked",
+      info: { authority: donor.toBase58(), destination: dest, mint: mint.toBase58(), source: "donorAta", tokenAmount: { amount, decimals: 6 } },
+    },
+  });
+  const extraLeg = extractDonation(
+    {
+      blockTime: 1,
+      slot: 1,
+      meta: { err: null, fee: 5000, preBalances: [], postBalances: [] },
+      transaction: {
+        message: {
+          instructions: [
+            leg(streamerAta.toBase58(), "9700000"),
+            leg(treasuryAta.toBase58(), "300000"),
+            leg(otherAta, "1"),
+            { program: "spl-memo", programId: MEMO_PROGRAM_ID, parsed: encodeMemo({ c: "ch-lumi", d: "d-x", m: null }) },
+          ],
+        },
+        signatures: ["sigExtra"],
+      },
+    } as unknown as ParsedTransactionWithMeta,
+    "sigExtra",
+    opts,
+  );
+  check("R2: лишняя нога mint → донат отклонён (null)", extraLeg === null);
+}
+
+function verifyReputation() {
+  console.log("\n— (4) Очки репутации: целочисленность/детерминизм (R1) —");
+  check("1 USDC → 100 очков", pointsForAmount(1_000_000n) === 100);
+  check("0.005 USDC (5000 micro) → 1 очко (округление вверх)", pointsForAmount(5_000n) === 1);
+  check("0.0049 USDC → 0 очков", pointsForAmount(4_900n) === 0);
+  check("0 → 0", pointsForAmount(0n) === 0);
+  // За пределами 2^53 micro Number(micro) уже не целочислен — bigint-путь считает точно.
+  check("huge (2^53+1 micro): точное целое 900719925474", pointsForAmount((1n << 53n) + 1n) === 900719925474);
 }
 
 async function verifyActivation() {
@@ -241,6 +284,7 @@ async function main() {
   await verifyBuilder();
   await verifyIndexer();
   await verifyActivation();
+  verifyReputation();
   console.log(failures === 0 ? "\n✅ ВСЕ ПРОВЕРКИ ПРОШЛИ" : `\n❌ ПРОВАЛОВ: ${failures}`);
   if (failures > 0) process.exit(1);
 }

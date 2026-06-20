@@ -5,8 +5,6 @@
 import { toMicro } from "../utils";
 import type { ChannelConfig, Tier } from "./types";
 
-export const SEED = "standing-v0.1";
-
 // — Тиры по умолчанию (core-spec.md §6, цвета — design-system.md §2) —
 export const DEFAULT_TIERS: Tier[] = [
   { name: "Новичок", threshold: 0, color: "#9AA1B2", badge: "rookie", perks: [] },
