@@ -218,6 +218,11 @@ export default function OpsConsolePage() {
                   <span className="ml-auto text-small text-fg-faint">{timeAgo(inc.ts)}</span>
                 </div>
                 <span className="text-small text-fg-muted">{inc.detail}</span>
+                {inc.text ? (
+                  <p className="rounded bg-surface-raised px-2 py-1 text-small italic text-fg">
+                    «{inc.text}»
+                  </p>
+                ) : null}
                 {inc.resolution ? (
                   <span className="text-small text-fg-faint">→ {inc.resolution}</span>
                 ) : null}

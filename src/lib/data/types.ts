@@ -177,9 +177,10 @@ export interface OperatorAction {
 export interface IncidentLog {
   id: string;
   channelId?: string;
-  address?: Address;
+  address?: Address; // адрес АВТОРА контента (донора) — на кого направлено действие
   kind: "report" | "hard_block" | "sanction_hit" | "flood";
   detail: string;
+  text?: string; // оффенс-контент (за что инцидент); виден только оператору в /ops
   resolution?: string;
   ts: Iso;
 }

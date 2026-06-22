@@ -607,8 +607,10 @@ export class MockDataProvider implements DataProvider {
       this.incidents.push({
         id: this.nextId("inc"),
         channelId: donation.channelId,
+        address: donation.donor, // автор контента — на кого действовать
         kind: "hard_block",
-        detail: "Авто-карантин: hard-block в тексте доната.",
+        detail: "Авто-карантин: запрещёнка в тексте доната.",
+        text,
         ts,
       });
     }
@@ -730,6 +732,7 @@ export class MockDataProvider implements DataProvider {
       throw new DataError("ALREADY_REPORTED", "Ты уже пожаловался на это сообщение.");
     }
     const ts = this.now();
+    const author = this.donations.find((d) => d.id === msg.donationId)?.donor; // автор контента
     this.reports.push({ messageId, channelId: msg.channelId, reporter, reason, ts });
     const count = this.reports.filter((r) => r.messageId === messageId).length;
 
@@ -737,8 +740,10 @@ export class MockDataProvider implements DataProvider {
       this.incidents.push({
         id: this.nextId("inc"),
         channelId: msg.channelId,
+        address: author,
         kind: "report",
-        detail: `Жалоба зрителя на показанный текст${reason ? `: ${reason}` : ""}.`,
+        detail: `Жалоба зрителя${reason ? `: ${reason}` : ""}.`,
+        text: msg.text,
         ts,
       });
     }
@@ -752,8 +757,10 @@ export class MockDataProvider implements DataProvider {
       this.incidents.push({
         id: this.nextId("inc"),
         channelId: msg.channelId,
+        address: author,
         kind: "report",
-        detail: `Авто-скрыто: ${count} жалоб(ы) на текст. Стример/оператор может пересмотреть.`,
+        detail: `Авто-скрыто: ${count} жалоб(ы). Стример/оператор может пересмотреть.`,
+        text: msg.text,
         ts,
       });
       hidden = true;
