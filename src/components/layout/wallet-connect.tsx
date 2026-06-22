@@ -1,27 +1,21 @@
 "use client";
 
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { WalletButton } from "@/lib/chain/wallet-button";
+import { ConnectWalletButton } from "./connect-wallet-button";
 import { useSession } from "@/lib/data/hooks";
 import { shortAddress } from "@/lib/utils";
 
 const IS_CHAIN = process.env.NEXT_PUBLIC_DATA_SOURCE === "chain";
 
-/** Шапка: реальный кошелёк (chain) или dev-вход по адресу (api/mock, через /connect). */
+/** Шапка: auth-aware кнопка кошелька/входа (chain) или адрес сессии (dev mock/api). */
 export function WalletConnectButton() {
   const { data: session, isLoading } = useSession();
 
-  // Режим chain — настоящая кнопка wallet-adapter (Phantom/Solflare на devnet).
-  if (IS_CHAIN) return <WalletButton />;
+  // Режим chain — auth-aware кнопка: подключает кошелёк, а если сессии нет — предлагает «Войти (подпись)».
+  if (IS_CHAIN) return <ConnectWalletButton />;
 
-  // api/mock — dev: подключение по адресу на экране /connect.
+  // api/mock — dev: вход по адресу идёт через DevToolbar; в шапке просто показываем адрес сессии, если есть.
   if (isLoading) return <div className="h-8 w-32 animate-pulse rounded bg-surface-raised" />;
-  return (
-    <Button asChild size="sm" variant="secondary">
-      <Link href="/connect">
-        {session?.address ? shortAddress(session.address) : "Подключить (dev)"}
-      </Link>
-    </Button>
-  );
+  return session?.address ? (
+    <span className="mono text-small text-fg-muted">{shortAddress(session.address)}</span>
+  ) : null;
 }

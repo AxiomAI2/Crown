@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { Amount, FeeSplit } from "./amount";
 import { TierBadge } from "./standing";
+import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,6 +23,21 @@ import type { Channel, ChannelConfig, DonationResult, Session } from "@/lib/data
 
 const PRESETS = [5, 10, 25, 100];
 const SOFT_WORDS = ["худший", "лох", "scam", "idiot"];
+
+const USDC_DECIMALS = 6; // точность USDC: больше знаков после точки не существует в micro-USDC
+
+/**
+ * Санитайзер поля суммы: только цифры и ОДНА точка (запятую → точку для RU-раскладки), дробная часть не
+ * длиннее 6 знаков. Иначе лишние знаки округлялись бы в toMicro и давали «странности» (напр. 0.0000001 → 0).
+ */
+function sanitizeAmount(raw: string): string {
+  const s = raw.replace(",", ".").replace(/[^\d.]/g, "");
+  const dot = s.indexOf(".");
+  if (dot === -1) return s;
+  const int = s.slice(0, dot);
+  const frac = s.slice(dot + 1).replace(/\./g, ""); // выкинуть повторные точки
+  return `${int}.${frac.slice(0, USDC_DECIMALS)}`;
+}
 
 export function DonateWidget({
   channel,
@@ -82,7 +97,7 @@ export function DonateWidget({
           inputMode="decimal"
           placeholder="0.00"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={(e) => setAmount(sanitizeAmount(e.target.value))}
           error={amountValid && !meetsMin ? "Ниже минимума канала" : undefined}
         />
         <div className="flex flex-wrap gap-2">
@@ -129,9 +144,7 @@ export function DonateWidget({
           Задонатить
         </Button>
       ) : (
-        <Button asChild variant="secondary">
-          <Link href="/connect">Подключи кошелёк, чтобы задонатить</Link>
-        </Button>
+        <ConnectWalletButton />
       )}
 
       <Dialog
@@ -157,6 +170,12 @@ export function DonateWidget({
                 <DialogDescription>Донат необратим. Возврата нет.</DialogDescription>
               </DialogHeader>
               <FeeSplit amount={micro} />
+              {donate.isPending ? (
+                <p className="text-small text-fg-muted">
+                  Подпиши в кошельке и подожди финализации в сети (~15–30с) — «Готово» появится, когда донат
+                  станет необратимым.
+                </p>
+              ) : null}
               <DialogFooter>
                 <DialogClose asChild>
                   <Button variant="ghost" disabled={donate.isPending}>
@@ -164,7 +183,7 @@ export function DonateWidget({
                   </Button>
                 </DialogClose>
                 <Button variant="money" loading={donate.isPending} onClick={confirm}>
-                  {donate.isPending ? "Подписываем…" : "Подтвердить и подписать"}
+                  {donate.isPending ? "Финализируем…" : "Подтвердить и подписать"}
                 </Button>
               </DialogFooter>
             </>
