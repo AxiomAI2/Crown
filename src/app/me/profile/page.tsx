@@ -18,7 +18,6 @@ export default function ProfileSettingsPage() {
   const update = useUpdateProfile();
 
   const [displayName, setDisplayName] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
   const [bio, setBio] = useState("");
   const [links, setLinks] = useState("");
 
@@ -26,7 +25,6 @@ export default function ProfileSettingsPage() {
     const p = profileQ.data;
     if (p) {
       setDisplayName(p.displayName ?? "");
-      setAvatarUrl(p.avatarUrl ?? "");
       setBio(p.bio ?? "");
       setLinks((p.links ?? []).join("\n"));
     }
@@ -36,7 +34,6 @@ export default function ProfileSettingsPage() {
     update.mutate(
       {
         displayName: displayName.trim() || undefined,
-        avatarUrl: avatarUrl.trim() || undefined,
         bio: bio.trim() || undefined,
         links: links
           .split("\n")
@@ -75,7 +72,6 @@ export default function ProfileSettingsPage() {
         ) : (
           <div className="flex flex-col gap-4">
             <Input label="Имя (display_name)" maxLength={40} value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-            <Input label="Аватар (URL)" maxLength={512} placeholder="https://…" value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} />
             <Textarea label="О себе" value={bio} onChange={(e) => setBio(e.target.value)} maxLength={280} showCount />
             <Textarea
               label="Ссылки (по одной на строку)"

@@ -34,11 +34,7 @@ export default function ProfilePage() {
             {/* Шапка профиля + отдельная кнопка редактирования */}
             <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex min-w-0 items-center gap-4">
-                <ProfileAvatar
-                  url={profileQ.data?.avatarUrl}
-                  name={profileQ.data?.displayName}
-                  address={address}
-                />
+                <ProfileAvatar name={profileQ.data?.displayName} address={address} />
                 <div className="flex min-w-0 flex-col gap-1">
                   <span className="truncate font-display text-h3 text-fg">
                     {profileQ.data?.displayName ?? "Без имени"}
@@ -77,12 +73,8 @@ export default function ProfilePage() {
   );
 }
 
-/** Аватар профиля: картинка по URL или монограмма-плейсхолдер. */
-function ProfileAvatar({ url, name, address }: { url?: string; name?: string; address: string }) {
-  if (url) {
-    // eslint-disable-next-line @next/next/no-img-element -- аватар по произвольному URL пользователя
-    return <img src={url} alt="" className="h-14 w-14 shrink-0 rounded-full object-cover" />;
-  }
+/** Аватар профиля: монограмма (аватарки по URL отключены — был канал для нецензурного контента). */
+function ProfileAvatar({ name, address }: { name?: string; address: string }) {
   const initial = (name ?? address).slice(0, 1).toUpperCase();
   return (
     <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-surface-raised font-display text-h3 text-fg-muted">
