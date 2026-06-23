@@ -5,21 +5,19 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { LabeledWalletButton } from "./wallet-multi-button";
+import { WalletPickerDialog } from "./wallet-picker";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { useData } from "@/lib/data/context";
 import { useSession } from "@/lib/data/hooks";
 
 /**
- * Кнопка подключения/входа, учитывающая ТРИ состояния (они разные!): кошелёк выбран-но-не-подключён
- * (лимбо), подключён ли кошелёк (wallet-adapter) и есть ли серверная сессия (SIWS).
- *
- * Лимбо: выбран кошелёк, которого нет (напр. Trust без расширения). autoConnect к нему заблокирован
- * (см. wallet-provider), а штатная кнопка в состоянии «выбран» повторно зовёт connect() → снова виснет.
- * Поэтому здесь рулим сами и ВСЕГДА даём выход «Отменить вход» (disconnect + забыть выбор).
- *
- * Подключён без сессии (автоподпись из bridge не прошла — кошелёк отклонил/не поддержал signMessage):
- * показываем «Войти (подпись)» — повторный SIWS с ошибкой, если подпись не удалась.
+ * Кнопка подключения/входа. Состояния (они разные!):
+ *  - не подключён → «Войти» открывает СВОЙ пикер кошельков (wallet-picker): установленный подключается,
+ *    отсутствующий ведёт на сайт кошелька, окно остаётся (дефолтную модалку под это перехватить нельзя);
+ *  - выбран installed, но ещё не подключён → спиннер «Вход…» (+ выход, если завис);
+ *  - подключён без серверной сессии (автоподпись из bridge не прошла) → «Войти (подпись)» повторяет SIWS;
+ *  - подключён + сессия → штатная кнопка с дропдауном (копировать адрес / выйти).
  */
 export function ChainConnect() {
   const wallet = useWallet();
@@ -27,53 +25,46 @@ export function ChainConnect() {
   const data = useData();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
-  // Лимбо: кошелёк выбран, но не подключён. После выхода/штатного disconnect выбор уже очищен самим
-  // адаптером (setWalletName(null)), так что сюда попадает только «выбран, но так и не подключился».
   const selected = wallet.wallet;
+  const selectedName = selected?.adapter.name ?? null;
   const installed = selected?.readyState === WalletReadyState.Installed;
-  const limbo = !!selected && !wallet.connected;
-  const [showBail, setShowBail] = useState(false);
-  // Установленный кошелёк может штатно подключаться пару секунд — спиннер. Если завис дольше, дадим выход.
+  const { select, connected, connecting } = wallet;
+
+  // Самолечение: в localStorage мог остаться выбор кошелька, которого нет (напр. Trust с прошлой попытки).
+  // autoConnect к нему заблокирован (гейт installed, см. wallet-provider) → он бы висел «выбранным» без
+  // подключения. Тихо забываем такой выбор → вернётся обычная «Войти». Пикер сам не выбирает не-installed.
   useEffect(() => {
-    if (!limbo || !installed) {
+    if (selectedName && !installed && !connected && !connecting) select(null);
+  }, [selectedName, installed, connected, connecting, select]);
+
+  // Установленный кошелёк подключается пару секунд — спиннер. Если завис дольше, дадим аварийный выход.
+  const [showBail, setShowBail] = useState(false);
+  const connectingInstalled = !!selected && installed && !connected;
+  useEffect(() => {
+    if (!connectingInstalled) {
       setShowBail(false);
       return;
     }
     const t = setTimeout(() => setShowBail(true), 6000);
     return () => clearTimeout(t);
-  }, [limbo, installed]);
+  }, [connectingInstalled]);
 
-  // Сбросить «прилипший» выбор → вернуться к кнопке «Войти».
-  async function bail() {
-    try {
-      await wallet.disconnect();
-    } catch {
-      // мог быть и не подключён — это и есть причина выхода
-    }
-    wallet.select(null); // забыть выбор (чистит walletName в localStorage)
-  }
-
-  if (selected && !wallet.connected) {
-    // Выбран кошелёк, которого НЕТ (напр. Trust без расширения): подключение к нему не пойдёт (autoConnect
-    // гейтит не-installed, см. wallet-provider). Не молчим — ведём ставить его на сайте кошелька + даём отмену.
-    if (!installed) {
-      return (
-        <div className="flex items-center gap-2">
-          <Button size="sm" asChild>
-            <a href={selected.adapter.url} target="_blank" rel="noreferrer">
-              Установить {selected.adapter.name}
-            </a>
-          </Button>
-          <Button size="sm" variant="ghost" onClick={bail}>
-            Отмена
-          </Button>
-        </div>
-      );
-    }
-    // Установленный — подключается; если подвис дольше grace, показываем выход.
+  if (connectingInstalled) {
     return showBail ? (
-      <Button size="sm" variant="secondary" onClick={bail}>
+      <Button
+        size="sm"
+        variant="secondary"
+        onClick={async () => {
+          try {
+            await wallet.disconnect();
+          } catch {
+            // мог быть и не подключён
+          }
+          select(null);
+        }}
+      >
         Отменить вход
       </Button>
     ) : (
@@ -83,7 +74,7 @@ export function ChainConnect() {
     );
   }
 
-  const connectedNoSession = wallet.connected && !session.data?.address;
+  const connectedNoSession = connected && !session.data?.address;
   if (connectedNoSession) {
     return (
       <Button
@@ -109,6 +100,17 @@ export function ChainConnect() {
       </Button>
     );
   }
-  // кошелёк не подключён → обычная кнопка кошелька (подключит + bridge автоподпишет)
-  return <LabeledWalletButton />;
+
+  // Подключён + сессия → штатная кнопка с дропдауном (копировать адрес / сменить / выйти).
+  if (connected) return <LabeledWalletButton />;
+
+  // Не подключён → «Войти» открывает свой пикер.
+  return (
+    <>
+      <Button size="sm" onClick={() => setPickerOpen(true)}>
+        Войти
+      </Button>
+      <WalletPickerDialog open={pickerOpen} onOpenChange={setPickerOpen} />
+    </>
+  );
 }
