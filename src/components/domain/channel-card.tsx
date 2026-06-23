@@ -60,8 +60,9 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
         </div>
       </Link>
 
-      {/* Футер всегда одной высоты (h-9) и прижат к низу (mt-auto) — карточки/футеры выровнены, тонко. */}
-      <div className="mt-auto flex h-9 items-center justify-between gap-2 border-t border-border">
+      {/* Футер фикс. высоты, прижат к низу (mt-auto). pb-0 у карточки → это ровно зона между полоской и
+          рамкой, контент по центру по вертикали. Высота одинаковая у всех карточек (есть ссылки или нет). */}
+      <div className="mt-auto flex h-12 items-center justify-between gap-2 border-t border-border">
         <div className="flex min-w-0 items-center gap-1">
           {links.length > 0 ? (
             <>
