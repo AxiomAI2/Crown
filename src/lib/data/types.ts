@@ -255,7 +255,6 @@ export interface ChannelCard {
   channelId: string;
   handle: string;
   displayName?: string; // НАЗВАНИЕ канала (из конфига), не ник донора
-  description?: string;
   payoutAddress: Address; // кошелёк выплат — показываем + ссылка в проводник
   links?: ChannelLink[]; // соцсети канала (мини-иконки)
   topTierName: string;

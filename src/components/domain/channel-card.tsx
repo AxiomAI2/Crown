@@ -21,6 +21,9 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
   const name = card.displayName?.trim() || `@${card.handle}`;
   const hue = channelHue(name);
   const links = card.links ?? [];
+  const MAX_LINKS = 4; // дальше — троеточие на страницу канала (там все ссылки)
+  const shownLinks = links.slice(0, MAX_LINKS);
+  const hiddenLinks = links.length - shownLinks.length;
 
   return (
     <div className="group flex flex-col gap-3 rounded-lg border border-border bg-surface p-4 transition-colors duration-fast ease-ease hover:border-border-strong">
@@ -46,10 +49,6 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
           </span>
         </div>
 
-        {card.description?.trim() ? (
-          <p className="line-clamp-2 text-small text-fg-muted">{card.description}</p>
-        ) : null}
-
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-small text-fg-muted">
           <span>
             <span className="font-medium text-fg">{card.donorsCount}</span>{" "}
@@ -65,19 +64,31 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
       <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
         <div className="flex min-w-0 items-center gap-1">
           {links.length > 0 ? (
-            links.slice(0, 5).map((l) => (
-              <a
-                key={l.platform}
-                href={l.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={platformDef(l.platform)?.label ?? l.platform}
-                aria-label={platformDef(l.platform)?.label ?? l.platform}
-                className="flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
-              >
-                <PlatformIcon platform={l.platform} brand className="h-4 w-4" />
-              </a>
-            ))
+            <>
+              {shownLinks.map((l) => (
+                <a
+                  key={l.platform}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={platformDef(l.platform)?.label ?? l.platform}
+                  aria-label={platformDef(l.platform)?.label ?? l.platform}
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
+                >
+                  <PlatformIcon platform={l.platform} brand className="h-4 w-4" />
+                </a>
+              ))}
+              {hiddenLinks > 0 ? (
+                <Link
+                  href={`/c/${card.handle}`}
+                  title={`Ещё ${hiddenLinks} — на странице канала`}
+                  aria-label={`Ещё ${hiddenLinks} ссылок на странице канала`}
+                  className="flex h-7 items-center justify-center rounded-md px-2 text-small leading-none text-fg-faint transition-colors hover:bg-surface-raised hover:text-fg"
+                >
+                  …
+                </Link>
+              ) : null}
+            </>
           ) : (
             <span className="text-small text-fg-faint">нет ссылок</span>
           )}

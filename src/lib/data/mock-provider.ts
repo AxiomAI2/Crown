@@ -381,7 +381,6 @@ export class MockDataProvider implements DataProvider {
           handle: c.handle,
           // имя канала — из конфига (а НЕ ник топ-донатера, как было ошибочно)
           displayName: cfg.displayName,
-          description: cfg.description,
           payoutAddress: c.payoutAddress,
           links: cfg.links,
           topTierName: top ? top.tier.name : (cfg.tiers[0]?.name ?? "Новичок"),
