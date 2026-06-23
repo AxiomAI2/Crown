@@ -26,7 +26,7 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
   const hiddenLinks = links.length - shownLinks.length;
 
   return (
-    <div className="group flex flex-col gap-3 rounded-lg border border-border bg-surface p-4 transition-colors duration-fast ease-ease hover:border-border-strong">
+    <div className="group flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 pt-4 pb-2 transition-colors duration-fast ease-ease hover:border-border-strong">
       {/* Кликабельное тело → страница канала */}
       <Link href={`/c/${card.handle}`} className="flex flex-col gap-3">
         <div className="flex items-start gap-3">
