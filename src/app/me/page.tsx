@@ -21,13 +21,6 @@ export default function ProfilePage() {
     <>
       <AppHeader />
       <main className="mx-auto flex max-w-content flex-col gap-6 px-4 py-8">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-display-l text-fg">Профиль</h1>
-          <p className="text-fg-muted">
-            Твой ник, репутация по каналам и история донатов. Репутация локальна — своя в каждом комьюнити.
-          </p>
-        </div>
-
         {sessionQ.isLoading ? (
           <Skeleton className="h-32 w-full" />
         ) : !address ? (

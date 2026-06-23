@@ -12,12 +12,6 @@ export default function DiscoveryPage() {
     <>
       <AppHeader />
       <main className="mx-auto flex max-w-content flex-col gap-6 px-4 py-8">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-display-l text-fg">Каналы</h1>
-          <p className="text-fg-muted">
-            Активированные каналы платформы — найди свой и набери standing.
-          </p>
-        </div>
         <Suspense fallback={<Skeleton className="h-28 w-full rounded-lg" />}>
           <DiscoveryList />
         </Suspense>
