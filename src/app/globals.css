@@ -212,6 +212,7 @@
     max-height: calc(100dvh - var(--header-h) - var(--space-4) - 1rem);
     overflow-y: auto;
     scrollbar-width: none; /* без видимого ползунка — прокрутка колёсиком остаётся */
+    z-index: 20; /* ниже хедера (z-30): уходящая вверх верхушка прячется ПОД хедер */
   }
   .rail-pinned-right::-webkit-scrollbar {
     display: none;
@@ -226,6 +227,7 @@
     max-height: calc(100dvh - var(--header-h) - var(--space-4) - 1rem);
     overflow-y: auto;
     scrollbar-width: none;
+    z-index: 20; /* ниже хедера (z-30): верхушка прячется под хедер */
   }
   .rail-pinned-left::-webkit-scrollbar {
     display: none;
