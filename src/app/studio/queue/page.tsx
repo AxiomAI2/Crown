@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ModerationItem } from "@/components/domain/moderation";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
+import { Pager, usePager } from "@/components/ui/pager";
 import { Select } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import {
@@ -26,6 +27,7 @@ export default function ModerationQueuePage() {
 
   // Джойн message → donation, чтобы показать донора и сумму в очереди.
   const byDonation = new Map((donationsQ.data?.items ?? []).map((d) => [d.id, d]));
+  const pg = usePager(queueQ.data ?? [], 10); // постранично, чтобы очередь не уходила в бесконечность
 
   if (managedQ.isLoading) return <Skeleton className="h-56 w-full rounded-lg" />;
   if (channels.length === 0) {
@@ -79,7 +81,7 @@ export default function ModerationQueuePage() {
         <EmptyState title="Очередь чиста" description="Новые сообщения на модерации появятся здесь." />
       ) : (
         <div className="flex flex-col gap-3">
-          {queueQ.data!.map((m) => {
+          {pg.pageItems.map((m) => {
             const d = byDonation.get(m.donationId);
             return (
               <ModerationItem
@@ -93,6 +95,14 @@ export default function ModerationQueuePage() {
               />
             );
           })}
+          <Pager
+            page={pg.page}
+            pageCount={pg.pageCount}
+            total={pg.total}
+            pageSize={pg.pageSize}
+            setPage={pg.setPage}
+            setPageSize={pg.setPageSize}
+          />
         </div>
       )}
     </div>

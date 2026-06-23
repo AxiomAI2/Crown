@@ -2,7 +2,6 @@
 
 import { useParams } from "next/navigation";
 import { DonateWidget } from "@/components/domain/donate";
-import { DonationCard } from "@/components/domain/donation-card";
 import { DonationHistory } from "@/components/domain/donation-history";
 import { Leaderboard } from "@/components/domain/leaderboard";
 import { ReputationProgress, StandingSeal, TierLadder } from "@/components/domain/standing";
@@ -59,27 +58,17 @@ export default function ChannelPage() {
               {/* Левая колонка — контент канала */}
               <div className="flex flex-col gap-8">
                 <section className="flex flex-col gap-3">
-                  <h2 className="text-h2 text-fg">Лента</h2>
                   {donationsQ.isLoading ? (
-                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-12 w-full rounded-lg" />
                   ) : (
-                    (() => {
-                      const shown = (donationsQ.data?.items ?? []).filter(
+                    <DonationHistory
+                      donations={(donationsQ.data?.items ?? []).filter(
                         (d) => d.message?.state === "SHOWN",
-                      );
-                      return shown.length === 0 ? (
-                        <EmptyState
-                          title="Пока нет показанных сообщений"
-                          description="Здесь появятся донаты с текстом, которые стример решил показать."
-                        />
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          {shown.map((d) => (
-                            <DonationCard key={d.id} donation={d} reportable />
-                          ))}
-                        </div>
-                      );
-                    })()
+                      )}
+                      title="Лента (показанные сообщения)"
+                      reportable
+                      defaultOpen
+                    />
                   )}
                 </section>
 

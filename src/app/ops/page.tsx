@@ -14,6 +14,7 @@ import {
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
+import { Pager, usePager } from "@/components/ui/pager";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
@@ -77,6 +78,8 @@ export default function OpsConsolePage() {
   const [reason, setReason] = useState("");
   const [preservation, setPreservation] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const incPg = usePager(queueQ.data ?? [], 10); // лог постранично, чтобы не уходил в бесконечность
 
   const req = REQUIRES[action];
   const canApply =
@@ -204,8 +207,9 @@ export default function OpsConsolePage() {
         ) : (queueQ.data ?? []).length === 0 ? (
           <EmptyState title="Инцидентов нет" />
         ) : (
-          <ul className="flex flex-col gap-2">
-            {queueQ.data!.map((inc: IncidentLog) => (
+          <div className="flex flex-col gap-2">
+            <ul className="flex flex-col gap-2">
+            {incPg.pageItems.map((inc: IncidentLog) => (
               <li key={inc.id} className="flex flex-col gap-1.5 rounded border border-border bg-surface px-3 py-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={cn("rounded border px-1.5 py-0.5 text-caption", KIND[inc.kind].cls)}>
@@ -239,7 +243,16 @@ export default function OpsConsolePage() {
                 ) : null}
               </li>
             ))}
-          </ul>
+            </ul>
+            <Pager
+              page={incPg.page}
+              pageCount={incPg.pageCount}
+              total={incPg.total}
+              pageSize={incPg.pageSize}
+              setPage={incPg.setPage}
+              setPageSize={incPg.setPageSize}
+            />
+          </div>
         )}
       </section>
 

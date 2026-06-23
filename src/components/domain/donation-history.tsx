@@ -36,10 +36,12 @@ export function DonationHistory({
   donations,
   title = "История донатов",
   defaultOpen = false,
+  reportable = false,
 }: {
   donations: Donation[];
   title?: string;
   defaultOpen?: boolean;
+  reportable?: boolean; // показывать «Пожаловаться» на показанных сообщениях (для публичной ленты)
 }) {
   const [query, setQuery] = useState("");
   const [pageSize, setPageSize] = useState(25);
@@ -102,7 +104,7 @@ export function DonationHistory({
         <>
           <div className="flex flex-col gap-2">
             {pageItems.map((d) => (
-              <DonationCard key={d.id} donation={d} />
+              <DonationCard key={d.id} donation={d} reportable={reportable} />
             ))}
           </div>
           <div className="flex items-center justify-between gap-2 text-small text-fg-faint">
