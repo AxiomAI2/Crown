@@ -1,7 +1,8 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { ChannelLinkButtons } from "@/components/domain/channel-links";
+import { useState } from "react";
+import { ChannelHeader } from "@/components/domain/channel-header";
 import { DonateWidget } from "@/components/domain/donate";
 import { DonationHistory } from "@/components/domain/donation-history";
 import { Leaderboard } from "@/components/domain/leaderboard";
@@ -29,6 +30,18 @@ export default function ChannelPage() {
   const standingQ = useStanding(channel?.id, address);
   const donationsQ = useDonations(channel?.id);
 
+  // Свёрнута ли шапка (по скроллу) — чтобы опустить правый сайдбар под компактную плашку.
+  const [headerCollapsed, setHeaderCollapsed] = useState(false);
+
+  // Статистика для большой шапки (из загруженных донатов; уникальные донатеры + сумма).
+  const allDonations = donationsQ.data?.items ?? [];
+  const stats = donationsQ.data
+    ? {
+        donors: new Set(allDonations.map((d) => d.donor)).size,
+        total: allDonations.reduce((s, d) => s + d.amount, 0n),
+      }
+    : null;
+
   return (
     <>
       <AppHeader />
@@ -46,25 +59,13 @@ export default function ChannelPage() {
           />
         ) : (
           <div className="flex flex-col gap-3">
-            <header className="flex flex-col gap-2">
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-display-l text-fg">
-                  {configQ.data?.displayName?.trim() || `@${channel.handle}`}
-                </h1>
-                {channel.status === "BASIC" ? (
-                  <span className="rounded-pill border border-border px-2 py-0.5 text-small text-fg-faint">
-                    не активирован
-                  </span>
-                ) : null}
-              </div>
-              {configQ.data?.displayName?.trim() ? (
-                <span className="mono text-small text-fg-faint">@{channel.handle}</span>
-              ) : null}
-              {configQ.data?.description?.trim() ? (
-                <p className="max-w-2xl text-fg-muted">{configQ.data.description}</p>
-              ) : null}
-              {configQ.data?.links?.length ? <ChannelLinkButtons links={configQ.data.links} /> : null}
-            </header>
+            <ChannelHeader
+              channel={channel}
+              config={configQ.data}
+              donorsCount={stats?.donors}
+              totalDonated={stats?.total}
+              onCollapse={setHeaderCollapsed}
+            />
 
             <div className="grid items-start gap-6 lg:grid-cols-[1fr_360px]">
               {/* Левая колонка — контент канала */}
@@ -104,10 +105,13 @@ export default function ChannelPage() {
               </div>
 
               {/* Правая колонка — моё standing + донат */}
-              {/* Липкая ПРЯМО под шапкой (top = --header-h, без зазора). Весь скролл стоит твёрдо; sticky
-                  (не fixed) → когда левая колонка кончится (у футтера), упирается и едет вверх. Без внутреннего
-                  скролла — стоит цельно (как на polymarket). items-start на гриде не даёт растягиваться. */}
-              <aside className="flex flex-col gap-6 lg:sticky lg:top-[var(--header-h)] lg:self-start">
+              {/* Липкая прямо под шапкой; при свёрнутой шапке канала опускается под компактную плашку
+                  (top анимируется). Sticky (не fixed): у футтера упирается и едет вверх. items-start на
+                  гриде не даёт растягиваться. */}
+              <aside
+                style={{ top: headerCollapsed ? "calc(var(--header-h) + 3.25rem)" : "var(--header-h)" }}
+                className="flex flex-col gap-6 transition-[top] duration-200 ease-ease lg:sticky lg:self-start"
+              >
                 <section className="flex flex-col gap-3">
                   <h2 className="text-h3 text-fg">Моё standing</h2>
                   {!address ? (
