@@ -51,6 +51,7 @@ const ALLOWED = new Set<string>([
   "getStanding",
   "getLeaderboard",
   "createDonation",
+  "precheckText",
   "listDonations",
   "getModerationQueue",
   "setMessageState",

@@ -234,6 +234,19 @@ export class ChainDataProvider implements DataProvider {
         "Не заданы NEXT_PUBLIC_DEVNET_USDC_MINT и NEXT_PUBLIC_TREASURY_OWNER.",
       );
     }
+    // Префлайт текста ДО подписи/отправки: деньги ончейн необратимы (§4.2), поэтому запрещёнку
+    // (HARD_BLOCK) ловим заранее и НЕ строим транзакцию — кошелёк даже не спросит подпись. Мат разрешён
+    // (политика модерации); ingest всё равно проводит модерацию повторно как бэкстоп. Без текста — нечего.
+    const text = input.text?.trim() || undefined;
+    if (text) {
+      const { blocked } = await this.api.precheckText(text);
+      if (blocked)
+        throw new DataError(
+          "TEXT_BLOCKED",
+          "Сообщение не прошло модерацию (запрещённый/жёсткий контент). Убери его или задонать без текста.",
+        );
+    }
+
     // Разрешаем channelId → payoutAddress через оффчейн-бэкенд.
     const list = await this.api.listChannels();
     const card = list.items.find((c) => c.channelId === input.channelId);
@@ -245,7 +258,6 @@ export class ChainDataProvider implements DataProvider {
     const donationId = `d-${this.address()}-${list.items.length}`;
     // Текст приватен и оффчейн; в memo кладём ТОЛЬКО его хэш — сервер потом сверит присланный текст с ним
     // (трастлесс-привязка, см. server/ingest.ts). Без текста m = null.
-    const text = input.text?.trim() || undefined;
     const ix = await buildDonationInstructions(this.connection, {
       donor: w.publicKey,
       payout: new PublicKey(channel.payoutAddress),

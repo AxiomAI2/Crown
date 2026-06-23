@@ -709,6 +709,18 @@ export class MockDataProvider implements DataProvider {
     return { donation, standing, tierChanged };
   }
 
+  /**
+   * Префлайт текста доната ПЕРЕД отправкой ончейн (вне DataProvider; зовётся chain-слоем до подписи).
+   * blocked=true только на HARD_BLOCK (запрещёнка/жёсткое) — как у ника. Мат разрешён → не блокируем.
+   * Это не «решение о деньгах»: tx ещё не отправлена. Ingest всё равно проводит модерацию повторно (бэкстоп).
+   */
+  async precheckText(text: string): Result<{ blocked: boolean }> {
+    await this.gate("precheckText");
+    const t = (text ?? "").trim();
+    if (!t) return { blocked: false };
+    return { blocked: (await resolveAutoModerator().classify(t, "")) === "HARD_BLOCK" };
+  }
+
   async listDonations(channelId: string, _opts?: ListOpts): Result<Page<Donation>> {
     await this.gate("listDonations");
     const isManager = this.isChannelManager(channelId);
