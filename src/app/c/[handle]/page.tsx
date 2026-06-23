@@ -1,7 +1,6 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState } from "react";
 import { ChannelHeader } from "@/components/domain/channel-header";
 import { DonateWidget } from "@/components/domain/donate";
 import { DonationHistory } from "@/components/domain/donation-history";
@@ -30,9 +29,6 @@ export default function ChannelPage() {
   const standingQ = useStanding(channel?.id, address);
   const donationsQ = useDonations(channel?.id);
 
-  // Свёрнута ли шапка (по скроллу) — чтобы опустить правый сайдбар под компактную плашку.
-  const [headerCollapsed, setHeaderCollapsed] = useState(false);
-
   // Статистика для большой шапки (из загруженных донатов; уникальные донатеры + сумма).
   const allDonations = donationsQ.data?.items ?? [];
   const stats = donationsQ.data
@@ -58,19 +54,16 @@ export default function ChannelPage() {
             description="Этот канал приостановлен. Если это ошибка — обратись в поддержку."
           />
         ) : (
-          <div className="flex flex-col gap-3">
-            <ChannelHeader
-              channel={channel}
-              config={configQ.data}
-              donorsCount={stats?.donors}
-              totalDonated={stats?.total}
-              onCollapse={setHeaderCollapsed}
-            />
-
-            <div className="grid items-start gap-6 lg:grid-cols-[1fr_360px]">
-              {/* Левая колонка — контент канала */}
-              <div className="flex flex-col gap-8">
-                <section className="flex flex-col gap-3">
+          <div className="grid items-start gap-6 lg:grid-cols-[1fr_360px]">
+            {/* Левая колонка — шапка канала + контент (как на polymarket: вся инфа слева, не на весь экран) */}
+            <div className="flex flex-col gap-8">
+              <ChannelHeader
+                channel={channel}
+                config={configQ.data}
+                donorsCount={stats?.donors}
+                totalDonated={stats?.total}
+              />
+              <section className="flex flex-col gap-3">
                   {donationsQ.isLoading ? (
                     <Skeleton className="h-12 w-full rounded-lg" />
                   ) : (
@@ -104,14 +97,10 @@ export default function ChannelPage() {
                 </section>
               </div>
 
-              {/* Правая колонка — моё standing + донат */}
-              {/* Липкая прямо под шапкой; при свёрнутой шапке канала опускается под компактную плашку
-                  (top анимируется). Sticky (не fixed): у футтера упирается и едет вверх. items-start на
-                  гриде не даёт растягиваться. */}
-              <aside
-                style={{ top: headerCollapsed ? "calc(var(--header-h) + 3.25rem)" : "var(--header-h)" }}
-                className="flex flex-col gap-6 transition-[top] duration-200 ease-ease lg:sticky lg:self-start"
-              >
+              {/* Правая колонка — моё standing + донат. Липкая прямо под шапкой; компактная плашка теперь
+                  шириной левой колонки и сайдбар не задевает. Sticky (не fixed): у футтера упирается и едет
+                  вверх. items-start на гриде не даёт растягиваться. */}
+              <aside className="flex flex-col gap-6 lg:sticky lg:top-[var(--header-h)] lg:self-start">
                 <section className="flex flex-col gap-3">
                   <h2 className="text-h3 text-fg">Моё standing</h2>
                   {!address ? (
@@ -145,7 +134,6 @@ export default function ChannelPage() {
                 )}
               </aside>
             </div>
-          </div>
         )}
       </main>
     </>

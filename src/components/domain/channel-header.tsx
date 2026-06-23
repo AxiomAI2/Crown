@@ -52,13 +52,11 @@ export function ChannelHeader({
   config,
   donorsCount,
   totalDonated,
-  onCollapse,
 }: {
   channel: Channel;
   config?: ChannelConfig;
   donorsCount?: number;
   totalDonated?: bigint;
-  onCollapse?: (collapsed: boolean) => void;
 }) {
   const name = config?.displayName?.trim() || `@${channel.handle}`;
   const basic = channel.status === "BASIC";
@@ -72,31 +70,32 @@ export function ChannelHeader({
       (entries) => {
         const e = entries[0];
         if (!e) return;
-        const c = !e.isIntersecting;
-        setCollapsed(c);
-        onCollapse?.(c);
+        setCollapsed(!e.isIntersecting);
       },
       // верхняя граница наблюдения = низ глобальной шапки: заголовок «исчез» → свернуть.
       { rootMargin: `-${HEADER_H}px 0px 0px 0px`, threshold: 0 },
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [onCollapse]);
+  }, []);
 
   return (
     <>
-      {/* Компактная плашка — fixed-оверлей под глобальной шапкой; без сдвига контента. */}
+      {/* Компактная плашка — fixed-оверлей под глобальной шапкой; без сдвига контента. Ширина = ЛЕВАЯ
+          колонка (на lg справа резервируем рейл 360px + gap-6=32px), поэтому она не лезет на сайдбар. */}
       <div
         aria-hidden={!collapsed}
         className={cn(
-          "fixed inset-x-0 top-[var(--header-h)] z-20 border-b border-border bg-surface transition-all duration-200 ease-ease",
+          "fixed inset-x-0 top-[var(--header-h)] z-20 transition-all duration-200 ease-ease",
           collapsed ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-2 opacity-0",
         )}
       >
-        <div className="mx-auto flex max-w-content items-center gap-3 px-4 py-2">
-          <Monogram name={name} size="sm" />
-          <span className="truncate font-display text-fg">{name}</span>
-          {basic ? <StatusBadge /> : null}
+        <div className="mx-auto max-w-content px-4 lg:pr-[calc(360px+2rem+1rem)]">
+          <div className="flex items-center gap-3 rounded-b-lg border border-t-0 border-border bg-surface px-4 py-2 shadow-sm">
+            <Monogram name={name} size="sm" />
+            <span className="truncate font-display text-fg">{name}</span>
+            {basic ? <StatusBadge /> : null}
+          </div>
         </div>
       </div>
 
