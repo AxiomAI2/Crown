@@ -373,15 +373,20 @@ export class MockDataProvider implements DataProvider {
     const items: ChannelCard[] = [...this.channelsById.values()]
       .filter((c) => c.status === "ACTIVE")
       .map((c) => {
+        const cfg = this.latestConfig(c.id);
         const board = this.computeLeaderboard(c.id, "all_time");
         const top = board[0];
-        const profile = top ? this.profiles.get(top.donor) : undefined;
         return {
           channelId: c.id,
           handle: c.handle,
-          displayName: profile?.displayName,
-          topTierName: top ? top.tier.name : (this.latestConfig(c.id).tiers[0]?.name ?? "Новичок"),
+          // имя канала — из конфига (а НЕ ник топ-донатера, как было ошибочно)
+          displayName: cfg.displayName,
+          description: cfg.description,
+          payoutAddress: c.payoutAddress,
+          links: cfg.links,
+          topTierName: top ? top.tier.name : (cfg.tiers[0]?.name ?? "Новичок"),
           donorsCount: board.length,
+          totalDonated: board.reduce((s, e) => s + e.totalDonated, 0n),
         };
       });
     return { items };

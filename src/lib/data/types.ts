@@ -254,10 +254,13 @@ export interface DonationResult {
 export interface ChannelCard {
   channelId: string;
   handle: string;
-  displayName?: string;
-  avatarUrl?: string;
+  displayName?: string; // НАЗВАНИЕ канала (из конфига), не ник донора
+  description?: string;
+  payoutAddress: Address; // кошелёк выплат — показываем + ссылка в проводник
+  links?: ChannelLink[]; // соцсети канала (мини-иконки)
   topTierName: string;
   donorsCount: number;
+  totalDonated: MicroUSDC; // суммарный объём донатов (по лидерборду)
   isLive?: boolean;
 }
 

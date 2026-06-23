@@ -44,7 +44,7 @@ export function ChannelLinkButtons({ links }: { links: ChannelLink[] }) {
             target="_blank"
             rel="noopener noreferrer"
             title={def.label}
-            className="group inline-flex items-center gap-2 rounded-pill border border-border bg-surface px-3 py-1.5 text-small text-fg-muted transition-colors hover:border-strong hover:text-fg"
+            className="group inline-flex items-center gap-2 rounded-pill border border-border bg-surface px-3 py-1.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
           >
             <PlatformIcon platform={l.platform} brand className="h-4 w-4 shrink-0" />
             <span>{def.label}</span>

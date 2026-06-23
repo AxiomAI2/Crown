@@ -7,22 +7,15 @@ import { ChannelLinkButtons } from "./channel-links";
 import { toast } from "@/components/ui/toast";
 import { explorerAddressUrl } from "@/lib/chain/addresses";
 import type { Channel, ChannelConfig } from "@/lib/data/types";
-import { cn } from "@/lib/utils";
+import { channelHue, cn } from "@/lib/utils";
 
 // Высота глобальной шапки (--header-h). Компактная плашка садится прямо под неё, и относительно её же
 // определяем «свёрнуто»: заголовок ушёл под шапку → показываем плашку.
 const HEADER_H = 60;
 
-/** Стабильный оттенок канала из имени — лёгкая дифференциация каналов (аватарок-картинок нет, §профиль). */
-function hashHue(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
-  return h;
-}
-
 function Monogram({ name, size }: { name: string; size: "sm" | "lg" }) {
   const ch = (name.replace(/^@/, "")[0] ?? "?").toUpperCase();
-  const hue = hashHue(name);
+  const hue = channelHue(name);
   return (
     <div
       className={cn(
@@ -82,7 +75,7 @@ function ExplorerIcon() {
 }
 
 const actionBtn =
-  "flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface text-fg-muted transition-colors hover:border-strong hover:text-fg";
+  "flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface text-fg-muted transition-colors hover:border-border-strong hover:text-fg";
 
 /** Ряд иконок-действий: поделиться (копирует ссылку на канал) + открыть payout в Solana Explorer. */
 function HeaderActions({ payoutAddress }: { payoutAddress: string }) {

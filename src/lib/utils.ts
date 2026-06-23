@@ -42,6 +42,13 @@ export function shortAddress(address: string): string {
   return `${address.slice(0, 4)}…${address.slice(-4)}`;
 }
 
+/** Стабильный оттенок (0–359) из строки — для монограммы канала (одинаков в карточке и в шапке канала). */
+export function channelHue(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+  return h;
+}
+
 const BASE58_ALPHABET = /^[1-9A-HJ-NP-Za-km-z]+$/;
 
 /**
