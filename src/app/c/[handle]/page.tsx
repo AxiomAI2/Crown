@@ -92,7 +92,8 @@ export default function ChannelPage() {
               </div>
 
               {/* Правая колонка — моё standing + донат */}
-              <aside className="flex flex-col gap-6">
+              {/* Прибита на месте при скролле (sticky под липким хедером); items-start на гридe не даёт растягиваться */}
+              <aside className="flex flex-col gap-6 lg:sticky lg:top-20 lg:self-start">
                 <section className="flex flex-col gap-3">
                   <h2 className="text-h3 text-fg">Моё standing</h2>
                   {!address ? (

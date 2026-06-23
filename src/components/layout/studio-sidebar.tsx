@@ -13,11 +13,11 @@ const items = [
   { href: "/studio/blocklist", label: "Блок-лист" },
 ];
 
-/** Сайдбар студии: статичный (не двигается при скролле) + подсветка активного пункта. */
+/** Сайдбар студии: прибит на месте при скролле (sticky под хедером) + подсветка активного пункта. */
 export function StudioSidebar() {
   const pathname = usePathname();
   return (
-    <aside className="w-full shrink-0 md:w-56">
+    <aside className="w-full shrink-0 md:sticky md:top-20 md:w-56 md:self-start">
       <div className="mb-4 font-display text-h3 text-fg">Студия</div>
       <nav className="flex flex-col gap-1 text-small">
         {items.map((it) => {
