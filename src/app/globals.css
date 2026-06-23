@@ -198,16 +198,18 @@
   }
 }
 
-/* Прикреплённые панели: sticky прямо под хедером (top = --header-h, без зазора → «прикован к хедеру»).
-   Стоят на месте весь скролл и сами упираются в футер, когда колонка кончается (footer идёт сразу под
-   контентом) — без fixed/JS. Если панель выше экрана — внутренний скролл со скрытым ползунком. items-start
-   на гридах не даёт растягиваться. Десктоп; на мобиле — обычным блоком в потоке. */
+/* Прикреплённые панели: position: fixed под хедером — НЕ двигаются при скролле, независимо от высоты
+   соседней колонки (sticky тут не годится: на коротких страницах панель выше левой колонки и «едет»).
+   Выровнены по центрированному контейнеру (--maxw, px-4). У футера высоту клэмпит usePinAboveFooter (низ
+   упирается в футер, верх на месте → без перекрытия и без «бездны»). Грид резервирует трек, контент не плывёт.
+   Высокая панель — внутренний скролл со скрытым ползунком. Десктоп; на мобиле — обычным блоком в потоке. */
 @media (min-width: 1024px) {
   .rail-pinned-right {
-    position: sticky;
-    top: var(--header-h);
-    align-self: start;
-    max-height: calc(100dvh - var(--header-h) - 1rem);
+    position: fixed;
+    top: calc(var(--header-h) + var(--space-4));
+    right: calc(max(0px, (100vw - var(--maxw)) / 2) + 1rem);
+    width: 360px;
+    max-height: calc(100dvh - var(--header-h) - var(--space-4) - 1rem);
     overflow-y: auto;
     scrollbar-width: none; /* без видимого ползунка — прокрутка колёсиком остаётся */
   }
@@ -217,10 +219,11 @@
 }
 @media (min-width: 768px) {
   .rail-pinned-left {
-    position: sticky;
-    top: var(--header-h);
-    align-self: start;
-    max-height: calc(100dvh - var(--header-h) - 1rem);
+    position: fixed;
+    top: calc(var(--header-h) + var(--space-4));
+    left: calc(max(0px, (100vw - var(--maxw)) / 2) + 1rem);
+    width: 14rem;
+    max-height: calc(100dvh - var(--header-h) - var(--space-4) - 1rem);
     overflow-y: auto;
     scrollbar-width: none;
   }

@@ -16,6 +16,7 @@ import {
   useSession,
   useStanding,
 } from "@/lib/data/hooks";
+import { usePinAboveFooter } from "@/lib/use-pin-above-footer";
 
 export default function ChannelPage() {
   const params = useParams<{ handle: string }>();
@@ -28,6 +29,9 @@ export default function ChannelPage() {
   const address = sessionQ.data?.address ?? null;
   const standingQ = useStanding(channel?.id, address);
   const donationsQ = useDonations(channel?.id);
+
+  // Правая колонка закреплена (CSS fixed); хук клэмпит её высоту у футера (без перекрытия/«бездны»).
+  const railRef = usePinAboveFooter<HTMLElement>();
 
   // Статистика для большой шапки (из загруженных донатов; уникальные донатеры + сумма).
   const allDonations = donationsQ.data?.items ?? [];
@@ -100,7 +104,7 @@ export default function ChannelPage() {
               {/* Правая колонка — моё standing + донат. ФИКСИРОВАНА на экране (rail-pinned-right): не
                   двигается ВООБЩЕ при скролле, даже у футтера. Грид резервирует 360px-трек, поэтому левая
                   колонка не плывёт. На мобиле (<lg) — обычным блоком в потоке. */}
-              <aside className="flex flex-col gap-6 rail-pinned-right">
+              <aside ref={railRef} className="flex flex-col gap-6 rail-pinned-right">
                 <section className="flex flex-col gap-3">
                   <h2 className="text-h3 text-fg">Моё standing</h2>
                   {!address ? (
