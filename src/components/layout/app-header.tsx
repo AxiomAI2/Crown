@@ -12,15 +12,10 @@ export function AppHeader() {
           Standing
         </Link>
         <HeaderSearch />
+        {/* Профиль/Студия переехали в меню аватара (AccountMenu) — здесь только дискавери. */}
         <nav className="hidden items-center gap-5 text-small text-fg-muted sm:flex">
           <Link href="/" className="hover:text-fg">
             Каналы
-          </Link>
-          <Link href="/me" className="hover:text-fg">
-            Профиль
-          </Link>
-          <Link href="/studio" className="hover:text-fg">
-            Студия
           </Link>
         </nav>
         <div className="ml-auto flex items-center gap-3">

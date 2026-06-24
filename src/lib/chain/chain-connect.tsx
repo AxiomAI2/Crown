@@ -3,7 +3,7 @@
 import { WalletReadyState } from "@solana/wallet-adapter-base";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useEffect, useState } from "react";
-import { LabeledWalletButton } from "./wallet-multi-button";
+import { AccountMenu } from "./account-menu";
 import { WalletPickerDialog } from "./wallet-picker";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/lib/data/hooks";
@@ -81,8 +81,8 @@ export function ChainConnect() {
     );
   }
 
-  // Подключён + сессия → штатная кнопка с дропдауном (копировать адрес / сменить / выйти).
-  if (connected) return <LabeledWalletButton />;
+  // Подключён + сессия (залогинен) → аватар аккаунта с меню (профиль/студия/копировать/выйти).
+  if (connected) return <AccountMenu />;
 
   // Не подключён → «Войти» открывает свой пикер.
   return (
