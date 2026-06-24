@@ -41,7 +41,7 @@ export default function ChannelPage() {
   return (
     <>
       <AppHeader />
-      <main className="mx-auto max-w-content px-4 pb-8 pt-0">
+      <main className="mx-auto max-w-content px-4 pb-8 pt-4">
         {channelQ.isLoading ? (
           <Skeleton className="h-64 w-full rounded-lg" />
         ) : channelQ.error ? (

@@ -206,9 +206,11 @@
 @media (min-width: 1024px) {
   .rail-pinned-right {
     position: sticky;
-    top: var(--header-h);
+    /* точка прилипания = стартовая позиция (header-h + верхний отступ страницы pt-4) → постоянный отступ
+       под хедером И без «проезда» до прилипания. */
+    top: calc(var(--header-h) + var(--space-4));
     align-self: start;
-    max-height: calc(100dvh - var(--header-h) - 1rem);
+    max-height: calc(100dvh - var(--header-h) - var(--space-4) - 1rem);
     overflow-y: auto;
     scrollbar-width: none; /* без видимого ползунка — прокрутка колёсиком остаётся */
   }
@@ -219,9 +221,9 @@
 @media (min-width: 768px) {
   .rail-pinned-left {
     position: sticky;
-    top: var(--header-h);
+    top: calc(var(--header-h) + var(--space-4));
     align-self: start;
-    max-height: calc(100dvh - var(--header-h) - 1rem);
+    max-height: calc(100dvh - var(--header-h) - var(--space-4) - 1rem);
     overflow-y: auto;
     scrollbar-width: none;
   }
