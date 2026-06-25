@@ -4,7 +4,6 @@ import { useParams } from "next/navigation";
 import { ChannelHeader } from "@/components/domain/channel-header";
 import { DonateWidget } from "@/components/domain/donate";
 import { DonationHistory } from "@/components/domain/donation-history";
-import { Leaderboard } from "@/components/domain/leaderboard";
 import { ReputationProgress, StandingSeal, TierLadder } from "@/components/domain/standing";
 import { AppHeader } from "@/components/layout/app-header";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
@@ -71,7 +70,6 @@ export default function ChannelPage() {
                 <TabsList className="w-full">
                   <TabsTrigger value="feed">Лента</TabsTrigger>
                   <TabsTrigger value="donations">Донаты</TabsTrigger>
-                  <TabsTrigger value="leaderboard">Лидерборд</TabsTrigger>
                   <TabsTrigger value="tiers">Тиры</TabsTrigger>
                 </TabsList>
 
@@ -96,10 +94,6 @@ export default function ChannelPage() {
                   ) : (
                     <DonationHistory donations={donationsQ.data?.items ?? []} defaultOpen />
                   )}
-                </TabsContent>
-
-                <TabsContent value="leaderboard">
-                  <Leaderboard channelId={channel.id} currentAddress={address} />
                 </TabsContent>
 
                 <TabsContent value="tiers">

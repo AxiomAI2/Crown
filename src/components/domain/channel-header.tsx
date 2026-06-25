@@ -202,10 +202,10 @@ export function ChannelHeader({
               ) : null}
               {donorsCount !== undefined ? (
                 <>
-                  <span>
+                  <Link href={`/c/${channel.handle}/donors`} className="hover:text-fg">
                     <span className="font-medium text-fg">{donorsCount}</span>{" "}
                     {donorsCount === 1 ? "донатер" : "донатеров"}
-                  </span>
+                  </Link>
                   {totalDonated !== undefined ? (
                     <>
                       <span className="text-fg-faint">·</span>
