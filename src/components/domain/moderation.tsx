@@ -104,7 +104,8 @@ export function ModerationItem({
               </Button>
             </>
           )}
-          {donor ? <ModerationMenu channelId={message.channelId} donor={donor} message={message} /> : null}
+          {/* message НЕ передаём: «показать/скрыть это сообщение» уже есть кнопками выше — без дубля в меню */}
+          {donor ? <ModerationMenu channelId={message.channelId} donor={donor} /> : null}
         </div>
       </div>
     </div>
