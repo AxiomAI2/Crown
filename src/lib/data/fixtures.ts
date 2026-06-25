@@ -5,6 +5,9 @@
 import { toMicro } from "../utils";
 import type { ChannelConfig, Tier } from "./types";
 
+// Потолок числа тиров на канал (анти-«бесконечный список»). Дефолтных — 5, потолок — 20.
+export const MAX_TIERS = 20;
+
 // — Тиры по умолчанию (core-spec.md §6, цвета — design-system.md §2) —
 export const DEFAULT_TIERS: Tier[] = [
   { name: "Новичок", threshold: 0, color: "#9AA1B2", badge: "rookie", perks: [] },

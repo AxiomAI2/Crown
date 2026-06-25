@@ -2,7 +2,7 @@ import { OPERATOR_ADDRESS } from "../chain/addresses";
 import { CHANNEL_DESC_MAX, CHANNEL_NAME_MAX, sanitizeChannelLinks } from "../channel-links";
 import { computePoints, pointsForAmount, resolveTier } from "../reputation";
 import { isLikelyBase58Address, toMicro } from "../utils";
-import { defaultChannelConfig } from "./fixtures";
+import { defaultChannelConfig, MAX_TIERS } from "./fixtures";
 import { resolveAutoModerator, runPipeline } from "./moderation";
 import {
   DataError,
@@ -483,6 +483,9 @@ export class MockDataProvider implements DataProvider {
     const list = this.configsByChannel.get(channelId);
     const current = list?.[list.length - 1];
     if (!list || !current) throw new DataError("NO_CONFIG", "Нет конфига канала.");
+    // Потолок числа тиров (анти-«бесконечный список»; страховка поверх UI).
+    if (patch.tiers && patch.tiers.length > MAX_TIERS)
+      throw new DataError("TOO_MANY_TIERS", `Тиров — не больше ${MAX_TIERS}.`);
     // — Публичная личность канала (UGC): лимиты + модерация имени/описания + санитизация ссылок —
     if (patch.displayName !== undefined && patch.displayName.length > CHANNEL_NAME_MAX)
       throw new DataError("TOO_LONG", `Название канала — до ${CHANNEL_NAME_MAX} символов.`);

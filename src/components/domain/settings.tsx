@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MAX_TIERS } from "@/lib/data/fixtures";
 import type { Tier } from "@/lib/data/types";
 
 /**
@@ -50,9 +51,12 @@ export function TierEditor({ value, onChange }: { value: Tier[]; onChange: (t: T
           </Button>
         </div>
       ))}
-      <Button variant="secondary" size="sm" onClick={add}>
+      <Button variant="secondary" size="sm" onClick={add} disabled={value.length >= MAX_TIERS}>
         + тир
       </Button>
+      {value.length >= MAX_TIERS ? (
+        <p className="text-small text-fg-faint">Максимум {MAX_TIERS} тиров.</p>
+      ) : null}
       {!ascending ? (
         <p className="text-small text-warn">Пороги тиров должны идти по возрастанию.</p>
       ) : null}
