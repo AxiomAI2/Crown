@@ -1,17 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Amount } from "./amount";
 import { ChannelLinkButtons } from "./channel-links";
+import { inputsFromLinks, LinkEditor, type LinkInputs, linksFromInputs } from "./link-editor";
 import { TierBadge } from "./standing";
 import { ProfileAvatar } from "./standing-list";
-import { CheckIcon, CopyIcon, ExternalLinkIcon, SearchIcon } from "@/components/ui/icons";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/feedback";
+import {
+  CheckIcon,
+  CopyIcon,
+  ExternalLinkIcon,
+  PencilIcon,
+  SearchIcon,
+} from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { explorerTxUrl } from "@/lib/chain/addresses";
-import { useDonorOverview, useProfile } from "@/lib/data/hooks";
+import { useDonorOverview, useProfile, useUpdateProfile } from "@/lib/data/hooks";
 import type { Donation, DonorChannelStanding, DonorOverview } from "@/lib/data/types";
 import { channelHue, cn, formatPoints, fromMicro, timeAgo } from "@/lib/utils";
 
@@ -46,6 +65,95 @@ function CopyIconButton({ value, title }: { value: string; title: string }) {
     >
       {copied ? <CheckIcon className="h-[18px] w-[18px]" /> : <CopyIcon className="h-[18px] w-[18px]" />}
     </button>
+  );
+}
+
+/** Карандашик → диалог редактирования своего профиля (ник, о себе, ссылки). Та же форма, что и /me/profile. */
+function ProfileEditDialog({ address }: { address: string }) {
+  const profileQ = useProfile(address || null);
+  const update = useUpdateProfile();
+  const [open, setOpen] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+  const [bio, setBio] = useState("");
+  const [linkInputs, setLinkInputs] = useState<LinkInputs>({});
+
+  // Префилл из профиля; перечитываем при открытии (на случай правок в другой вкладке).
+  useEffect(() => {
+    const p = profileQ.data;
+    if (p && open) {
+      setDisplayName(p.displayName ?? "");
+      setBio(p.bio ?? "");
+      setLinkInputs(inputsFromLinks(p.links));
+    }
+  }, [profileQ.data, open]);
+
+  function save() {
+    update.mutate(
+      {
+        displayName: displayName.trim() || undefined,
+        bio: bio.trim() || undefined,
+        links: linksFromInputs(linkInputs),
+      },
+      {
+        onSuccess: () => {
+          toast({ variant: "success", title: "Профиль сохранён" });
+          setOpen(false);
+        },
+        onError: (e) => toast({ variant: "error", title: "Ошибка", description: String(e) }),
+      },
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          title="Редактировать профиль"
+          aria-label="Редактировать профиль"
+          className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
+        >
+          <PencilIcon className="h-[18px] w-[18px]" />
+        </button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Редактирование профиля</DialogTitle>
+          <DialogDescription>
+            Ник, аватар и ссылки видны в ленте, лидерборде и на этом профиле. Профиль необязателен.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-4">
+          <Input
+            label="Имя"
+            maxLength={40}
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+          />
+          <Textarea
+            label="О себе"
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            maxLength={280}
+            showCount
+          />
+          <div className="flex flex-col gap-2">
+            <span className="text-small text-fg-muted">Ссылки</span>
+            <LinkEditor value={linkInputs} onChange={setLinkInputs} />
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="ghost" disabled={update.isPending}>
+              Отмена
+            </Button>
+          </DialogClose>
+          <Button onClick={save} loading={update.isPending}>
+            Сохранить
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -213,7 +321,15 @@ function ActivityRow({ d, handle, channelName }: { d: Donation; handle?: string;
 type Tab = "channels" | "activity";
 type PosSort = "donated" | "points";
 
-function DonorDashboard({ overview, displayName }: { overview: DonorOverview; displayName?: string }) {
+function DonorDashboard({
+  overview,
+  displayName,
+  editable,
+}: {
+  overview: DonorOverview;
+  displayName?: string;
+  editable?: boolean;
+}) {
   const [tab, setTab] = useState<Tab>("channels");
   const [range, setRange] = useState<ChartRange>("ALL");
   const [query, setQuery] = useState("");
@@ -268,6 +384,7 @@ function DonorDashboard({ overview, displayName }: { overview: DonorOverview; di
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <CopyIconButton value={overview.address} title="Скопировать адрес" />
+              {editable ? <ProfileEditDialog address={overview.address} /> : null}
             </div>
           </div>
 
@@ -429,8 +546,9 @@ function DonorDashboard({ overview, displayName }: { overview: DonorOverview; di
   );
 }
 
-/** Публичный профиль донатера (read-only), в духе дашборда: личность + деньги во времени + standing/активность. */
-export function DonorProfile({ address }: { address: string }) {
+/** Профиль донатера в духе дашборда: личность + деньги во времени + standing/активность.
+ *  editable=true (своя страница /me) добавляет карандашик-редактор профиля. */
+export function DonorProfile({ address, editable }: { address: string; editable?: boolean }) {
   const overviewQ = useDonorOverview(address || null);
   const profileQ = useProfile(address || null);
 
@@ -448,5 +566,11 @@ export function DonorProfile({ address }: { address: string }) {
   if (!overviewQ.data) {
     return <p className="text-small text-fg-faint">Не удалось загрузить профиль.</p>;
   }
-  return <DonorDashboard overview={overviewQ.data} displayName={profileQ.data?.displayName} />;
+  return (
+    <DonorDashboard
+      overview={overviewQ.data}
+      displayName={profileQ.data?.displayName}
+      editable={editable}
+    />
+  );
 }

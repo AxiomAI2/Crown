@@ -1,18 +1,15 @@
 "use client";
 
-import Link from "next/link";
-import { ChannelLinkButtons } from "@/components/domain/channel-links";
-import { ChannelStandingList, ProfileAvatar } from "@/components/domain/standing-list";
+import { DonorProfile } from "@/components/domain/donor-profile";
 import { AppHeader } from "@/components/layout/app-header";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
-import { Button } from "@/components/ui/button";
 import { EmptyState, Skeleton } from "@/components/ui/feedback";
-import { useProfile, useSession } from "@/lib/data/hooks";
+import { useSession } from "@/lib/data/hooks";
 
+/** Своя страница профиля: тот же дашборд, что и публичный /u/[address], плюс карандашик-редактор. */
 export default function ProfilePage() {
   const sessionQ = useSession();
   const address = sessionQ.data?.address ?? null;
-  const profileQ = useProfile(address);
 
   return (
     <>
@@ -27,35 +24,7 @@ export default function ProfilePage() {
             action={<ConnectWalletButton />}
           />
         ) : (
-          <>
-            <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex min-w-0 items-center gap-4">
-                <ProfileAvatar name={profileQ.data?.displayName} address={address} />
-                <div className="flex min-w-0 flex-col gap-1">
-                  <span className="truncate font-display text-h3 text-fg">
-                    {profileQ.data?.displayName ?? "Без имени"}
-                  </span>
-                  <span className="mono truncate text-small text-fg-faint">{address}</span>
-                  {profileQ.data?.bio ? (
-                    <p className="text-small text-fg-muted">{profileQ.data.bio}</p>
-                  ) : null}
-                  {profileQ.data?.links?.length ? (
-                    <div className="mt-1">
-                      <ChannelLinkButtons links={profileQ.data.links} />
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-              <Button asChild size="sm" variant="secondary">
-                <Link href="/me/profile">Редактировать профиль</Link>
-              </Button>
-            </div>
-
-            <section className="flex flex-col gap-3">
-              <h2 className="text-h2 text-fg">Моё standing</h2>
-              <ChannelStandingList address={address} />
-            </section>
-          </>
+          <DonorProfile address={address} editable />
         )}
       </main>
     </>
