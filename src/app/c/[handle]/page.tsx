@@ -86,7 +86,7 @@ export default function ChannelPage() {
                       )}
                       title="Показанные сообщения"
                       reportable
-                      defaultOpen
+                      collapsible={false}
                       manageChannelId={canManage ? channel.id : undefined}
                     />
                   )}
@@ -98,7 +98,7 @@ export default function ChannelPage() {
                   ) : (
                     <DonationHistory
                       donations={donationsQ.data?.items ?? []}
-                      defaultOpen
+                      collapsible={false}
                       manageChannelId={canManage ? channel.id : undefined}
                     />
                   )}

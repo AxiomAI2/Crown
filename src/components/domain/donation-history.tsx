@@ -40,12 +40,14 @@ export function DonationHistory({
   defaultOpen = false,
   reportable = false,
   manageChannelId,
+  collapsible = true,
 }: {
   donations: Donation[];
   title?: string;
   defaultOpen?: boolean;
   reportable?: boolean; // показывать «Пожаловаться» на показанных сообщениях (для публичной ленты)
   manageChannelId?: string; // задан → у каждого доната кнопка «Забанить» (владелец/модератор канала)
+  collapsible?: boolean; // false → без сворачивания (напр. в табах канала — там это уже лишнее), всегда раскрыт
 }) {
   const [query, setQuery] = useState("");
   const [pageSize, setPageSize] = useState(25);
@@ -59,18 +61,11 @@ export function DonationHistory({
   const start = safePage * pageSize;
   const pageItems = filtered.slice(start, start + pageSize);
 
-  return (
-    <details className="group rounded-lg border border-border bg-surface p-4" open={defaultOpen}>
-      <summary className="flex cursor-pointer list-none items-center justify-between text-h3 text-fg [&::-webkit-details-marker]:hidden">
-        <span>
-          {title} <span className="text-small font-normal text-fg-faint">({donations.length})</span>
-        </span>
-        <span className="text-small font-normal text-fg-muted transition-transform group-open:rotate-180">
-          ▾
-        </span>
-      </summary>
-      <div className="mt-4 flex flex-col gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+  const count = <span className="text-small font-normal text-fg-faint">({donations.length})</span>;
+
+  const body = (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex-1">
           <Input
             label="Поиск"
@@ -145,7 +140,28 @@ export function DonationHistory({
           </div>
         </>
       )}
+    </div>
+  );
+
+  // Несворачиваемо (напр. в табах канала) — обычная карточка с заголовком, контент всегда виден.
+  if (!collapsible) {
+    return (
+      <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4">
+        <h3 className="text-h3 text-fg">{title} {count}</h3>
+        {body}
       </div>
+    );
+  }
+
+  return (
+    <details className="group rounded-lg border border-border bg-surface p-4" open={defaultOpen}>
+      <summary className="flex cursor-pointer list-none items-center justify-between text-h3 text-fg [&::-webkit-details-marker]:hidden">
+        <span>{title} {count}</span>
+        <span className="text-small font-normal text-fg-muted transition-transform group-open:rotate-180">
+          ▾
+        </span>
+      </summary>
+      <div className="mt-4">{body}</div>
     </details>
   );
 }
