@@ -1,7 +1,7 @@
 "use client";
 
 import { Amount } from "./amount";
-import { BlockButton } from "./block-button";
+import { ModerationMenu } from "./moderation-menu";
 import { ReportDialog } from "./report-dialog";
 import { Button } from "@/components/ui/button";
 import { cn, shortAddress, timeAgo } from "@/lib/utils";
@@ -65,7 +65,7 @@ export function ModerationItem({
           <p className="flex-1 rounded border border-danger bg-danger-bg p-2 text-small text-fg-muted">
             Авто-карантин (hard-block). Показать нельзя — эскалация в T&amp;S.
           </p>
-          {donor ? <BlockButton channelId={message.channelId} address={donor} /> : null}
+          {donor ? <ModerationMenu channelId={message.channelId} donor={donor} message={message} /> : null}
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
@@ -75,7 +75,7 @@ export function ModerationItem({
           <Button variant="secondary" size="sm" onClick={onHide} disabled={pending}>
             Скрыть
           </Button>
-          {donor ? <BlockButton channelId={message.channelId} address={donor} /> : null}
+          {donor ? <ModerationMenu channelId={message.channelId} donor={donor} message={message} /> : null}
           <span className="ml-auto">
             <ReportDialog
               messageId={message.id}

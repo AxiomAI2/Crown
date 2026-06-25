@@ -150,6 +150,17 @@ export function useSetMessageState(channelId: string) {
     },
   });
 }
+export function useHideDonorMessages(channelId: string) {
+  const data = useData();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (donor: Address) => data.hideDonorMessages(channelId, donor),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.moderationQueue(channelId) });
+      qc.invalidateQueries({ queryKey: qk.donations(channelId) });
+    },
+  });
+}
 export function useReportMessage(channelId: string) {
   const data = useData();
   const qc = useQueryClient();

@@ -161,6 +161,9 @@ export class ApiDataProvider implements DataProvider {
   setMessageState(messageId: string, state: "SHOWN" | "HIDDEN"): Result<MessageRef> {
     return this.rpc("setMessageState", [messageId, state]);
   }
+  hideDonorMessages(channelId: string, donor: Address): Result<{ hidden: number }> {
+    return this.rpc("hideDonorMessages", [channelId, donor]);
+  }
   reportMessage(messageId: string, reason?: string): Result<{ reports: number; hidden: boolean }> {
     return this.rpc("reportMessage", [messageId, reason]);
   }

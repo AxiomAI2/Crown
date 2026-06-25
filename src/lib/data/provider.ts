@@ -66,6 +66,8 @@ export interface DataProvider {
   // — Модерация (стример/модераторы) —
   getModerationQueue(channelId: string): Result<MessageRef[]>;
   setMessageState(messageId: string, state: "SHOWN" | "HIDDEN"): Result<MessageRef>;
+  // Скрыть ВСЕ сообщения донора на канале (одной кнопкой). Деньги/standing не трогаются — только показ.
+  hideDonorMessages(channelId: string, donor: Address): Result<{ hidden: number }>;
   // Жалоба зрителя на показанный текст (любой вошедший); порог жалоб авто-скрывает + инцидент в T&S.
   reportMessage(messageId: string, reason?: string): Result<{ reports: number; hidden: boolean }>;
 

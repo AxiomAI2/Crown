@@ -1,5 +1,5 @@
 import { Amount } from "./amount";
-import { BlockButton } from "./block-button";
+import { ModerationMenu } from "./moderation-menu";
 import { ReportDialog } from "./report-dialog";
 import { TierBadge } from "./standing";
 import { explorerTxUrl } from "@/lib/chain/addresses";
@@ -56,7 +56,11 @@ export function DonationCard({
             <ReportDialog messageId={donation.message.id} channelId={donation.channelId} />
           ) : null}
           {manageChannelId ? (
-            <BlockButton channelId={manageChannelId} address={donation.donor} />
+            <ModerationMenu
+              channelId={manageChannelId}
+              donor={donation.donor}
+              message={donation.message}
+            />
           ) : null}
         </div>
       </div>

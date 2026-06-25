@@ -414,6 +414,9 @@ export class ChainDataProvider implements DataProvider {
   setMessageState(id: string, s: "SHOWN" | "HIDDEN"): Result<MessageRef> {
     return this.api.setMessageState(id, s);
   }
+  hideDonorMessages(channelId: string, donor: string): Result<{ hidden: number }> {
+    return this.api.hideDonorMessages(channelId, donor);
+  }
   reportMessage(messageId: string, reason?: string): Result<{ reports: number; hidden: boolean }> {
     return this.api.reportMessage(messageId, reason);
   }

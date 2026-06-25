@@ -764,6 +764,21 @@ export class MockDataProvider implements DataProvider {
     }
     return updated;
   }
+  /** Скрыть ВСЕ сообщения донора на канале (одной кнопкой). Только менеджер; деньги/standing не трогаются. */
+  async hideDonorMessages(channelId: string, donor: Address): Result<{ hidden: number }> {
+    await this.gate("hideDonorMessages");
+    this.requireChannelManager(channelId);
+    let hidden = 0;
+    for (const d of this.donations) {
+      if (d.channelId !== channelId || d.donor !== donor || !d.message) continue;
+      if (d.message.state === "HIDDEN") continue;
+      const updated: MessageRef = { ...d.message, state: "HIDDEN" };
+      this.messages.set(updated.id, updated);
+      d.message = updated;
+      hidden++;
+    }
+    return { hidden };
+  }
 
   /**
    * Жалоба зрителя на ПОКАЗАННЫЙ текст. Любой вошедший, одна жалоба на сообщение с адреса (анти-накрутка).
