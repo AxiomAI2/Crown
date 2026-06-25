@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Amount } from "./amount";
 import { PlatformIcon } from "./channel-links";
-import { VerifiedBadge } from "./verified-badge";
 import { explorerAddressUrl } from "@/lib/chain/addresses";
 import { platformDef } from "@/lib/channel-links";
 import type { ChannelCard } from "@/lib/data/types";
@@ -38,12 +37,9 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
             {name.replace(/^@/, "")[0]?.toUpperCase() ?? "?"}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate font-display text-fg transition-colors group-hover:text-status">
-                {name}
-              </span>
-              {card.activated ? <VerifiedBadge /> : null}
-            </div>
+            <span className="block truncate font-display text-fg transition-colors group-hover:text-status">
+              {name}
+            </span>
             {named ? (
               <div className="mono truncate text-small text-fg-faint">@{card.handle}</div>
             ) : null}

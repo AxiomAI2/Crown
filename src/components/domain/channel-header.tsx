@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Amount } from "./amount";
 import { ChannelLinkButtons } from "./channel-links";
-import { VerifiedBadge } from "./verified-badge";
 import { CheckIcon, CopyIcon } from "@/components/ui/icons";
 import { toast } from "@/components/ui/toast";
 import { explorerAddressUrl } from "@/lib/chain/addresses";
@@ -154,7 +153,6 @@ export function ChannelHeader({
   const ownerProfile = useProfile(channel.ownerAddress);
   const name = ownerProfile.data?.displayName?.trim() || `@${channel.handle}`;
   const links = ownerProfile.data?.links ?? [];
-  const activated = channel.status === "ACTIVE";
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -189,7 +187,6 @@ export function ChannelHeader({
           <div className="flex h-[54px] items-center gap-3 border-b border-border bg-surface px-4 shadow-sm">
             <Monogram name={name} size="sm" />
             <span className="min-w-0 flex-1 truncate font-display text-fg">{name}</span>
-            {activated ? <VerifiedBadge /> : null}
             <HeaderActions payoutAddress={channel.payoutAddress} />
           </div>
         </div>
@@ -204,12 +201,9 @@ export function ChannelHeader({
             <Link href="/" className="w-fit text-small text-fg-faint hover:text-fg-muted">
               Каналы
             </Link>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 ref={titleRef} className="text-display-l text-fg">
-                {name}
-              </h1>
-              {activated ? <VerifiedBadge /> : null}
-            </div>
+            <h1 ref={titleRef} className="text-display-l text-fg">
+              {name}
+            </h1>
             {/* мета-строка под тайтлом */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-small text-fg-muted">
               {ownerProfile.data?.displayName?.trim() ? (

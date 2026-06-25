@@ -115,33 +115,39 @@ export function DonateWidget({
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-small text-fg-muted">
-        <input
-          type="checkbox"
-          checked={withText}
-          disabled={isBasic}
-          onChange={(e) => setWithText(e.target.checked)}
-        />
-        Добавить сообщение
-        {isBasic ? <span className="text-fg-faint">— канал ещё не активирован</span> : null}
-      </label>
+      {isBasic ? (
+        <p className="rounded border border-border bg-surface-raised p-3 text-small text-fg-muted">
+          Канал не активирован — донат с сообщением пока недоступен. Задонатить можно, но без текста.
+        </p>
+      ) : (
+        <>
+          <label className="flex items-center gap-2 text-small text-fg-muted">
+            <input
+              type="checkbox"
+              checked={withText}
+              onChange={(e) => setWithText(e.target.checked)}
+            />
+            Добавить сообщение
+          </label>
 
-      {withText && !isBasic ? (
-        <Textarea
-          label="Сообщение"
-          placeholder="Текст к донату…"
-          maxLength={config.messageMaxLen}
-          showCount
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          helper={
-            softWarn
-              ? "В тексте есть слово, которое может попасть под фильтр стримера (не блокирует)."
-              : "Текст приватен до показа — стример решит, публиковать ли его."
-          }
-          className={cn(softWarn && "border-warn")}
-        />
-      ) : null}
+          {withText ? (
+            <Textarea
+              label="Сообщение"
+              placeholder="Текст к донату…"
+              maxLength={config.messageMaxLen}
+              showCount
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              helper={
+                softWarn
+                  ? "В тексте есть слово, которое может попасть под фильтр стримера (не блокирует)."
+                  : "Текст приватен до показа — стример решит, публиковать ли его."
+              }
+              className={cn(softWarn && "border-warn")}
+            />
+          ) : null}
+        </>
+      )}
 
       {amountValid ? <FeeSplit amount={micro} /> : null}
 
