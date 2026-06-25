@@ -403,24 +403,10 @@ function DonorDashboard({
           {profileQ.data?.bio ? <p className="text-small text-fg-muted">{profileQ.data.bio}</p> : null}
           {profileQ.data?.links?.length ? <ChannelLinkButtons links={profileQ.data.links} /> : null}
 
-          <div className="mt-auto grid grid-cols-3 gap-3 border-t border-border pt-3">
+          <div className="mt-auto grid grid-cols-2 gap-3 border-t border-border pt-3">
             <StatTile
               value={overview.channelsSupported}
               label={`${plural(overview.channelsSupported, CHANNELS)} поддержано`}
-            />
-            <StatTile
-              value={
-                overview.topStanding ? (
-                  <span style={{ color: overview.topStanding.tier.color }}>
-                    {overview.topStanding.tier.name}
-                  </span>
-                ) : (
-                  "—"
-                )
-              }
-              label={
-                overview.topStanding ? `высший тир · @${overview.topStanding.handle}` : "высший тир"
-              }
             />
             <StatTile value={overview.donationCount} label={plural(overview.donationCount, DONATIONS)} />
           </div>
