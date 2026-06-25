@@ -18,8 +18,9 @@ const PAGE_SIZES = [10, 25, 50, 100];
 function matches(d: Donation, q: string): boolean {
   if (!q) return true;
   const hay = [
-    d.donor,
-    d.txSignature ?? "",
+    d.donor, // адрес донора
+    d.donorName ?? "", // ник (отображаемое имя)
+    d.txSignature ?? "", // хеш транзакции
     d.message?.text ?? "",
     d.id,
     (Number(d.amount) / 1_000_000).toString(),
