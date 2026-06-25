@@ -174,7 +174,7 @@ export function Select({
           <ul
             id={`${selectId}-listbox`}
             role="listbox"
-            className="scroll-thin absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-auto rounded-lg border border-border bg-surface-raised p-1 shadow-lg"
+            className="scroll-thin absolute left-0 top-full z-50 mt-1 max-h-60 w-max min-w-full max-w-[min(20rem,80vw)] overflow-auto rounded-lg border border-border bg-surface-raised p-1 shadow-lg"
           >
             {options.map((o, i) => {
               const isSel = o.value === value;
