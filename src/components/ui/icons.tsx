@@ -51,6 +51,15 @@ export function ChevronLeftIcon({ className }: IconProps) {
   );
 }
 
+/** Шеврон вниз — раскрытие селекта. */
+export function ChevronDownIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 /** Щит — действия модерации (скрыть/бан). */
 export function ShieldIcon({ className }: IconProps) {
   return (
