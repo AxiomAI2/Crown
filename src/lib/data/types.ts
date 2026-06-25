@@ -87,11 +87,10 @@ export interface ChannelConfig {
   channelId: string;
   version: number;
   hash: string; // версия конфига (метаданные; курс репутации фиксирован, не версионируется)
-  // Публичная личность канала (видна на странице канала). Имя/описание модерируются как UGC; ссылки —
-  // только профиль/канал на доменах из allowlist. Инертны для репутации (формула их не читает, §4.4).
-  displayName?: string;
+  // Имя канала и ссылки — НЕ здесь: единый источник истины — профиль владельца (LightProfile.displayName/
+  // links по ownerAddress), чтобы у человека был один ник и один набор ссылок. Канальное — только описание
+  // (тэглайн канала). Модерируется как UGC; инертно для репутации (формула не читает, §4.4).
   description?: string;
-  links?: ChannelLink[];
   tiers: Tier[];
   minDonation: MicroUSDC;
   minDonationWithText: MicroUSDC;
@@ -271,9 +270,7 @@ export interface CreateChannelInput {
 export type ConfigPatch = Partial<
   Pick<
     ChannelConfig,
-    | "displayName"
     | "description"
-    | "links"
     | "tiers"
     | "minDonation"
     | "minDonationWithText"

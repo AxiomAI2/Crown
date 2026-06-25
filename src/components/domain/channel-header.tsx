@@ -6,6 +6,7 @@ import { Amount } from "./amount";
 import { ChannelLinkButtons } from "./channel-links";
 import { toast } from "@/components/ui/toast";
 import { explorerAddressUrl } from "@/lib/chain/addresses";
+import { useProfile } from "@/lib/data/hooks";
 import type { Channel, ChannelConfig } from "@/lib/data/types";
 import { channelHue, cn } from "@/lib/utils";
 
@@ -135,7 +136,10 @@ export function ChannelHeader({
   donorsCount?: number;
   totalDonated?: bigint;
 }) {
-  const name = config?.displayName?.trim() || `@${channel.handle}`;
+  // Имя и ссылки канала = профиль ВЛАДЕЛЬЦА (единый ник/ссылки на человека). Описание — канальное (config).
+  const ownerProfile = useProfile(channel.ownerAddress);
+  const name = ownerProfile.data?.displayName?.trim() || `@${channel.handle}`;
+  const links = ownerProfile.data?.links ?? [];
   const basic = channel.status === "BASIC";
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -194,7 +198,7 @@ export function ChannelHeader({
             </div>
             {/* мета-строка под тайтлом */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-small text-fg-muted">
-              {config?.displayName?.trim() ? (
+              {ownerProfile.data?.displayName?.trim() ? (
                 <>
                   <span className="mono text-fg-faint">@{channel.handle}</span>
                   <span className="text-fg-faint">·</span>
@@ -228,7 +232,7 @@ export function ChannelHeader({
           <p className="max-w-2xl text-fg-muted">{config.description}</p>
         ) : null}
 
-        {config?.links?.length ? <ChannelLinkButtons links={config.links} /> : null}
+        {links.length > 0 ? <ChannelLinkButtons links={links} /> : null}
       </header>
     </>
   );

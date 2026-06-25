@@ -1,5 +1,5 @@
 import { OPERATOR_ADDRESS } from "../chain/addresses";
-import { CHANNEL_DESC_MAX, CHANNEL_NAME_MAX, sanitizeChannelLinks } from "../channel-links";
+import { CHANNEL_DESC_MAX, sanitizeChannelLinks } from "../channel-links";
 import { computePoints, pointsForAmount, resolveTier } from "../reputation";
 import { isLikelyBase58Address, toMicro } from "../utils";
 import { defaultChannelConfig, MAX_TIERS } from "./fixtures";
@@ -376,13 +376,14 @@ export class MockDataProvider implements DataProvider {
         const cfg = this.latestConfig(c.id);
         const board = this.computeLeaderboard(c.id, "all_time");
         const top = board[0];
+        // Имя и ссылки канала = профиль ВЛАДЕЛЬЦА (единый ник/ссылки на человека), не отдельные канальные.
+        const owner = this.profiles.get(c.ownerAddress);
         return {
           channelId: c.id,
           handle: c.handle,
-          // имя канала — из конфига (а НЕ ник топ-донатера, как было ошибочно)
-          displayName: cfg.displayName,
+          displayName: owner?.displayName,
           payoutAddress: c.payoutAddress,
-          links: cfg.links,
+          links: owner?.links,
           topTierName: top ? top.tier.name : (cfg.tiers[0]?.name ?? "Новичок"),
           donorsCount: board.length,
           totalDonated: board.reduce((s, e) => s + e.totalDonated, 0n),
@@ -486,20 +487,13 @@ export class MockDataProvider implements DataProvider {
     // Потолок числа тиров (анти-«бесконечный список»; страховка поверх UI).
     if (patch.tiers && patch.tiers.length > MAX_TIERS)
       throw new DataError("TOO_MANY_TIERS", `Тиров — не больше ${MAX_TIERS}.`);
-    // — Публичная личность канала (UGC): лимиты + модерация имени/описания + санитизация ссылок —
-    if (patch.displayName !== undefined && patch.displayName.length > CHANNEL_NAME_MAX)
-      throw new DataError("TOO_LONG", `Название канала — до ${CHANNEL_NAME_MAX} символов.`);
+    // Описание канала (UGC): лимит + модерация. Имя/ссылки канала живут в профиле владельца, не здесь.
     if (patch.description !== undefined && patch.description.length > CHANNEL_DESC_MAX)
       throw new DataError("TOO_LONG", `Описание — до ${CHANNEL_DESC_MAX} символов.`);
-    const idText = [patch.displayName, patch.description].filter(Boolean).join(" ").trim();
-    if (idText && (await resolveAutoModerator().classify(idText, "")) === "HARD_BLOCK")
-      throw new DataError("CHANNEL_BLOCKED", "Название/описание не прошло модерацию (запрещённый/жёсткий контент).");
-    const safePatch: ConfigPatch = { ...patch };
-    // Ссылки — только профиль/канал на доменах из allowlist; чужой URL/глубокая ссылка отбрасываются
-    // (страховка поверх клиентской валидации; прямой RPC с произвольным URL так не пройдёт).
-    if (patch.links !== undefined) safePatch.links = sanitizeChannelLinks(patch.links);
+    if (patch.description && (await resolveAutoModerator().classify(patch.description, "")) === "HARD_BLOCK")
+      throw new DataError("CHANNEL_BLOCKED", "Описание не прошло модерацию (запрещённый/жёсткий контент).");
     // Курс репутации фиксирован → версионировать нечего. Тиры/минимумы/настройки применяются сразу.
-    const updated: ChannelConfig = { ...current, ...safePatch, updatedAt: this.now() };
+    const updated: ChannelConfig = { ...current, ...patch, updatedAt: this.now() };
     list[list.length - 1] = updated;
     return updated;
   }

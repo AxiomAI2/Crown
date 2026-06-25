@@ -1,12 +1,7 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import {
-  inputsFromLinks,
-  LinkEditor,
-  type LinkInputs,
-  linksFromInputs,
-} from "@/components/domain/link-editor";
 import { TierEditor } from "@/components/domain/settings";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
@@ -15,15 +10,13 @@ import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
-import { CHANNEL_DESC_MAX, CHANNEL_NAME_MAX } from "@/lib/channel-links";
+import { CHANNEL_DESC_MAX } from "@/lib/channel-links";
 import { useChannelConfig, useMyChannel, useUpdateConfig } from "@/lib/data/hooks";
 import { fromMicro, toMicro } from "@/lib/utils";
 import type { ChannelConfig, ConfigPatch, ModeratorRef, OverlaySettings, Tier } from "@/lib/data/types";
 
 interface Draft {
-  displayName: string;
   description: string;
-  linkInputs: LinkInputs;
   tiers: Tier[];
   minDonation: bigint;
   minDonationWithText: bigint;
@@ -37,9 +30,7 @@ interface Draft {
 
 function deriveDraft(c: ChannelConfig): Draft {
   return {
-    displayName: c.displayName ?? "",
     description: c.description ?? "",
-    linkInputs: inputsFromLinks(c.links),
     tiers: c.tiers,
     minDonation: c.minDonation,
     minDonationWithText: c.minDonationWithText,
@@ -58,12 +49,8 @@ const eq = (a: unknown, b: unknown) => enc(a) === enc(b);
 
 function buildPatch(draft: Draft, original: ChannelConfig): ConfigPatch {
   const patch: ConfigPatch = {};
-  const dn = draft.displayName.trim();
-  if ((dn || undefined) !== (original.displayName || undefined)) patch.displayName = dn || undefined;
   const ds = draft.description.trim();
   if ((ds || undefined) !== (original.description || undefined)) patch.description = ds || undefined;
-  const links = linksFromInputs(draft.linkInputs);
-  if (!eq(links, original.links ?? [])) patch.links = links;
   if (!eq(draft.tiers, original.tiers)) patch.tiers = draft.tiers;
   if (draft.minDonation !== original.minDonation) patch.minDonation = draft.minDonation;
   if (draft.minDonationWithText !== original.minDonationWithText)
@@ -115,20 +102,15 @@ export default function ChannelSettingsPage() {
     <div className="flex flex-col gap-8 pb-24">
       <h1 className="text-display-l text-fg">Настройки канала</h1>
 
-      <Section title="Личность канала">
+      <Section title="Описание канала">
         <p className="text-small text-fg-muted">
-          Название, описание и ссылки видны на странице канала. Текст модерируется как любой UGC (мат — ок,
-          запрещёнка — нет). Ссылки принимаются только на профиль/канал в поддерживаемых сервисах.
+          Имя канала и ссылки берутся из твоего{" "}
+          <Link href="/me/profile" className="text-info hover:underline">
+            профиля
+          </Link>{" "}
+          — один ник и один набор ссылок на человека. Здесь — только описание канала (тэглайн); оно видно
+          на странице канала и модерируется как UGC (мат — ок, запрещёнка — нет).
         </p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Input
-            label="Название канала"
-            maxLength={CHANNEL_NAME_MAX}
-            value={draft.displayName}
-            placeholder={`@${myChannelQ.data?.handle ?? ""}`}
-            onChange={(e) => set("displayName", e.target.value)}
-          />
-        </div>
         <Textarea
           label="Описание"
           maxLength={CHANNEL_DESC_MAX}
@@ -136,7 +118,6 @@ export default function ChannelSettingsPage() {
           value={draft.description}
           onChange={(e) => set("description", e.target.value)}
         />
-        <LinkEditor value={draft.linkInputs} onChange={(v) => set("linkInputs", v)} />
       </Section>
 
       <Section title="Тиры и пороги участия">
