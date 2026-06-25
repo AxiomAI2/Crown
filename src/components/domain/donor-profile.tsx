@@ -88,8 +88,8 @@ function CopyIconButton({ value, title }: { value: string; title: string }) {
 }
 
 /**
- * Био профиля: превью в 3 строки, чтобы длинный текст не растил карточку (и соседнюю по сетке). Если текст
- * обрезан — кнопка «…ещё» открывает окно с полным описанием (тот же приём, что и у длинного списка ссылок).
+ * Био профиля: превью в одну строку, чтобы длинный текст не растил карточку (и соседнюю по сетке). Если
+ * текст обрезан — кнопка «…ещё» открывает окно с полным описанием (тот же приём, что и у списка ссылок).
  */
 function ProfileBio({ bio }: { bio: string }) {
   const ref = useRef<HTMLParagraphElement>(null);
@@ -107,7 +107,7 @@ function ProfileBio({ bio }: { bio: string }) {
 
   return (
     <div className="flex flex-col items-start gap-0.5">
-      <p ref={ref} className="line-clamp-3 break-words text-small text-fg-muted">
+      <p ref={ref} className="line-clamp-1 break-words text-small text-fg-muted">
         {bio}
       </p>
       {clamped ? (
