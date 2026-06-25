@@ -9,6 +9,7 @@ import { ReputationProgress, StandingSeal, TierLadder } from "@/components/domai
 import { AppHeader } from "@/components/layout/app-header";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useChannel,
   useChannelConfig,
@@ -65,39 +66,51 @@ export default function ChannelPage() {
                 donorsCount={stats?.donors}
                 totalDonated={stats?.total}
               />
-              <section className="flex flex-col gap-3">
+              {/* Контент канала — табами (мини-хедер), а не простынёй. Новые фичи = новая вкладка. */}
+              <Tabs defaultValue="feed" className="flex flex-col gap-1">
+                <TabsList className="w-full">
+                  <TabsTrigger value="feed">Лента</TabsTrigger>
+                  <TabsTrigger value="donations">Донаты</TabsTrigger>
+                  <TabsTrigger value="leaderboard">Лидерборд</TabsTrigger>
+                  <TabsTrigger value="tiers">Тиры</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="feed">
                   {donationsQ.isLoading ? (
-                    <Skeleton className="h-12 w-full rounded-lg" />
+                    <Skeleton className="h-24 w-full rounded-lg" />
                   ) : (
                     <DonationHistory
                       donations={(donationsQ.data?.items ?? []).filter(
                         (d) => d.message?.state === "SHOWN",
                       )}
-                      title="Лента (показанные сообщения)"
+                      title="Показанные сообщения"
                       reportable
                       defaultOpen
                     />
                   )}
-                </section>
+                </TabsContent>
 
-                <section className="flex flex-col gap-3">
-                  <h2 className="text-h2 text-fg">Лидерборд</h2>
-                  {channel ? <Leaderboard channelId={channel.id} currentAddress={address} /> : null}
-                </section>
-
-                <section className="flex flex-col gap-3">
+                <TabsContent value="donations">
                   {donationsQ.isLoading ? (
-                    <Skeleton className="h-12 w-full rounded-lg" />
+                    <Skeleton className="h-24 w-full rounded-lg" />
                   ) : (
-                    <DonationHistory donations={donationsQ.data?.items ?? []} />
+                    <DonationHistory donations={donationsQ.data?.items ?? []} defaultOpen />
                   )}
-                </section>
+                </TabsContent>
 
-                <section className="flex flex-col gap-3">
-                  <h2 className="text-h2 text-fg">Тиры канала</h2>
-                  {configQ.data ? <TierLadder tiers={configQ.data.tiers} /> : <Skeleton className="h-40 w-full" />}
-                </section>
-              </div>
+                <TabsContent value="leaderboard">
+                  <Leaderboard channelId={channel.id} currentAddress={address} />
+                </TabsContent>
+
+                <TabsContent value="tiers">
+                  {configQ.data ? (
+                    <TierLadder tiers={configQ.data.tiers} />
+                  ) : (
+                    <Skeleton className="h-40 w-full" />
+                  )}
+                </TabsContent>
+              </Tabs>
+            </div>
 
               {/* Правая колонка — моё standing + донат. ФИКСИРОВАНА на экране (rail-pinned-right): не
                   двигается ВООБЩЕ при скролле, даже у футтера. Грид резервирует 360px-трек, поэтому левая
