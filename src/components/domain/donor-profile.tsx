@@ -212,7 +212,9 @@ function DonationsAreaChart({ donations, range }: { donations: Donation[]; range
   const now = Date.now();
   const total = series[series.length - 1]!.y;
   const firstT = series[0]!.t;
-  const windowStart = range === "ALL" ? firstT : now - RANGE_MS[range];
+  // Окно не должно уходить раньше первого доната: иначе на «1М/1Г» ось тянется в прошлое до проекта
+  // (плоская линия в «пустом» периоде выглядит как донаты тогда, когда их не было).
+  const windowStart = range === "ALL" ? firstT : Math.max(firstT, now - RANGE_MS[range]);
 
   // Стартовое (накопленное) значение на левом крае окна.
   let baseY = 0;
