@@ -32,7 +32,11 @@ import { toast } from "@/components/ui/toast";
 import { explorerTxUrl } from "@/lib/chain/addresses";
 import { useDonorOverview, useProfile, useUpdateProfile } from "@/lib/data/hooks";
 import type { Donation, DonorChannelStanding, DonorOverview } from "@/lib/data/types";
-import { channelHue, cn, formatPoints, fromMicro, timeAgo } from "@/lib/utils";
+import { channelHue, cn, formatPoints, fromMicro, plural, timeAgo } from "@/lib/utils";
+
+const DONATIONS = ["донат", "доната", "донатов"] as const;
+const CHANNELS = ["канал", "канала", "каналов"] as const;
+const POINTS = ["очко", "очка", "очков"] as const;
 
 // — Аналог polymarket-профиля в нашем контексте: деньги (донаты) агрегируемы, репутация — ПОканальная
 //   (инвариант §4.3, глобального рейтинга нет). Headline + график = «всего задонатил» во времени;
@@ -272,7 +276,7 @@ function PositionRow({ s }: { s: DonorChannelStanding }) {
       </div>
       <div className="hidden w-20 shrink-0 flex-col items-end sm:flex">
         <span className="mono text-fg">{formatPoints(s.points)}</span>
-        <span className="text-small text-fg-faint">очков</span>
+        <span className="text-small text-fg-faint">{plural(s.points, POINTS)}</span>
       </div>
       <div className="flex w-24 shrink-0 flex-col items-end">
         <Amount micro={s.totalDonated} variant="money" />
@@ -379,7 +383,7 @@ function DonorDashboard({
               <span className="mono truncate text-small text-fg-faint">{overview.address}</span>
               <span className="text-small text-fg-muted">
                 донатит с {monthYear(overview.firstDonationAt)} · {overview.donationCount}{" "}
-                {overview.donationCount === 1 ? "донат" : "донатов"}
+                {plural(overview.donationCount, DONATIONS)}
               </span>
               {overview.ownedChannelHandle ? (
                 <Link
@@ -400,7 +404,10 @@ function DonorDashboard({
           {profileQ.data?.links?.length ? <ChannelLinkButtons links={profileQ.data.links} /> : null}
 
           <div className="mt-auto grid grid-cols-3 gap-3 border-t border-border pt-3">
-            <StatTile value={overview.channelsSupported} label="каналов поддержано" />
+            <StatTile
+              value={overview.channelsSupported}
+              label={`${plural(overview.channelsSupported, CHANNELS)} поддержано`}
+            />
             <StatTile
               value={
                 overview.topStanding ? (
@@ -415,7 +422,7 @@ function DonorDashboard({
                 overview.topStanding ? `высший тир · @${overview.topStanding.handle}` : "высший тир"
               }
             />
-            <StatTile value={overview.donationCount} label="донатов" />
+            <StatTile value={overview.donationCount} label={plural(overview.donationCount, DONATIONS)} />
           </div>
         </div>
 

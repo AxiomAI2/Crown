@@ -4,15 +4,9 @@ import { PlatformIcon } from "./channel-links";
 import { explorerAddressUrl } from "@/lib/chain/addresses";
 import { platformDef } from "@/lib/channel-links";
 import type { ChannelCard } from "@/lib/data/types";
-import { channelHue, shortAddress } from "@/lib/utils";
+import { channelHue, plural, shortAddress } from "@/lib/utils";
 
-function pluralDonors(n: number): string {
-  const m10 = n % 10;
-  const m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return "донатер";
-  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return "донатера";
-  return "донатеров";
-}
+const DONORS = ["донатер", "донатера", "донатеров"] as const;
 
 /** Карточка канала в Discovery: монограмма, название/@handle, тир, описание, инфо о донатерах, мини-ссылки
  *  на соцсети и payout-адрес. Тело — ссылка на канал; соцсети/кошелёк — отдельные ссылки (не вложены). */
@@ -52,7 +46,7 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-small text-fg-muted">
           <span>
             <span className="font-medium text-fg">{card.donorsCount}</span>{" "}
-            {pluralDonors(card.donorsCount)}
+            {plural(card.donorsCount, DONORS)}
           </span>
           <span className="flex items-center gap-1">
             объём <Amount micro={card.totalDonated} variant="money" />

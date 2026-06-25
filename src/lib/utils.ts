@@ -46,6 +46,30 @@ export function formatPoints(points: number): string {
   return Math.round(points).toLocaleString("en-US");
 }
 
+/**
+ * Русская плюрализация по числу. forms = [одна, две-четыре, пять]:
+ *   plural(1,  f) → f[0] («1 донат»);  21, 31 → тоже f[0]
+ *   plural(2,  f) → f[1] («2 доната»); 22–24 → тоже f[1]
+ *   plural(5,  f) → f[2] («5 донатов»); 0, 11–14 → тоже f[2]
+ * Единый источник правды для всех «N донатов/донатеров/каналов/очков» в UI.
+ */
+export function plural(n: number, forms: readonly [one: string, few: string, many: string]): string {
+  const abs = Math.abs(Math.trunc(n));
+  const mod10 = abs % 10;
+  const mod100 = abs % 100;
+  if (mod10 === 1 && mod100 !== 11) return forms[0];
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return forms[1];
+  return forms[2];
+}
+
+/** Число + согласованное слово: pluralize(22, ["донат","доната","донатов"]) → "22 доната". */
+export function pluralize(
+  n: number,
+  forms: readonly [one: string, few: string, many: string],
+): string {
+  return `${n} ${plural(n, forms)}`;
+}
+
 /** Адрес → "7xKp…3fQa" (усечённо). */
 export function shortAddress(address: string): string {
   if (address.length <= 10) return address;

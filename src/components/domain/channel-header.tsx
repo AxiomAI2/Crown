@@ -9,7 +9,7 @@ import { toast } from "@/components/ui/toast";
 import { explorerAddressUrl } from "@/lib/chain/addresses";
 import { useProfile } from "@/lib/data/hooks";
 import type { Channel, ChannelConfig } from "@/lib/data/types";
-import { channelHue, cn } from "@/lib/utils";
+import { channelHue, cn, plural } from "@/lib/utils";
 
 // Высота глобальной шапки (--header-h). Компактная плашка садится прямо под неё, и относительно её же
 // определяем «свёрнуто»: заголовок ушёл под шапку → показываем плашку.
@@ -216,7 +216,7 @@ export function ChannelHeader({
                 <>
                   <Link href={`/c/${channel.handle}/donors`} className="hover:text-fg">
                     <span className="font-medium text-fg">{donorsCount}</span>{" "}
-                    {donorsCount === 1 ? "донатер" : "донатеров"}
+                    {plural(donorsCount, ["донатер", "донатера", "донатеров"])}
                   </Link>
                   {totalDonated !== undefined ? (
                     <>

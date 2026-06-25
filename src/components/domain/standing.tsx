@@ -2,7 +2,9 @@
 
 import { Skeleton } from "@/components/ui/feedback";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn, formatPoints } from "@/lib/utils";
+import { cn, formatPoints, plural } from "@/lib/utils";
+
+const POINTS = ["очко", "очка", "очков"] as const;
 import type { Tier, ViewerStanding } from "@/lib/data/types";
 
 /** Компактный бейдж тира рядом с ником/в ленте/лидерборде. */
@@ -48,7 +50,7 @@ export function StandingSeal({
         <div
           tabIndex={0}
           role="img"
-          aria-label={`Standing: тир ${tier.name}, ${formatPoints(points)} очков. Непередаваемо.`}
+          aria-label={`Standing: тир ${tier.name}, ${formatPoints(points)} ${plural(points, POINTS)}. Непередаваемо.`}
           className="flex w-full max-w-xs cursor-help flex-col gap-1 rounded-lg border-2 bg-status-bg p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-info"
           style={{ borderColor: tier.color, boxShadow: `inset 0 0 0 1px ${tier.color}33` }}
         >
@@ -58,7 +60,7 @@ export function StandingSeal({
           <span className="mono text-display-l leading-none" style={{ color: tier.color }}>
             {formatPoints(points)}
           </span>
-          <span className="text-small text-fg-muted">очков standing</span>
+          <span className="text-small text-fg-muted">{plural(points, POINTS)} standing</span>
         </div>
       </TooltipTrigger>
       <TooltipContent>
@@ -78,7 +80,7 @@ export function ReputationProgress({ standing }: { standing: ViewerStanding }) {
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between text-small text-fg-muted">
         <span>до «{standing.nextTier.name}»</span>
-        <span className="mono">{formatPoints(remaining)} очков</span>
+        <span className="mono">{formatPoints(remaining)} {plural(remaining, POINTS)}</span>
       </div>
       <div className="h-2 overflow-hidden rounded-pill bg-surface-raised">
         <div

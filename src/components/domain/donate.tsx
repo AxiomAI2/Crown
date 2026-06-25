@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { useDonate } from "@/lib/data/hooks";
-import { cn, toMicro } from "@/lib/utils";
+import { cn, plural, toMicro } from "@/lib/utils";
 import type { Channel, ChannelConfig, DonationResult, Session } from "@/lib/data/types";
 
 const PRESETS = [5, 10, 25, 100];
@@ -251,7 +251,8 @@ function DoneView({
         ) : null}
         <p className="text-small text-fg-muted">
           Твой standing уже зачтён:{" "}
-          <span className="mono text-status">{result.standing.points}</span> очков.
+          <span className="mono text-status">{result.standing.points}</span>{" "}
+          {plural(result.standing.points, ["очко", "очка", "очков"])}.
         </p>
         {hadText ? (
           <p className="rounded border border-border bg-surface p-3 text-small text-fg-muted">
