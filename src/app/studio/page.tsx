@@ -7,7 +7,7 @@ import { CreateChannelForm } from "@/components/domain/create-channel-form";
 import { DonationHistory } from "@/components/domain/donation-history";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
-import { useDonations, useModerationQueue, useMyChannel, useSession } from "@/lib/data/hooks";
+import { useDonations, useMyChannel, useSession } from "@/lib/data/hooks";
 import { fromMicro, plural } from "@/lib/utils";
 
 const DONORS = ["донатер", "донатера", "донатеров"] as const;
@@ -19,7 +19,6 @@ export default function StudioDashboardPage() {
   const myChannelQ = useMyChannel();
   const channel = myChannelQ.data;
   const donationsQ = useDonations(channel?.id);
-  const queueQ = useModerationQueue(channel?.id);
   const [range, setRange] = useState<ChartRange>("ALL");
 
   const donations = useMemo(() => donationsQ.data?.items ?? [], [donationsQ.data?.items]);
@@ -60,7 +59,6 @@ export default function StudioDashboardPage() {
   }
 
   const turnover = donations.reduce((s, d) => s + d.amount, 0n);
-  const heldCount = (queueQ.data ?? []).length;
   const donorsCount = donorEvents.length;
 
   return (
@@ -68,12 +66,6 @@ export default function StudioDashboardPage() {
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-display-l text-fg">@{channel.handle}</h1>
         <span className="mono text-caption text-fg-faint">{channel.status}</span>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Metric label="Донатов" value={String(donations.length)} />
-        <Metric label="Донатеров" value={String(donorsCount)} />
-        <Metric label="В очереди модерации" value={String(heldCount)} />
       </div>
 
       {/* Аналитика: графики в стиле профиля (кумулятивная area-диаграмма с наведением). */}
@@ -118,16 +110,6 @@ export default function StudioDashboardPage() {
           <DonationHistory donations={donations} manageChannelId={channel.id} />
         )}
       </section>
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-1 rounded-lg border border-border bg-surface p-4">
-      <span className="text-caption">{label}</span>
-      {/* break-words — чтобы экстремально большой «Оборот» переносился внутри плитки, а не вылезал. */}
-      <span className="break-words text-h2 text-fg">{value}</span>
     </div>
   );
 }
