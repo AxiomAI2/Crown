@@ -25,7 +25,7 @@ export default function ProfileSettingsPage() {
 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
-  const [linkInputs, setLinkInputs] = useState<LinkInputs>({});
+  const [linkInputs, setLinkInputs] = useState<LinkInputs>([]);
 
   useEffect(() => {
     const p = profileQ.data;

@@ -70,7 +70,7 @@ export function ChannelLinkButtons({ links, max = 4 }: { links: ChannelLink[]; m
   return (
     <div className="flex flex-wrap items-center gap-2">
       {shown.map((l) => (
-        <LinkPill key={l.platform} link={l} />
+        <LinkPill key={l.url} link={l} />
       ))}
       {collapse ? (
         <Dialog>
@@ -90,7 +90,7 @@ export function ChannelLinkButtons({ links, max = 4 }: { links: ChannelLink[]; m
             </DialogHeader>
             <div className="flex flex-wrap gap-2">
               {valid.map((l) => (
-                <LinkPill key={l.platform} link={l} />
+                <LinkPill key={l.url} link={l} />
               ))}
             </div>
           </DialogContent>

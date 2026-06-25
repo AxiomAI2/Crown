@@ -62,7 +62,7 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
             <>
               {shownLinks.map((l) => (
                 <a
-                  key={l.platform}
+                  key={l.url}
                   href={l.url}
                   target="_blank"
                   rel="noopener noreferrer"

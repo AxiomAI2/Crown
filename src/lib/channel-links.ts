@@ -136,7 +136,9 @@ export const CHANNEL_PLATFORMS: PlatformDef[] = [
   },
 ];
 
-export const MAX_CHANNEL_LINKS = CHANNEL_PLATFORMS.length;
+// Потолок числа ссылок на профиль/канал. Разрешаем НЕСКОЛЬКО ссылок на одну платформу (напр. два YouTube),
+// но не «сотни» — чтобы список не разрастался.
+export const MAX_CHANNEL_LINKS = 10;
 
 const PLATFORM_BY_KEY: Record<ChannelLinkPlatform, PlatformDef> = Object.fromEntries(
   CHANNEL_PLATFORMS.map((p) => [p.key, p]),
@@ -167,18 +169,22 @@ export function normalizeChannelLink(platform: ChannelLinkPlatform, raw: string)
 }
 
 /**
- * Серверная санитизация списка ссылок (защита поверх клиентской валидации): каждая → каноничный URL,
- * дубли по платформе и невалидные отбрасываются, порядок — как в CHANNEL_PLATFORMS.
+ * Серверная санитизация списка ссылок (защита поверх клиентской валидации): каждая → каноничный URL.
+ * Несколько ссылок на одну платформу разрешены; отбрасываются невалидные и ТОЧНЫЕ дубли (та же платформа+URL).
+ * Порядок сохраняется (как ввёл пользователь), общее число ограничено MAX_CHANNEL_LINKS.
  */
 export function sanitizeChannelLinks(links: ChannelLink[] | undefined): ChannelLink[] {
-  const byPlatform = new Map<ChannelLinkPlatform, string>();
+  const out: ChannelLink[] = [];
+  const seen = new Set<string>();
   for (const l of links ?? []) {
-    if (!l || byPlatform.has(l.platform)) continue;
+    if (!l) continue;
     const url = normalizeChannelLink(l.platform, l.url ?? "");
-    if (url) byPlatform.set(l.platform, url);
+    if (!url) continue;
+    const key = `${l.platform}|${url}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ platform: l.platform, url });
+    if (out.length >= MAX_CHANNEL_LINKS) break;
   }
-  return CHANNEL_PLATFORMS.filter((p) => byPlatform.has(p.key)).map((p) => ({
-    platform: p.key,
-    url: byPlatform.get(p.key) as string,
-  }));
+  return out;
 }

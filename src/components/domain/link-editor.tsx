@@ -1,33 +1,49 @@
 "use client";
 
 import { PlatformIcon } from "./channel-links";
+import { Button } from "@/components/ui/button";
+import { XIcon } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
-import { CHANNEL_PLATFORMS, normalizeChannelLink } from "@/lib/channel-links";
+import { Select } from "@/components/ui/select";
+import {
+  CHANNEL_PLATFORMS,
+  MAX_CHANNEL_LINKS,
+  normalizeChannelLink,
+  platformDef,
+} from "@/lib/channel-links";
 import type { ChannelLink, ChannelLinkPlatform } from "@/lib/data/types";
 
-/** Сырой ввод по платформам (ник/URL). */
-export type LinkInputs = Partial<Record<ChannelLinkPlatform, string>>;
+/** Одна строка ввода: платформа + сырой URL/ник. Список (не Record) → можно несколько ссылок на платформу. */
+export type LinkInputRow = { platform: ChannelLinkPlatform; url: string };
+export type LinkInputs = LinkInputRow[];
 
-/** Ввод по платформам → каноничные ссылки (невалидные/пустые отброшены; порядок — как в CHANNEL_PLATFORMS). */
+const FALLBACK_PLATFORM: ChannelLinkPlatform = CHANNEL_PLATFORMS[0]!.key;
+
+/** Строки ввода → каноничные ссылки (пустые/невалидные отброшены, точные дубли убраны, не больше лимита). */
 export function linksFromInputs(inputs: LinkInputs): ChannelLink[] {
   const out: ChannelLink[] = [];
-  for (const p of CHANNEL_PLATFORMS) {
-    const raw = inputs[p.key]?.trim();
-    if (!raw) continue;
-    const url = normalizeChannelLink(p.key, raw);
-    if (url) out.push({ platform: p.key, url });
+  const seen = new Set<string>();
+  for (const row of inputs) {
+    const url = normalizeChannelLink(row.platform, row.url.trim());
+    if (!url) continue;
+    const key = `${row.platform}|${url}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ platform: row.platform, url });
+    if (out.length >= MAX_CHANNEL_LINKS) break;
   }
   return out;
 }
 
-/** Существующие ссылки → форма ввода по платформам. */
+/** Существующие ссылки → строки ввода (порядок сохраняется). */
 export function inputsFromLinks(links: ChannelLink[] | undefined): LinkInputs {
-  return Object.fromEntries((links ?? []).map((l) => [l.platform, l.url])) as LinkInputs;
+  return (links ?? []).map((l) => ({ platform: l.platform, url: l.url }));
 }
 
 /**
- * Редактор ссылок на внешние платформы (allowlist + инлайн-валидация). Общий для настроек канала и профиля:
- * поле на платформу с лого, принимается только профиль/канал на поддерживаемом сервисе.
+ * Редактор ссылок на внешние платформы (allowlist + инлайн-валидация). Вместо статичного списка всех
+ * платформ — «добавляй по мере надобности»: строка = выбор платформы + поле ссылки + удалить, плюс кнопка
+ * «+ Добавить ссылку» до потолка. Можно несколько ссылок на одно приложение. Общий для профиля и канала.
  */
 export function LinkEditor({
   value,
@@ -36,39 +52,78 @@ export function LinkEditor({
   value: LinkInputs;
   onChange: (v: LinkInputs) => void;
 }) {
+  const atMax = value.length >= MAX_CHANNEL_LINKS;
+  const setRow = (i: number, patch: Partial<LinkInputRow>) =>
+    onChange(value.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const removeRow = (i: number) => onChange(value.filter((_, idx) => idx !== i));
+  const addRow = () => {
+    if (!atMax) onChange([...value, { platform: FALLBACK_PLATFORM, url: "" }]);
+  };
+
   return (
-    <div className="flex flex-col gap-3">
-      {CHANNEL_PLATFORMS.map((p) => {
-        const raw = value[p.key] ?? "";
-        const invalid = raw.trim().length > 0 && !normalizeChannelLink(p.key, raw);
+    <div className="flex flex-col gap-2">
+      {value.map((row, i) => {
+        const def = platformDef(row.platform);
+        const invalid = row.url.trim().length > 0 && !normalizeChannelLink(row.platform, row.url);
         return (
-          <div key={p.key} className="flex flex-col gap-1">
-            <div className="flex items-center gap-3">
-              <span className="flex w-28 shrink-0 items-center gap-2 text-small text-fg-muted">
-                <PlatformIcon platform={p.key} brand className="h-4 w-4 shrink-0" />
-                {p.label}
-              </span>
+          <div key={i} className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <PlatformIcon platform={row.platform} brand className="h-5 w-5 shrink-0" />
+              <div className="w-32 shrink-0">
+                <Select
+                  className="w-full"
+                  value={row.platform}
+                  aria-label="Платформа"
+                  onChange={(e) => setRow(i, { platform: e.target.value as ChannelLinkPlatform })}
+                >
+                  {CHANNEL_PLATFORMS.map((p) => (
+                    <option key={p.key} value={p.key}>
+                      {p.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
               <div className="min-w-0 flex-1">
                 <Input
                   mono
-                  placeholder={p.example}
-                  value={raw}
-                  onChange={(e) => onChange({ ...value, [p.key]: e.target.value })}
+                  placeholder={def?.example}
+                  value={row.url}
+                  aria-label={`Ссылка ${def?.label ?? ""}`}
                   aria-invalid={invalid || undefined}
+                  onChange={(e) => setRow(i, { url: e.target.value })}
                 />
               </div>
+              <button
+                type="button"
+                onClick={() => removeRow(i)}
+                title="Удалить ссылку"
+                aria-label="Удалить ссылку"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-fg-faint transition-colors hover:bg-surface hover:text-fg"
+              >
+                <XIcon className="h-4 w-4" />
+              </button>
             </div>
             {invalid ? (
-              <span className="pl-[7.75rem] text-small text-danger">
-                Нужна ссылка на профиль/канал в {p.label} (напр. {p.example}).
+              <span className="pl-7 text-small text-danger">
+                Нужна ссылка на профиль/канал в {def?.label} (напр. {def?.example}).
               </span>
             ) : null}
           </div>
         );
       })}
+
+      <div className="flex items-center justify-between gap-2">
+        <Button type="button" variant="secondary" size="sm" onClick={addRow} disabled={atMax}>
+          + Добавить ссылку
+        </Button>
+        <span className="mono text-small text-fg-faint">
+          {value.length}/{MAX_CHANNEL_LINKS}
+        </span>
+      </div>
+
       <p className="text-small text-fg-faint">
-        Можно без https://. Лишние параметры срезаются — остаётся чистый адрес профиля. Произвольные сайты
-        и глубокие ссылки (напр. youtube.com/watch) не принимаются.
+        Можно без https://. Принимается только ссылка на профиль/канал (не youtube.com/watch). Несколько
+        ссылок на одно приложение — можно.
       </p>
     </div>
   );

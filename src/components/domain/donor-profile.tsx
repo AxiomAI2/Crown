@@ -139,7 +139,7 @@ function ProfileEditDialog({ address }: { address: string }) {
   const [open, setOpen] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
-  const [linkInputs, setLinkInputs] = useState<LinkInputs>({});
+  const [linkInputs, setLinkInputs] = useState<LinkInputs>([]);
 
   // Префилл из профиля; перечитываем при открытии (на случай правок в другой вкладке).
   useEffect(() => {
