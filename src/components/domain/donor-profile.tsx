@@ -489,8 +489,8 @@ function DonorDashboard({
 
   return (
     <div className="flex flex-col gap-8">
-      {/* Личность + график — две карточки в ряд, в тёмном тоне всего остального (bg --bg). */}
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+      {/* Личность + график — две карточки в ряд, одинаковой высоты (stretch), в тёмном тоне (bg --bg). */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Карточка личности */}
         <div className="flex flex-col gap-4 rounded-lg border border-border bg-[var(--bg)] p-4">
           <div className="flex items-start gap-4">
