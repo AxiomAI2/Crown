@@ -164,7 +164,7 @@ export function ChannelHeader({
         )}
       >
         <div className="mx-auto max-w-content px-4 lg:pr-[calc(360px+2rem+1rem)]">
-          <div className="flex h-[54px] items-center gap-3 border-b border-border bg-surface px-4 shadow-sm">
+          <div className="flex h-[54px] items-center gap-3 border-b border-border bg-[var(--bg)] px-4 shadow-sm">
             <Monogram name={name} size="sm" />
             <span className="min-w-0 flex-1 truncate font-display text-fg">{name}</span>
             <HeaderActions payoutAddress={channel.payoutAddress} />

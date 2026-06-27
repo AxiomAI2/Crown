@@ -120,7 +120,7 @@ export default function ChannelPage() {
               <aside className="flex flex-col gap-6 rail-pinned-right">
                 <section className="flex flex-col gap-3">
                   {!address ? (
-                    <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-4">
+                    <div className="flex flex-col gap-2 rounded-lg border border-border bg-[var(--bg)] p-4">
                       <p className="text-small text-fg-muted">
                         Подключи кошелёк, чтобы видеть и набирать standing на этом канале.
                       </p>
