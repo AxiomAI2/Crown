@@ -263,8 +263,47 @@
   background: transparent;
 }
 
-/* Чекбоксы/радио — нейтральный тон (серый fg-muted), а не браузерный голубой. */
-input[type="checkbox"],
+/* Чекбокс — кастомный, в тон тёмным полям: квадрат на фоне страницы с рамкой, нейтральная галочка. */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  cursor: pointer;
+  border-radius: 4px;
+  border: 1px solid var(--border-strong);
+  background-color: var(--bg);
+  display: inline-grid;
+  place-content: center;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+input[type="checkbox"]::before {
+  content: "";
+  width: 0.55rem;
+  height: 0.55rem;
+  transform: scale(0);
+  background-color: var(--bg);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+  transition: transform 120ms ease;
+}
+input[type="checkbox"]:checked {
+  background-color: var(--fg-muted);
+  border-color: var(--fg-muted);
+}
+input[type="checkbox"]:checked::before {
+  transform: scale(1);
+}
+input[type="checkbox"]:hover {
+  border-color: var(--fg-faint);
+}
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 1px;
+}
+/* Радио — нейтральный акцент (в приложении пока не используется, на будущее). */
 input[type="radio"] {
   accent-color: var(--fg-muted);
 }
