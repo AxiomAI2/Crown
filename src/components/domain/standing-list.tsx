@@ -43,7 +43,7 @@ function StandingRow({ card, address }: { card: ChannelCard; address: string }) 
             <Link href={`/c/${card.handle}`} className="font-display text-fg hover:text-status">
               @{card.handle}
             </Link>
-            <TierBadge tier={standing.tier} />
+            {standing.tier ? <TierBadge tier={standing.tier} /> : null}
             <span className="text-small text-fg-faint">
               всего задонатил <Amount micro={standing.totalDonated} />
             </span>

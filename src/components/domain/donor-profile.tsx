@@ -377,7 +377,7 @@ function PositionRow({ s }: { s: DonorChannelStanding }) {
         <div className="mono truncate text-small text-fg-faint">@{s.handle}</div>
       </div>
       <div className="hidden shrink-0 sm:block">
-        <TierBadge tier={s.tier} />
+        {s.tier ? <TierBadge tier={s.tier} /> : null}
       </div>
       <div className="hidden min-w-[5rem] shrink-0 flex-col items-end sm:flex">
         <span className="mono whitespace-nowrap text-fg">{formatPoints(s.points)}</span>

@@ -6,6 +6,7 @@ import {
   buildDonationInstructions,
   splitAmount,
 } from "../chain/donation-tx";
+import { resolveTier } from "../reputation";
 import { toMicro } from "../utils";
 import { ApiDataProvider } from "./api-provider";
 import { hashContent } from "./moderation";
@@ -299,12 +300,14 @@ export class ChainDataProvider implements DataProvider {
     let standing = await this.api.getStanding(input.channelId, donorAddr);
     if (!standing) {
       const cfg = await this.api.getChannelConfig(input.channelId);
+      const { tier, nextTier, progressToNext } = resolveTier(0, cfg.tiers);
       standing = {
         channelId: input.channelId,
         donor: donorAddr,
         points: 0,
-        tier: cfg.tiers[0]!,
-        progressToNext: 0,
+        tier,
+        nextTier,
+        progressToNext,
         totalDonated: 0n,
       };
     }

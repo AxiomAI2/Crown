@@ -166,11 +166,11 @@ export function StandingHeadline({
   const active = gain > 0;
   const cur = resolveTier(currentPoints, tiers);
   const proj = resolveTier(newPoints, tiers);
-  const tier = active ? proj.tier : cur.tier; // при вводе показываем тир, в который попадёшь
+  const tier = active ? proj.tier : cur.tier; // при вводе показываем тир, в который попадёшь (или его нет)
   const isNew = !standing;
 
   const next = cur.nextTier;
-  const floor = cur.tier.threshold;
+  const floor = cur.tier?.threshold ?? 0; // «без тира» → пол прогресса = 0
   const span = next ? Math.max(1, next.threshold - floor) : 1;
   const curFrac = next ? clamp01((currentPoints - floor) / span) : 1;
   const projFrac = next ? clamp01((newPoints - floor) / span) : 1;
@@ -191,7 +191,11 @@ export function StandingHeadline({
             ) : null}
           </span>
         </div>
-        <TierBadge tier={tier} className="shrink-0" />
+        {tier ? (
+          <TierBadge tier={tier} className="shrink-0" />
+        ) : (
+          <span className="shrink-0 text-small text-fg-faint">Без тира</span>
+        )}
       </div>
 
       {next ? (

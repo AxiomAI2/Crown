@@ -122,7 +122,7 @@ export interface ViewerStanding {
   channelId: string;
   donor: Address;
   points: Points;
-  tier: Tier;
+  tier?: Tier; // undefined → очков меньше порога первого тира («без тира»)
   nextTier?: Tier;
   progressToNext: number; // 0..1
   totalDonated: MicroUSDC;
@@ -209,7 +209,7 @@ export interface LeaderboardEntry {
   donor: Address;
   displayName?: string;
   points: Points;
-  tier: Tier;
+  tier?: Tier; // undefined → ниже порога первого тира
   totalDonated: MicroUSDC;
 }
 
@@ -268,7 +268,7 @@ export interface DonorChannelStanding {
   channelId: string;
   handle: string;
   channelName?: string; // имя владельца канала (его профиль), если задано
-  tier: Tier;
+  tier?: Tier; // undefined → ниже порога первого тира
   points: Points; // локальная репутация в ЭТОМ канале
   totalDonated: MicroUSDC; // задонатил этому каналу
   donationCount: number;

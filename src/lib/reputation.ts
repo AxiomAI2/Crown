@@ -33,18 +33,24 @@ export function computePoints(events: LedgerEvent[]): Points {
 }
 
 export interface TierResolution {
-  tier: Tier;
-  nextTier?: Tier;
-  progressToNext: number; // 0..1
+  tier?: Tier; // undefined → очков меньше порога ПЕРВОГО тира («без тира»)
+  nextTier?: Tier; // следующий рубеж; для «без тира» это первый тир
+  progressToNext: number; // 0..1 (к nextTier; для «без тира» — к первому тиру от 0)
 }
 
-/** Текущий тир по очкам + прогресс до следующего. Тиры/пороги — единственный рычаг стримера. */
+/**
+ * Текущий тир по очкам + прогресс до следующего. Тиры/пороги — единственный рычаг стримера.
+ * Если очков меньше порога ПЕРВОГО тира — тира нет (tier: undefined), а nextTier указывает на первый
+ * тир: тир ЗАРАБАТЫВАЕТСЯ с его порога, а не выдаётся по умолчанию (иначе человек ниже входа ошибочно
+ * получал бы первый тир).
+ */
 export function resolveTier(points: Points, tiers: Tier[]): TierResolution {
   const sorted = [...tiers].sort((a, b) => a.threshold - b.threshold);
   const first = sorted[0];
-  if (!first) {
-    const synthetic: Tier = { name: "—", threshold: 0, color: "#9AA1B2", badge: "none", perks: [] };
-    return { tier: synthetic, progressToNext: 1 };
+  if (!first) return { progressToNext: 0 }; // тиров нет вовсе
+  if (points < first.threshold) {
+    // ниже входа: прогресс к первому тиру считаем от 0
+    return { nextTier: first, progressToNext: clamp01(points / first.threshold) };
   }
   let current = first;
   for (const t of sorted) {

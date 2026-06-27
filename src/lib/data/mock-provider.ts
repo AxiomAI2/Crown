@@ -382,7 +382,7 @@ export class MockDataProvider implements DataProvider {
           displayName: owner?.displayName,
           payoutAddress: c.payoutAddress,
           links: owner?.links,
-          topTierName: top ? top.tier.name : (cfg.tiers[0]?.name ?? "Новичок"),
+          topTierName: top?.tier ? top.tier.name : (cfg.tiers[0]?.name ?? "Новичок"),
           donorsCount: board.length,
           totalDonated: board.reduce((s, e) => s + e.totalDonated, 0n),
           activated: c.status === "ACTIVE",
@@ -753,7 +753,7 @@ export class MockDataProvider implements DataProvider {
     const cfg = this.latestConfig(p.channelId);
     const pointsDelta = pointsForAmount(p.amount); // фиксировано: 1 USDC = 100 очков
     const ts = this.now();
-    const tierBefore = this.standingFor(p.channelId, p.donor)?.tier.name;
+    const tierBefore = this.standingFor(p.channelId, p.donor)?.tier?.name;
     const donationId = this.nextId("d");
     const donation: Donation = {
       id: donationId,
@@ -780,7 +780,7 @@ export class MockDataProvider implements DataProvider {
     if (p.text) await this.buildMessage(donation, p.text, ts);
     this.donations.push(donation);
     const standing = this.standingFor(p.channelId, p.donor)!;
-    const tierChanged = tierBefore !== undefined && tierBefore !== standing.tier.name;
+    const tierChanged = tierBefore !== undefined && tierBefore !== standing.tier?.name;
     return { donation, standing, tierChanged };
   }
 

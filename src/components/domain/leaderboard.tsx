@@ -44,12 +44,12 @@ export function Leaderboard({
   // Тиры, реально присутствующие среди донатёров (для фильтра), по возрастанию порога.
   const tiers = useMemo(() => {
     const byName = new Map<string, Tier>();
-    for (const e of data ?? []) byName.set(e.tier.name, e.tier);
+    for (const e of data ?? []) if (e.tier) byName.set(e.tier.name, e.tier);
     return [...byName.values()].sort((a, b) => a.threshold - b.threshold);
   }, [data]);
 
   const rows = useMemo(() => {
-    const filtered = (data ?? []).filter((e) => tierFilter === "all" || e.tier.name === tierFilter);
+    const filtered = (data ?? []).filter((e) => tierFilter === "all" || e.tier?.name === tierFilter);
     return sortEntries(filtered, sort);
   }, [data, sort, tierFilter]);
 
@@ -124,7 +124,7 @@ export function Leaderboard({
                   <span className="truncate text-small text-fg">
                     {e.displayName ?? shortAddress(e.donor)}
                   </span>
-                  <TierBadge tier={e.tier} />
+                  {e.tier ? <TierBadge tier={e.tier} /> : null}
                 </div>
                 <span className="mono shrink-0 text-small text-fg-muted">{formatPoints(e.points)}</span>
               </Link>

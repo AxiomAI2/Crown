@@ -279,7 +279,7 @@ function DoneView({
       </DialogHeader>
       <div className="flex flex-col gap-3">
         <FinalityMoment result={result} />
-        {result.tierChanged ? (
+        {result.tierChanged && result.standing.tier ? (
           <div
             className="animate-stamp flex items-center justify-center gap-2 rounded-lg border-2 p-3"
             style={{ borderColor: result.standing.tier.color }}
