@@ -63,7 +63,11 @@ export function DonationHistory({
   const start = safePage * pageSize;
   const pageItems = filtered.slice(start, start + pageSize);
 
-  const count = <span className="text-small font-normal text-fg-faint">({donations.length})</span>;
+  const sectionTitle = (
+    <span className="text-caption uppercase tracking-wide text-fg-faint">
+      {title} · {donations.length}
+    </span>
+  );
 
   const body = (
     <div className="flex flex-col gap-3">
@@ -104,11 +108,12 @@ export function DonationHistory({
         />
       ) : (
         <>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col [&>:last-child]:border-b-0">
             {pageItems.map((d) => (
               <DonationCard
                 key={d.id}
                 donation={d}
+                variant="row"
                 reportable={reportable}
                 manageChannelId={manageChannelId}
               />
@@ -171,25 +176,23 @@ export function DonationHistory({
     );
   }
 
-  // Несворачиваемо (напр. в табах канала) — обычная карточка с заголовком, контент всегда виден.
+  // Несворачиваемо (напр. в табах канала) — заголовок-секция + контент, без рамки-карточки (airy-стиль).
   if (!collapsible) {
     return (
-      <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4">
-        <h3 className="text-h3 text-fg">{title} {count}</h3>
+      <div className="flex flex-col gap-3">
+        {sectionTitle}
         {body}
       </div>
     );
   }
 
   return (
-    <details className="group rounded-lg border border-border bg-surface p-4" open={defaultOpen}>
-      <summary className="flex cursor-pointer list-none items-center justify-between text-h3 text-fg [&::-webkit-details-marker]:hidden">
-        <span>{title} {count}</span>
-        <span className="text-small font-normal text-fg-muted transition-transform group-open:rotate-180">
-          ▾
-        </span>
+    <details className="group flex flex-col gap-3" open={defaultOpen}>
+      <summary className="flex cursor-pointer list-none items-center justify-between [&::-webkit-details-marker]:hidden">
+        {sectionTitle}
+        <span className="text-small text-fg-muted transition-transform group-open:rotate-180">▾</span>
       </summary>
-      <div className="mt-4">{body}</div>
+      <div className="mt-3">{body}</div>
     </details>
   );
 }
