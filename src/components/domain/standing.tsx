@@ -1,7 +1,6 @@
 "use client";
 
 import { Skeleton } from "@/components/ui/feedback";
-import { CrownIcon, LockIcon } from "@/components/ui/icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, formatPoints, plural } from "@/lib/utils";
 
@@ -39,7 +38,7 @@ export function StandingSeal({
   loading?: boolean;
 }) {
   if (loading) {
-    return <Skeleton className="h-28 w-full max-w-xs rounded-lg" />;
+    return <Skeleton className="h-28 w-full rounded-lg" />;
   }
   const tier = standing?.tier ?? fallbackTier;
   if (!tier) return null;
@@ -52,7 +51,7 @@ export function StandingSeal({
           tabIndex={0}
           role="img"
           aria-label={`Standing: тир ${tier.name}, ${formatPoints(points)} ${plural(points, POINTS)}. Непередаваемо.`}
-          className="flex w-full max-w-xs cursor-help flex-col gap-1 rounded-lg border-2 bg-status-bg p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-info"
+          className="flex w-full cursor-help flex-col gap-1 rounded-lg border-2 bg-status-bg p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-info"
           style={{ borderColor: tier.color, boxShadow: `inset 0 0 0 1px ${tier.color}33` }}
         >
           <span className="text-caption" style={{ color: tier.color }}>
@@ -63,13 +62,6 @@ export function StandingSeal({
           </span>
           <span className="text-small" style={{ color: tier.color, opacity: 0.85 }}>
             {plural(points, POINTS)} standing
-          </span>
-          <span
-            className="mt-1 flex items-center gap-1.5 text-small"
-            style={{ color: tier.color, opacity: 0.7 }}
-          >
-            <LockIcon className="h-3.5 w-3.5 shrink-0" />
-            непередаваемо · считается из твоих донатов
           </span>
         </div>
       </TooltipTrigger>
@@ -82,14 +74,7 @@ export function StandingSeal({
 
 /** Прогресс до следующего тира (0..1) + «осталось N очков». */
 export function ReputationProgress({ standing }: { standing: ViewerStanding }) {
-  if (!standing.nextTier) {
-    return (
-      <p className="flex items-center gap-1.5 text-small text-status">
-        <CrownIcon className="h-4 w-4 shrink-0" />
-        высший тир достигнут
-      </p>
-    );
-  }
+  if (!standing.nextTier) return null; // высший тир — без отдельной плашки
   const remaining = Math.max(0, standing.nextTier.threshold - standing.points);
   return (
     <div className="flex flex-col gap-1.5">
