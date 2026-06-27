@@ -32,7 +32,7 @@ export function ChainBalance() {
   if (!publicKey) return null;
   return (
     <span
-      className="hidden items-center gap-1 rounded border border-border bg-surface px-2.5 py-1.5 text-small sm:inline-flex"
+      className="hidden items-center gap-1 rounded border border-border bg-[var(--bg)] px-2.5 py-1.5 text-small sm:inline-flex"
       title="Баланс USDC (devnet)"
     >
       <span className="mono text-fg">{isLoading || data == null ? "…" : data.toFixed(2)}</span>

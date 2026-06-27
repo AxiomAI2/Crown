@@ -23,7 +23,7 @@ export function HeaderSearch() {
         onChange={(e) => setQ(e.target.value)}
         placeholder="Поиск каналов…"
         aria-label="Поиск каналов"
-        className="h-9 w-56 rounded border border-border bg-surface pl-9 pr-3 text-small text-fg placeholder:text-fg-faint focus-visible:outline focus-visible:outline-2 focus-visible:outline-info"
+        className="h-9 w-56 rounded border border-border bg-[var(--bg)] pl-9 pr-3 text-small text-fg placeholder:text-fg-faint focus-visible:outline focus-visible:outline-2 focus-visible:outline-info"
       />
     </form>
   );
