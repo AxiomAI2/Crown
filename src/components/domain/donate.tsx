@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Amount, FeeSplit } from "./amount";
-import { StandingPreview } from "./standing-preview";
 import { TierBadge } from "./standing";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { Button } from "@/components/ui/button";
@@ -19,15 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { useDonate } from "@/lib/data/hooks";
-import { pointsForAmount } from "@/lib/reputation";
 import { cn, plural, toMicro } from "@/lib/utils";
-import type {
-  Channel,
-  ChannelConfig,
-  DonationResult,
-  Session,
-  ViewerStanding,
-} from "@/lib/data/types";
+import type { Channel, ChannelConfig, DonationResult, Session } from "@/lib/data/types";
 
 const PRESETS = [5, 10, 25, 100];
 const SOFT_WORDS = ["худший", "лох", "scam", "idiot"];
@@ -51,12 +43,10 @@ export function DonateWidget({
   channel,
   config,
   session,
-  standing,
 }: {
   channel: Channel;
   config: ChannelConfig;
   session: Session;
-  standing?: ViewerStanding | null;
 }) {
   const [amount, setAmount] = useState("");
   const [withText, setWithText] = useState(false);
@@ -75,10 +65,6 @@ export function DonateWidget({
   const textOk = !withText || text.trim().length > 0;
   const canDonate = connected && amountValid && meetsMin && textOk && !(withText && isBasic);
   const softWarn = withText && SOFT_WORDS.some((w) => text.toLowerCase().includes(w));
-
-  // Дофаминовый предпросмотр standing: сколько очков даст текущая сумма (та же формула, что и при начислении).
-  const currentPoints = standing?.points ?? 0;
-  const gain = amountValid ? pointsForAmount(micro) : 0;
 
   function openFlow() {
     setResult(null);
@@ -144,9 +130,6 @@ export function DonateWidget({
           ))}
         </div>
       </div>
-
-      {/* Живой предпросмотр standing: полоска к следующему тиру + прогноз начисления за введённую сумму. */}
-      <StandingPreview currentPoints={currentPoints} gain={gain} tiers={config.tiers} />
 
       {isBasic ? (
         <p className="rounded border border-border bg-surface-raised p-3 text-small text-fg-muted">

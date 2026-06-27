@@ -144,12 +144,7 @@ export default function ChannelPage() {
                 </section>
 
                 {configQ.data && sessionQ.data ? (
-                  <DonateWidget
-                    channel={channel}
-                    config={configQ.data}
-                    session={sessionQ.data}
-                    standing={standingQ.data}
-                  />
+                  <DonateWidget channel={channel} config={configQ.data} session={sessionQ.data} />
                 ) : (
                   <Skeleton className="h-72 w-full rounded-lg" />
                 )}
