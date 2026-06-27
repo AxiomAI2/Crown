@@ -357,16 +357,6 @@ function DonationsAreaChart({ donations, range }: { donations: Donation[]; range
   );
 }
 
-/** Инлайн-стат: крупное число и подпись на одной базовой линии. */
-function StatTile({ value, label }: { value: React.ReactNode; label: string }) {
-  return (
-    <p className="flex items-baseline gap-1.5">
-      <span className="font-display text-h3 text-fg">{value}</span>
-      <span className="text-small text-fg-muted">{label}</span>
-    </p>
-  );
-}
-
 /** Строка-позиция: канал + тир + локальные очки + задонатил. Кликабельна → страница канала. */
 function PositionRow({ s }: { s: DonorChannelStanding }) {
   const name = s.channelName?.trim() || `@${s.handle}`;
@@ -491,17 +481,27 @@ function DonorDashboard({
     <div className="flex flex-col gap-8">
       {/* Личность + график — две карточки в ряд, одинаковой высоты (stretch), в тёмном тоне (bg --bg). */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Карточка личности */}
+        {/* Карточка личности — по образцу шапки канала (лейбл + крупное имя + мета со счётчиками). */}
         <div className="flex flex-col gap-4 rounded-lg border border-border bg-[var(--bg)] p-4">
           <div className="flex items-start gap-4">
             <ProfileAvatar name={name} address={overview.address} />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="truncate font-display text-h3 text-fg">{name}</span>
-              <span className="mono truncate text-small text-fg-faint">{overview.address}</span>
-              <span className="text-small text-fg-muted">
-                донатит с {monthYear(overview.firstDonationAt)} · {overview.donationCount}{" "}
-                {plural(overview.donationCount, DONATIONS)}
-              </span>
+              <span className="text-caption uppercase tracking-wide text-fg-faint">Профиль</span>
+              <h1 className="text-display-l leading-tight text-fg">{name}</h1>
+              <div className="mono truncate text-small text-fg-faint">{overview.address}</div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-small text-fg-muted">
+                <span>
+                  <span className="font-medium text-fg">{overview.channelsSupported}</span>{" "}
+                  {plural(overview.channelsSupported, CHANNELS)}
+                </span>
+                <span className="text-fg-faint">·</span>
+                <span>
+                  <span className="font-medium text-fg">{overview.donationCount}</span>{" "}
+                  {plural(overview.donationCount, DONATIONS)}
+                </span>
+                <span className="text-fg-faint">·</span>
+                <span>с {monthYear(overview.firstDonationAt)}</span>
+              </div>
               {overview.ownedChannelHandle ? (
                 <Link
                   href={`/c/${overview.ownedChannelHandle}`}
@@ -521,15 +521,6 @@ function DonorDashboard({
           {profileQ.data?.links?.length ? (
             <ChannelLinkButtons links={profileQ.data.links} variant="text" />
           ) : null}
-
-          <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-3">
-            <StatTile
-              value={overview.channelsSupported}
-              label={`${plural(overview.channelsSupported, CHANNELS)} поддержано`}
-            />
-            <span className="h-6 w-px shrink-0 bg-border" aria-hidden />
-            <StatTile value={overview.donationCount} label={plural(overview.donationCount, DONATIONS)} />
-          </div>
         </div>
 
         {/* Карточка «всего задонатил» + график */}
