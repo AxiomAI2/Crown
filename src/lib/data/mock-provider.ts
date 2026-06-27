@@ -24,6 +24,7 @@ import type {
   DonationResult,
   DonorChannelStanding,
   DonorOverview,
+  DonorPointEvent,
   IncidentLog,
   LeaderboardEntry,
   LeaderboardPeriod,
@@ -596,6 +597,30 @@ export class MockDataProvider implements DataProvider {
         return donorName ? { ...r, donorName } : r;
       });
 
+    // Журнал очков донора: за что НАЧИСЛИЛИ (+ донат) и СПИСАЛИ (− ADMIN_VOID) очки, новые сверху.
+    const pointEvents: DonorPointEvent[] = [
+      ...donations.map((d) => ({
+        id: d.id,
+        channelId: d.channelId,
+        type: "DONATION" as const,
+        pointsDelta: pointsForAmount(d.amount),
+        amount: d.amount,
+        ts: d.ts,
+        txSignature: d.txSignature,
+        message: d.message,
+      })),
+      ...this.ledger
+        .filter((e) => e.donor === address && e.type === "ADMIN_VOID")
+        .map((e) => ({
+          id: e.id,
+          channelId: e.creator,
+          type: "ADMIN_VOID" as const,
+          pointsDelta: e.pointsDelta,
+          amount: 0n,
+          ts: e.ts,
+        })),
+    ].sort((a, b) => (a.ts < b.ts ? 1 : -1));
+
     const totalDonated = standings.reduce((sum, x) => sum + x.totalDonated, 0n);
     const firstDonationAt = donations.reduce<string | undefined>(
       (min, d) => (min && min < d.ts ? min : d.ts),
@@ -620,6 +645,7 @@ export class MockDataProvider implements DataProvider {
       ownedChannelHandle: ownedChannel?.handle,
       standings,
       donations,
+      pointEvents,
     };
   }
 

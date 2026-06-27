@@ -31,7 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { explorerTxUrl } from "@/lib/chain/addresses";
 import { useDonorOverview, useProfile, useUpdateProfile } from "@/lib/data/hooks";
-import type { Donation, DonorChannelStanding, DonorOverview } from "@/lib/data/types";
+import type { Donation, DonorChannelStanding, DonorOverview, DonorPointEvent } from "@/lib/data/types";
 import { channelHue, cn, collapseWhitespace, formatPoints, fromMicro, plural, timeAgo } from "@/lib/utils";
 
 const DONATIONS = ["донат", "доната", "донатов"] as const;
@@ -392,8 +392,19 @@ function PositionRow({ s }: { s: DonorChannelStanding }) {
 }
 
 /** Строка активности: канал (ссылка) + сумма + время + текст (если показан). */
-function ActivityRow({ d, handle, channelName }: { d: Donation; handle?: string; channelName?: string }) {
-  const shown = d.message?.state === "SHOWN";
+/** Строка журнала очков: канал + «за что» (донат $X / списание оператором) + дельта очков (+/−). */
+function ActivityRow({
+  e,
+  handle,
+  channelName,
+}: {
+  e: DonorPointEvent;
+  handle?: string;
+  channelName?: string;
+}) {
+  const isVoid = e.type === "ADMIN_VOID";
+  const shown = e.message?.state === "SHOWN";
+  const delta = e.pointsDelta;
   return (
     <div className="flex flex-col gap-2 border-b border-border py-3">
       <div className="flex items-center justify-between gap-2">
@@ -403,18 +414,36 @@ function ActivityRow({ d, handle, channelName }: { d: Donation; handle?: string;
             {channelName?.trim() ? <span className="mono text-fg-faint"> · @{handle}</span> : null}
           </Link>
         ) : (
-          <span className="mono min-w-0 truncate text-small text-fg-faint">{d.channelId}</span>
+          <span className="mono min-w-0 truncate text-small text-fg-faint">{e.channelId}</span>
         )}
-        <Amount micro={d.amount} variant="money" />
+        {/* дельта очков: + начислено / − списано */}
+        <span
+          className="mono shrink-0 text-small font-medium"
+          style={{ color: delta < 0 ? "var(--danger)" : "var(--money)" }}
+        >
+          {delta >= 0 ? "+" : "−"}
+          {formatPoints(Math.abs(delta))} {plural(Math.abs(delta), POINTS)}
+        </span>
       </div>
-      {shown && d.message ? (
-        <p className="break-words text-body text-fg">{collapseWhitespace(d.message.text)}</p>
+
+      {/* за что */}
+      {isVoid ? (
+        <p className="text-small text-danger">Списание оператором — нелегальный контент.</p>
+      ) : (
+        <div className="flex items-center gap-1.5 text-small text-fg-muted">
+          <span>Донат</span>
+          <Amount micro={e.amount} variant="money" />
+        </div>
+      )}
+      {!isVoid && shown && e.message ? (
+        <p className="break-words text-body text-fg">{collapseWhitespace(e.message.text)}</p>
       ) : null}
+
       <div className="flex items-center gap-2 text-small text-fg-faint">
-        <span title={d.ts}>{timeAgo(d.ts)}</span>
-        {d.txSignature ? (
+        <span title={e.ts}>{timeAgo(e.ts)}</span>
+        {e.txSignature ? (
           <a
-            href={explorerTxUrl(d.txSignature)}
+            href={explorerTxUrl(e.txSignature)}
             target="_blank"
             rel="noreferrer"
             title="Транзакция в проводнике"
@@ -558,7 +587,7 @@ function DonorDashboard({
           {(
             [
               ["channels", `Каналы · ${overview.channelsSupported}`],
-              ["activity", `Активность · ${overview.donationCount}`],
+              ["activity", `Активность · ${overview.pointEvents.length}`],
             ] as [Tab, string][]
           ).map(([key, label]) => (
             <button
@@ -623,17 +652,17 @@ function DonorDashboard({
               Этот адрес ещё не донатил ни одному каналу.
             </p>
           )
-        ) : overview.donations.length > 0 ? (
+        ) : overview.pointEvents.length > 0 ? (
           <div className="flex flex-col gap-3">
             <div className="flex flex-col [&>:last-child]:border-b-0">
-              {overview.donations.slice(0, actLimit).map((d) => {
-                const ref = handleById.get(d.channelId);
+              {overview.pointEvents.slice(0, actLimit).map((e) => {
+                const ref = handleById.get(e.channelId);
                 return (
-                  <ActivityRow key={d.id} d={d} handle={ref?.handle} channelName={ref?.channelName} />
+                  <ActivityRow key={e.id} e={e} handle={ref?.handle} channelName={ref?.channelName} />
                 );
               })}
             </div>
-            {overview.donations.length > actLimit ? (
+            {overview.pointEvents.length > actLimit ? (
               <button
                 type="button"
                 onClick={() => setActLimit((n) => n + 12)}
@@ -645,7 +674,7 @@ function DonorDashboard({
           </div>
         ) : (
           <p className="rounded-lg border border-dashed border-border p-6 text-center text-small text-fg-faint">
-            Пока нет донатов.
+            Пока нет активности по очкам.
           </p>
         )}
       </div>

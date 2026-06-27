@@ -276,6 +276,18 @@ export interface DonorChannelStanding {
   lastDonationAt?: Iso;
 }
 
+// Событие журнала репутации донора для ленты «Активность»: за что НАЧИСЛИЛИ (+) или СПИСАЛИ (−) очки.
+export interface DonorPointEvent {
+  id: string;
+  channelId: string;
+  type: LedgerType; // в ядре: DONATION (+ за донат) | ADMIN_VOID (− списание оператором)
+  pointsDelta: Points; // + начислено / − списано
+  amount: MicroUSDC; // сумма доната (0 для списания)
+  ts: Iso;
+  txSignature?: TxSignature;
+  message?: MessageRef; // приватный текст доната (если показан) — для строки активности
+}
+
 export interface DonorOverview {
   address: Address;
   totalDonated: MicroUSDC; // сумма по всем каналам (деньги — агрегируемы)
@@ -286,6 +298,7 @@ export interface DonorOverview {
   ownedChannelHandle?: string; // если этот адрес ВЛАДЕЕТ каналом (один на кошелёк, ADR 0002) — его handle
   standings: DonorChannelStanding[]; // позиции по каналам (по убыванию суммы донатов)
   donations: Donation[]; // активность: все донаты по всем каналам, новые сверху (текст приватен до показа)
+  pointEvents: DonorPointEvent[]; // журнал очков: за что начислили (+донат) / списали (−void), новые сверху
 }
 
 export type ConfigPatch = Partial<
