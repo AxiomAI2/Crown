@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Amount } from "./amount";
 import { ModerationMenu } from "./moderation-menu";
+import { ReportDialog } from "./report-dialog";
 import { TierBadge } from "./standing";
 import { Button } from "@/components/ui/button";
 import { EyeIcon, EyeOffIcon } from "@/components/ui/icons";
@@ -88,6 +89,7 @@ export function ModerationItem({
               </Button>
             </>
           )}
+          <ReportDialog messageId={message.id} channelId={message.channelId} />
           {donor ? <ModerationMenu channelId={message.channelId} donor={donor} /> : null}
         </div>
       </div>
