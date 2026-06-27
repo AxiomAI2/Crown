@@ -163,7 +163,7 @@ export function DonateWidget({
           variant="secondary"
           disabled={!canDonate}
           onClick={openFlow}
-          className="border-border-strong bg-[var(--bg)]"
+          className="border-border-strong bg-[var(--bg)] hover:bg-surface-raised"
         >
           Задонатить
         </Button>
