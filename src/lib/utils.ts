@@ -51,7 +51,7 @@ export function formatPoints(points: number): string {
  *   plural(1,  f) → f[0] («1 донат»);  21, 31 → тоже f[0]
  *   plural(2,  f) → f[1] («2 доната»); 22–24 → тоже f[1]
  *   plural(5,  f) → f[2] («5 донатов»); 0, 11–14 → тоже f[2]
- * Единый источник правды для всех «N донатов/донатеров/каналов/очков» в UI.
+ * Единый источник правды для всех «N донатов/донатёров/каналов/очков» в UI.
  */
 export function plural(n: number, forms: readonly [one: string, few: string, many: string]): string {
   const abs = Math.abs(Math.trunc(n));

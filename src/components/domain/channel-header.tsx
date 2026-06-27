@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Amount } from "./amount";
 import { ChannelLinkButtons } from "./channel-links";
-import { CheckIcon, CopyIcon } from "@/components/ui/icons";
 import { toast } from "@/components/ui/toast";
 import { explorerAddressUrl } from "@/lib/chain/addresses";
 import { useProfile } from "@/lib/data/hooks";
@@ -72,10 +71,9 @@ function ExplorerIcon() {
 const actionBtn =
   "flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface text-fg-muted transition-colors hover:border-border-strong hover:text-fg";
 
-/** Ряд иконок-действий: поделиться (ссылка) + скопировать адрес канала + открыть payout в Solana Explorer. */
+/** Ряд иконок-действий: поделиться (скопировать ссылку) + открыть payout-адрес в Solana Explorer. */
 function HeaderActions({ payoutAddress }: { payoutAddress: string }) {
   const [copied, setCopied] = useState(false);
-  const [addrCopied, setAddrCopied] = useState(false);
   return (
     <div className="flex shrink-0 items-center gap-2">
       <button
@@ -95,24 +93,6 @@ function HeaderActions({ payoutAddress }: { payoutAddress: string }) {
         }}
       >
         <ShareIcon done={copied} />
-      </button>
-      <button
-        type="button"
-        className={actionBtn}
-        title="Скопировать адрес канала"
-        aria-label="Скопировать адрес канала"
-        onClick={async () => {
-          try {
-            await navigator.clipboard.writeText(payoutAddress);
-            setAddrCopied(true);
-            setTimeout(() => setAddrCopied(false), 1500);
-            toast({ variant: "success", title: "Адрес канала скопирован" });
-          } catch {
-            toast({ variant: "error", title: "Не удалось скопировать" });
-          }
-        }}
-      >
-        {addrCopied ? <CheckIcon className="h-[18px] w-[18px]" /> : <CopyIcon className="h-[18px] w-[18px]" />}
       </button>
       <a
         className={actionBtn}
@@ -134,7 +114,7 @@ function formatMonthYear(iso: string): string {
 
 /**
  * Сворачивающаяся шапка канала (по мотивам polymarket). Вверху — hero: монограмма, хлебные крошки, крупный
- * тайтл, иконки-действия справа, мета-строка (донатеры · сумма · с даты), затем описание и ссылки. При
+ * тайтл, иконки-действия справа, мета-строка (донатёры · сумма · с даты), затем описание и ссылки. При
  * небольшом скролле, когда тайтл уходит под глобальную шапку, появляется компактная ЛИПКАЯ плашка
  * (монограмма + тайтл + те же действия) — fixed-оверлей шириной левой колонки, без сдвига контента.
  */
@@ -192,16 +172,19 @@ export function ChannelHeader({
         </div>
       </div>
 
-      {/* Hero-блок в обычном потоке. */}
-      <header className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4 sm:p-5">
+      {/* Hero-блок в обычном потоке — без рамки-карточки, «воздушный» вид прямо на фоне страницы. */}
+      <header className="flex flex-col gap-4">
         <div className="flex items-start gap-4">
           <Monogram name={name} size="lg" />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
-            {/* хлебные крошки */}
-            <Link href="/" className="w-fit text-small text-fg-faint hover:text-fg-muted">
-              Каналы
+            {/* лейбл-«крошка» (ведёт на список каналов) */}
+            <Link
+              href="/"
+              className="w-fit text-caption uppercase tracking-wide text-fg-faint hover:text-fg-muted"
+            >
+              Канал
             </Link>
-            <h1 ref={titleRef} className="text-display-l text-fg">
+            <h1 ref={titleRef} className="text-display-l leading-tight text-fg">
               {name}
             </h1>
             {/* мета-строка под тайтлом */}
@@ -216,7 +199,7 @@ export function ChannelHeader({
                 <>
                   <Link href={`/c/${channel.handle}/donors`} className="hover:text-fg">
                     <span className="font-medium text-fg">{donorsCount}</span>{" "}
-                    {plural(donorsCount, ["донатер", "донатера", "донатеров"])}
+                    {plural(donorsCount, ["донатёр", "донатёра", "донатёров"])}
                   </Link>
                   {totalDonated !== undefined ? (
                     <>
@@ -240,7 +223,7 @@ export function ChannelHeader({
           <p className="max-w-2xl whitespace-pre-wrap break-words text-fg-muted">{config.description}</p>
         ) : null}
 
-        {links.length > 0 ? <ChannelLinkButtons links={links} /> : null}
+        {links.length > 0 ? <ChannelLinkButtons links={links} variant="text" /> : null}
       </header>
     </>
   );

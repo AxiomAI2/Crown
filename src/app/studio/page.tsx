@@ -10,7 +10,7 @@ import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { useDonations, useMyChannel, useSession } from "@/lib/data/hooks";
 import { fromMicro, plural } from "@/lib/utils";
 
-const DONORS = ["донатер", "донатера", "донатеров"] as const;
+const DONORS = ["донатёр", "донатёра", "донатёров"] as const;
 const usd = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -23,7 +23,7 @@ export default function StudioDashboardPage() {
 
   const donations = useMemo(() => donationsQ.data?.items ?? [], [donationsQ.data?.items]);
 
-  // События для графиков: оборот (v = сумма в USDC) и новые донатеры (первый донат каждого, v = 1).
+  // События для графиков: оборот (v = сумма в USDC) и новые донатёры (первый донат каждого, v = 1).
   const turnoverEvents = useMemo(
     () => donations.map((d) => ({ t: Date.parse(d.ts), v: fromMicro(d.amount) })),
     [donations],
@@ -86,7 +86,7 @@ export default function StudioDashboardPage() {
           />
         </ChartCard>
         <ChartCard
-          title="Донатеры"
+          title="Донатёры"
           headline={
             <span className="font-display text-display-l text-fg">
               {donorsCount} <span className="text-h3 text-fg-muted">{plural(donorsCount, DONORS)}</span>
@@ -98,7 +98,7 @@ export default function StudioDashboardPage() {
             range={range}
             color="var(--info)"
             formatValue={(v) => `${Math.round(v)} ${plural(Math.round(v), DONORS)}`}
-            emptyHint="Донатеры появятся после первого доната."
+            emptyHint="Донатёры появятся после первого доната."
           />
         </ChartCard>
       </div>

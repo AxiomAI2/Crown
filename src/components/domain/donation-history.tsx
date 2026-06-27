@@ -41,6 +41,7 @@ export function DonationHistory({
   reportable = false,
   manageChannelId,
   collapsible = true,
+  plain = false,
 }: {
   donations: Donation[];
   title?: string;
@@ -48,6 +49,7 @@ export function DonationHistory({
   reportable?: boolean; // показывать «Пожаловаться» на показанных сообщениях (для публичной ленты)
   manageChannelId?: string; // задан → у каждого доната кнопка «Забанить» (владелец/модератор канала)
   collapsible?: boolean; // false → без сворачивания (напр. в табах канала — там это уже лишнее), всегда раскрыт
+  plain?: boolean; // «воздушная» лента: без поиска/пагинации/рамки, заголовок-секция, строки с разделителями
 }) {
   const [query, setQuery] = useState("");
   const [pageSize, setPageSize] = useState(25);
@@ -142,6 +144,32 @@ export function DonationHistory({
       )}
     </div>
   );
+
+  // «Воздушная» лента (страница канала): заголовок-секция + строки с разделителями, без поиска/пагинации/рамки.
+  if (plain) {
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="text-caption uppercase tracking-wide text-fg-faint">
+          {title} · {donations.length}
+        </div>
+        {donations.length === 0 ? (
+          <p className="py-6 text-center text-small text-fg-faint">Пока нет показанных сообщений.</p>
+        ) : (
+          <div className="flex flex-col [&>:last-child]:border-b-0">
+            {donations.map((d) => (
+              <DonationCard
+                key={d.id}
+                donation={d}
+                variant="row"
+                reportable={reportable}
+                manageChannelId={manageChannelId}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // Несворачиваемо (напр. в табах канала) — обычная карточка с заголовком, контент всегда виден.
   if (!collapsible) {

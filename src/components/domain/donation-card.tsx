@@ -8,7 +8,8 @@ import { explorerTxUrl } from "@/lib/chain/addresses";
 import { collapseWhitespace, shortAddress, timeAgo } from "@/lib/utils";
 import type { Donation, Tier } from "@/lib/data/types";
 
-/** Карточка доната: донор, бейдж тира, сумма, текст (если SHOWN), время. Лента канала и история /me. */
+/** Карточка доната: донор, бейдж тира, сумма, текст (если SHOWN), время. Лента канала и история /me.
+ *  variant="card" (по умолчанию) — в рамке; variant="row" — без рамки, с нижним разделителем (лента канала). */
 export function DonationCard({
   donation,
   tier,
@@ -16,6 +17,7 @@ export function DonationCard({
   showChannel,
   reportable,
   manageChannelId,
+  variant = "card",
 }: {
   donation: Donation;
   tier?: Tier;
@@ -23,10 +25,17 @@ export function DonationCard({
   showChannel?: boolean;
   reportable?: boolean; // показать «Пожаловаться» (публичная лента показанных сообщений)
   manageChannelId?: string; // задан (зритель управляет каналом) → показать «Забанить» донора
+  variant?: "card" | "row";
 }) {
   const shown = donation.message?.state === "SHOWN";
   return (
-    <div className="flex flex-col gap-2 rounded border border-border bg-surface p-3">
+    <div
+      className={
+        variant === "row"
+          ? "flex flex-col gap-2 border-b border-border py-4"
+          : "flex flex-col gap-2 rounded border border-border bg-surface p-3"
+      }
+    >
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <Link

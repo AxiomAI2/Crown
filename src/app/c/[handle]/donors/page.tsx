@@ -7,7 +7,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { EmptyState, Skeleton } from "@/components/ui/feedback";
 import { useChannel, useSession } from "@/lib/data/hooks";
 
-/** Страница донатеров канала: лидерборд с сортировкой (standing / сумма / тир), клик по строке → профиль. */
+/** Страница донатёров канала: лидерборд с сортировкой (standing / сумма / тир), клик по строке → профиль. */
 export default function DonorsPage() {
   const params = useParams<{ handle: string }>();
   const handle = params.handle;
@@ -24,7 +24,7 @@ export default function DonorsPage() {
           <Link href={`/c/${handle}`} className="w-fit text-small text-fg-faint hover:text-fg">
             ← Канал @{handle}
           </Link>
-          <h1 className="text-display-l text-fg">Донатеры</h1>
+          <h1 className="text-display-l text-fg">Донатёры</h1>
         </div>
 
         {channelQ.isLoading ? (

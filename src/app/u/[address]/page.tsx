@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { DonorProfile } from "@/components/domain/donor-profile";
 import { AppHeader } from "@/components/layout/app-header";
 
-/** Публичный профиль донатера (read-only): личность + деньги во времени + standing по каналам + активность.
+/** Публичный профиль донатёра (read-only): личность + деньги во времени + standing по каналам + активность.
  *  Дашборд в духе публичного профиля (как у polymarket), но в контексте донат-платформы. */
 export default function PublicProfilePage() {
   const params = useParams<{ address: string }>();

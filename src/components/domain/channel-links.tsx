@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { platformDef } from "@/lib/channel-links";
 import type { ChannelLink, ChannelLinkPlatform } from "@/lib/data/types";
+import { cn } from "@/lib/utils";
 
 /** Логотип платформы (simple-icons, currentColor). Цвет задаётся снаружи через `color`/text-*. */
 export function PlatformIcon({
@@ -53,25 +54,51 @@ function LinkPill({ link }: { link: ChannelLink }) {
   );
 }
 
+/** Одна ссылка простым текстом (без иконки/пилюли) — для лёгкого «воздушного» вида в шапке канала. */
+function LinkText({ link }: { link: ChannelLink }) {
+  const def = platformDef(link.platform);
+  if (!def) return null;
+  return (
+    <a
+      href={link.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={def.label}
+      className="text-small text-fg-muted transition-colors hover:text-fg"
+    >
+      {def.label}
+    </a>
+  );
+}
+
 /**
- * Ссылки канала/профиля кнопками с логотипами (не голые URL). Чтобы длинный список не растягивал блок (и
- * соседний по сетке), показываем максимум `max` ссылок в ряд, а остальные прячем за «…» — по клику
- * всплывает мини-окно (Dialog) со ВСЕМИ ссылками.
+ * Ссылки канала/профиля. variant="pill" (по умолчанию) — кнопки с логотипами; variant="text" — простой
+ * текстовый ряд (как в шапке канала). Длинный список не растягивает блок: показываем максимум `max`, остальные
+ * прячем за «+N» — по клику всплывает мини-окно (Dialog) со ВСЕМИ ссылками.
  */
-export function ChannelLinkButtons({ links, max = 4 }: { links: ChannelLink[]; max?: number }) {
+export function ChannelLinkButtons({
+  links,
+  max = 4,
+  variant = "pill",
+}: {
+  links: ChannelLink[];
+  max?: number;
+  variant?: "pill" | "text";
+}) {
   const valid = links.filter((l) => platformDef(l.platform));
   if (!valid.length) return null;
+  const text = variant === "text";
 
-  // Прячем за «…» только если скрытых ≥ 2 — иначе «…» занял бы то же место, что и одна ссылка.
+  // Прячем за «+N» только если скрытых ≥ 2 — иначе «+N» занял бы то же место, что и одна ссылка.
   const collapse = valid.length > max + 1;
   const shown = collapse ? valid.slice(0, max) : valid;
   const hiddenCount = valid.length - shown.length;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {shown.map((l) => (
-        <LinkPill key={l.url} link={l} />
-      ))}
+    <div className={cn("flex flex-wrap items-center", text ? "gap-x-4 gap-y-1" : "gap-2")}>
+      {shown.map((l) =>
+        text ? <LinkText key={l.url} link={l} /> : <LinkPill key={l.url} link={l} />,
+      )}
       {collapse ? (
         <Dialog>
           <DialogTrigger asChild>
@@ -79,9 +106,13 @@ export function ChannelLinkButtons({ links, max = 4 }: { links: ChannelLink[]; m
               type="button"
               title={`Ещё ${hiddenCount} — показать все ссылки`}
               aria-label={`Ещё ${hiddenCount} ссылок — показать все`}
-              className="inline-flex items-center rounded-pill border border-border bg-surface px-3 py-1.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
+              className={
+                text
+                  ? "text-small text-fg-faint transition-colors hover:text-fg"
+                  : "inline-flex items-center rounded-pill border border-border bg-surface px-3 py-1.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
+              }
             >
-              … +{hiddenCount}
+              {text ? `+${hiddenCount}` : `… +${hiddenCount}`}
             </button>
           </DialogTrigger>
           <DialogContent>

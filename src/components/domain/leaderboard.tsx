@@ -26,8 +26,8 @@ function sortEntries(entries: LeaderboardEntry[], sort: SortKey): LeaderboardEnt
 }
 
 /**
- * Донатеры канала: период (всё время / месяц) + сортировка (standing / сумма) + ФИЛЬТР по тиру (показать
- * только донатеров конкретного локального тира). Каждая строка — ссылка на профиль (/u/[address]).
+ * Донатёры канала: период (всё время / месяц) + сортировка (standing / сумма) + ФИЛЬТР по тиру (показать
+ * только донатёров конкретного локального тира). Каждая строка — ссылка на профиль (/u/[address]).
  */
 export function Leaderboard({
   channelId,
@@ -41,7 +41,7 @@ export function Leaderboard({
   const [tierFilter, setTierFilter] = useState<string>("all"); // имя тира или "all"
   const { data, isLoading, error, refetch } = useLeaderboard(channelId, period);
 
-  // Тиры, реально присутствующие среди донатеров (для фильтра), по возрастанию порога.
+  // Тиры, реально присутствующие среди донатёров (для фильтра), по возрастанию порога.
   const tiers = useMemo(() => {
     const byName = new Map<string, Tier>();
     for (const e of data ?? []) byName.set(e.tier.name, e.tier);
@@ -105,7 +105,7 @@ export function Leaderboard({
           description={
             tierFilter === "all"
               ? "Будь первым, кто наберёт standing на этом канале."
-              : "Нет донатеров в этом тире."
+              : "Нет донатёров в этом тире."
           }
         />
       ) : (

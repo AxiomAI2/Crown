@@ -485,7 +485,7 @@ function DonorDashboard({
     return sorted;
   }, [overview.standings, query, sort]);
 
-  const name = displayName?.trim() || profileQ.data?.displayName?.trim() || "Профиль донатера";
+  const name = displayName?.trim() || profileQ.data?.displayName?.trim() || "Профиль донатёра";
 
   return (
     <div className="flex flex-col gap-6">
@@ -665,7 +665,7 @@ function DonorDashboard({
   );
 }
 
-/** Профиль донатера в духе дашборда: личность + деньги во времени + standing/активность.
+/** Профиль донатёра в духе дашборда: личность + деньги во времени + standing/активность.
  *  editable=true (своя страница /me) добавляет карандашик-редактор профиля. */
 export function DonorProfile({ address, editable }: { address: string; editable?: boolean }) {
   const overviewQ = useDonorOverview(address || null);

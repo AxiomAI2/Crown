@@ -32,7 +32,7 @@ export default function ChannelPage() {
   // Владелец, смотрящий свой канал → в ленте доступна кнопка «Забанить» (модераторы банят из студии/очереди).
   const canManage = !!address && channel?.ownerAddress === address;
 
-  // Статистика для большой шапки (из загруженных донатов; уникальные донатеры + сумма).
+  // Статистика для большой шапки (из загруженных донатов; уникальные донатёры + сумма).
   const allDonations = donationsQ.data?.items ?? [];
   const stats = donationsQ.data
     ? {
@@ -86,7 +86,7 @@ export default function ChannelPage() {
                       )}
                       title="Показанные сообщения"
                       reportable
-                      collapsible={false}
+                      plain
                       manageChannelId={canManage ? channel.id : undefined}
                     />
                   )}

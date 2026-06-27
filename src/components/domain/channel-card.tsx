@@ -6,9 +6,9 @@ import { platformDef } from "@/lib/channel-links";
 import type { ChannelCard } from "@/lib/data/types";
 import { channelHue, plural, shortAddress } from "@/lib/utils";
 
-const DONORS = ["донатер", "донатера", "донатеров"] as const;
+const DONORS = ["донатёр", "донатёра", "донатёров"] as const;
 
-/** Карточка канала в Discovery: монограмма, название/@handle, тир, описание, инфо о донатерах, мини-ссылки
+/** Карточка канала в Discovery: монограмма, название/@handle, тир, описание, инфо о донатёрах, мини-ссылки
  *  на соцсети и payout-адрес. Тело — ссылка на канал; соцсети/кошелёк — отдельные ссылки (не вложены). */
 export function ChannelCardTile({ card }: { card: ChannelCard }) {
   const named = Boolean(card.displayName?.trim());

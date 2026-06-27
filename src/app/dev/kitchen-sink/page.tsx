@@ -135,7 +135,7 @@ export default function KitchenSink() {
           <TabsList>
             <TabsTrigger value="all">All-time</TabsTrigger>
             <TabsTrigger value="month">Месяц</TabsTrigger>
-            <TabsTrigger value="top">Топ-донатер</TabsTrigger>
+            <TabsTrigger value="top">Топ-донатёр</TabsTrigger>
           </TabsList>
           <TabsContent value="all">
             <p className="text-small text-fg-muted">Лидерборд за всё время (заглушка).</p>
@@ -144,7 +144,7 @@ export default function KitchenSink() {
             <p className="text-small text-fg-muted">Лидерборд за месяц (заглушка).</p>
           </TabsContent>
           <TabsContent value="top">
-            <p className="text-small text-fg-muted">Топ-донатер месяца (заглушка).</p>
+            <p className="text-small text-fg-muted">Топ-донатёр месяца (заглушка).</p>
           </TabsContent>
         </Tabs>
       </Section>
