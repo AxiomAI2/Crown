@@ -7,9 +7,9 @@ import { WalletConnectButton } from "./wallet-connect";
 export function AppHeader() {
   return (
     <header className="sticky top-0 z-30 h-[var(--header-h)] border-b border-border bg-[var(--bg)]">
-      <div className="mx-auto flex h-full max-w-content items-center gap-4 px-4">
+      <div className="relative mx-auto flex h-full max-w-content items-center gap-4 px-4">
         {/* Логотип = переход на каналы (дискавери). Отдельной ссылки «Каналы» нет. Профиль/Студия — в аватаре. */}
-        <Link href="/" className="font-display text-h3 text-fg hover:text-status">
+        <Link href="/" className="text-h3 font-display text-fg hover:text-status">
           Standing
         </Link>
         <HeaderSearch />
