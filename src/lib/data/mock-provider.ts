@@ -700,7 +700,10 @@ export class MockDataProvider implements DataProvider {
   }): Promise<DonationResult | null> {
     const existing = this.donations.find((d) => d.txSignature === params.signature);
     if (existing) {
-      if (params.text && !existing.message) {
+      const blocked = this.blocks.some(
+        (b) => b.channelId === existing.channelId && b.blockedAddress === existing.donor,
+      );
+      if (params.text && !existing.message && !blocked) {
         // Поздняя привязка текста к уже принятому донату (клиент/индексер пришли в разном порядке).
         await this.buildMessage(existing, params.text, this.now());
         const standing = this.standingFor(existing.channelId, existing.donor)!; // донат уже в журнале
@@ -779,6 +782,11 @@ export class MockDataProvider implements DataProvider {
     signature?: string;
   }): Promise<DonationResult> {
     const cfg = this.latestConfig(p.channelId);
+    // Канальный блок-лист: заблокированному кошельку донат-с-текстом не публикуем. Оффчейн createDonation
+    // отклоняет заранее; в chain деньги ончейн финальны → донат принимаем, но ТЕКСТ режем (сообщение не создаём).
+    const blocked = this.blocks.some(
+      (b) => b.channelId === p.channelId && b.blockedAddress === p.donor,
+    );
     const pointsDelta = pointsForAmount(p.amount); // фиксировано: 1 USDC = 1 очко
     const ts = this.now();
     const tierBefore = this.standingFor(p.channelId, p.donor)?.tier?.name;
@@ -805,7 +813,7 @@ export class MockDataProvider implements DataProvider {
       txSignature: p.signature,
       ts,
     });
-    if (p.text) await this.buildMessage(donation, p.text, ts);
+    if (p.text && !blocked) await this.buildMessage(donation, p.text, ts);
     this.donations.push(donation);
     const standing = this.standingFor(p.channelId, p.donor)!;
     const tierChanged = tierBefore !== undefined && tierBefore !== standing.tier?.name;
