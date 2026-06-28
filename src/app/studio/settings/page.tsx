@@ -164,7 +164,7 @@ export default function ChannelSettingsPage() {
             onChange={(e) => set("nameMode", e.target.value as Draft["nameMode"])}
           >
             <option value="addresses_only">Только адреса</option>
-            <option value="allow_display_names">Разрешить display_name</option>
+            <option value="allow_display_names">Разрешить имена</option>
           </Select>
           <Select
             label="Показ текста"
@@ -172,7 +172,7 @@ export default function ChannelSettingsPage() {
             onChange={(e) => set("textShowMode", e.target.value as Draft["textShowMode"])}
           >
             <option value="manual">Ручное одобрение</option>
-            <option value="auto_if_clean">Авто-показ если чисто</option>
+            <option value="auto_if_clean">Авто-показ</option>
           </Select>
         </div>
         {draft.textShowMode === "auto_if_clean" ? (
