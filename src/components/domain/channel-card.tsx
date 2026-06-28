@@ -78,14 +78,14 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
                   href={`/c/${card.handle}`}
                   title={`Ещё ${hiddenLinks} — на странице канала`}
                   aria-label={`Ещё ${hiddenLinks} ссылок на странице канала`}
-                  className="flex h-6 items-center justify-center rounded-md px-1.5 text-small leading-none text-fg-faint transition-colors hover:bg-surface-raised hover:text-fg"
+                  className="flex h-6 items-center justify-center rounded-md px-1.5 text-small leading-none text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
                 >
                   …
                 </Link>
               ) : null}
             </>
           ) : (
-            <span className="text-small text-fg-faint">нет ссылок</span>
+            <span className="text-small text-fg-muted">нет ссылок</span>
           )}
         </div>
         <a
@@ -93,7 +93,7 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
           target="_blank"
           rel="noopener noreferrer"
           title="Payout-адрес в Solana Explorer"
-          className="mono flex shrink-0 items-center gap-1 text-small text-fg-faint transition-colors hover:text-fg"
+          className="mono flex shrink-0 items-center gap-1 text-small text-fg-muted transition-colors hover:text-fg"
         >
           {shortAddress(card.payoutAddress)} ↗
         </a>
