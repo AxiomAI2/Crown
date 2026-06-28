@@ -45,11 +45,11 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-small text-fg-muted">
           <span>
-            <span className="font-medium text-fg">{card.donorsCount}</span>{" "}
+            <span className="font-medium">{card.donorsCount}</span>{" "}
             {plural(card.donorsCount, DONORS)}
           </span>
           <span className="flex items-center gap-1">
-            объём <Amount micro={card.totalDonated} variant="money" />
+            объём <Amount micro={card.totalDonated} />
           </span>
         </div>
       </Link>

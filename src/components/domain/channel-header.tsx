@@ -198,14 +198,14 @@ export function ChannelHeader({
               {donorsCount !== undefined ? (
                 <>
                   <Link href={`/c/${channel.handle}/donors`} className="hover:text-fg">
-                    <span className="font-medium text-fg">{donorsCount}</span>{" "}
+                    <span className="font-medium">{donorsCount}</span>{" "}
                     {plural(donorsCount, ["донатёр", "донатёра", "донатёров"])}
                   </Link>
                   {totalDonated !== undefined ? (
                     <>
                       <span className="text-fg-faint">·</span>
                       <span className="flex items-center gap-1">
-                        всего <Amount micro={totalDonated} variant="money" />
+                        всего <Amount micro={totalDonated} />
                       </span>
                     </>
                   ) : null}
