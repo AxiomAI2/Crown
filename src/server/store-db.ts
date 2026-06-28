@@ -1,4 +1,5 @@
 import type { PGlite } from "@electric-sql/pglite";
+import { getDb } from "./db";
 import type { StoreSnapshot } from "@/lib/data/mock-provider";
 import type {
   Channel,
@@ -389,4 +390,72 @@ export async function saveSeq(db: PGlite, seq: number): Promise<void> {
 export async function loadSeq(db: PGlite): Promise<number> {
   const r = await db.query<{ value: string }>("SELECT value FROM meta WHERE key = 'seq'");
   return r.rows[0] ? Number(r.rows[0].value) : 0;
+}
+
+// ───────────────────────── сборка целого снимка ↔ Postgres ─────────────────────────
+/**
+ * Прочитать всё состояние из Postgres в форму StoreSnapshot. Возвращает null, если БД ещё не инициализирована
+ * (нет метки 'initialized') — тогда вызывающий переносит данные из JSON-снимка. modCache не персистится
+ * (кэш дедупа — перестроится). donation.message переподвязывается на тот же объект, что и в messages.
+ */
+export async function loadStore(): Promise<StoreSnapshot | null> {
+  const db = await getDb();
+  const init = await db.query("SELECT value FROM meta WHERE key = 'initialized'");
+  if (init.rows.length === 0) return null;
+
+  const channels = await loadChannels(db);
+  const configs = await loadConfigs(db);
+  const profiles = await loadProfiles(db);
+  const ledger = await loadLedger(db);
+  const donations = await loadDonations(db);
+  const messages = await loadMessages(db);
+  const blocks = await loadBlocks(db);
+  const incidents = await loadIncidents(db);
+  const operatorActions = await loadOperatorActions(db);
+  const reports = await loadReports(db);
+  const seq = await loadSeq(db);
+
+  const byDonation = new Map<string, MessageRef>();
+  for (const m of messages.values()) byDonation.set(m.donationId, m);
+  for (const d of donations) {
+    const m = byDonation.get(d.id);
+    if (m) d.message = m;
+  }
+
+  return {
+    channelsById: channels.map((c) => [c.id, c]),
+    handleToId: channels.map((c) => [c.handle, c.id]),
+    configsByChannel: [...configs.entries()],
+    profiles: [...profiles.entries()],
+    ledger,
+    donations,
+    messages: [...messages.entries()],
+    blocks,
+    incidents,
+    operatorActions,
+    modCache: [],
+    reports,
+    seq,
+  };
+}
+
+/**
+ * Записать весь снимок в Postgres (вызывается после мутаций). Append-only/обновляемые сущности — upsert;
+ * channel_blocks заменяем целиком (поддержка разблокировки). Ставит метку 'initialized'.
+ */
+export async function saveStore(snap: StoreSnapshot): Promise<void> {
+  const db = await getDb();
+  await saveChannels(db, snap.channelsById.map(([, c]) => c));
+  await saveConfigs(db, new Map(snap.configsByChannel));
+  await saveProfiles(db, new Map(snap.profiles));
+  await saveLedger(db, snap.ledger);
+  await saveDonations(db, snap.donations);
+  await saveMessages(db, new Map(snap.messages));
+  await db.exec("DELETE FROM channel_blocks");
+  await saveBlocks(db, snap.blocks);
+  await saveOperatorActions(db, snap.operatorActions);
+  await saveIncidents(db, snap.incidents);
+  await saveReports(db, snap.reports);
+  await saveSeq(db, snap.seq);
+  await db.query("INSERT INTO meta (key, value) VALUES ('initialized', '1') ON CONFLICT (key) DO NOTHING");
 }

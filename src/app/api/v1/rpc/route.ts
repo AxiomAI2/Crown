@@ -121,7 +121,7 @@ export async function POST(req: Request): Promise<Response> {
     return json({ ok: true, result: res });
   }
 
-  const store = getStore();
+  const store = await getStore();
   store.__setLatencyScale(0);
   store.__setFailMode(!IS_PROD && Boolean(body.failMode)); // L1: инъекция ошибок — только dev-тулинг, не из прода
 
