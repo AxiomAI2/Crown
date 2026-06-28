@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ReportDialog } from "./report-dialog";
 import { MoreIcon } from "@/components/ui/icons";
 import { toast } from "@/components/ui/toast";
@@ -46,9 +46,27 @@ export function ModerationMenu({
   // Жаловаться можно на показанный текст или на сообщение в очереди (HELD) — как и на сервере.
   const canReport = !!message && (message.state === "SHOWN" || message.state === "HELD");
 
+  // Нативный <details> сам не закрывается по клику ВНЕ — закрываем вручную (и по Escape).
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      const el = detailsRef.current;
+      if (el?.open && !el.contains(e.target as Node)) el.removeAttribute("open");
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") detailsRef.current?.removeAttribute("open");
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
   return (
     <>
-    <details className="relative">
+    <details ref={detailsRef} className="relative">
       <summary
         className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg [&::-webkit-details-marker]:hidden"
         title="Ещё действия"
