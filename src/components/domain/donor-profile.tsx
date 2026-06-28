@@ -7,7 +7,7 @@ import { ChannelLinkButtons } from "./channel-links";
 import { inputsFromLinks, LinkEditor, type LinkInputs, linksFromInputs } from "./link-editor";
 import { TierBadge } from "./standing";
 import { ProfileAvatar } from "./standing-list";
-import { CumulativeAreaChart, RANGE_LABEL, type ChartRange } from "./area-chart";
+import { CumulativeAreaChart, RangeTabs, type ChartRange } from "./area-chart";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -218,6 +218,15 @@ function ProfileEditDialog({ address }: { address: string }) {
   );
 }
 
+
+// Подпись под графиком для выбранного окна.
+const RANGE_CAPTION: Record<ChartRange, string> = {
+  "1D": "за день",
+  "1W": "за неделю",
+  "1M": "за месяц",
+  "1Y": "за год",
+  ALL: "за всё время",
+};
 
 /**
  * Кумулятивный график «всего задонатил» — общий компонент (area-chart): равномерные ступени по донатам,
@@ -451,27 +460,12 @@ function DonorDashboard({
         <div className="flex flex-col gap-3 rounded-lg border border-border bg-[var(--bg)] p-4">
           <div className="flex items-start justify-between gap-2">
             <span className="text-small text-fg-muted">Всего задонатил</span>
-            <div className="flex shrink-0 items-center gap-1 rounded-md border border-border p-0.5">
-              {(["1M", "1Y", "ALL"] as ChartRange[]).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRange(r)}
-                  className={cn(
-                    "rounded px-2 py-0.5 text-small transition-colors",
-                    range === r ? "bg-surface-raised text-fg" : "text-fg-faint hover:text-fg",
-                  )}
-                >
-                  {RANGE_LABEL[r]}
-                </button>
-              ))}
-            </div>
+            <RangeTabs range={range} onChange={setRange} />
           </div>
           <Amount micro={overview.totalDonated} variant="money" className="text-display-l" />
           <DonationsAreaChart donations={overview.donations} range={range} />
           <span className="text-small text-fg-faint">
-            {range === "ALL" ? "за всё время" : range === "1M" ? "за месяц" : "за год"} · деньги финальны,
-            репутация считается у каждого канала отдельно
+            {RANGE_CAPTION[range]} · деньги финальны, репутация считается у каждого канала отдельно
           </span>
         </div>
       </div>

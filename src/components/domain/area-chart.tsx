@@ -3,10 +3,18 @@
 import { useId, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 
-export type ChartRange = "1M" | "1Y" | "ALL";
-export const CHART_RANGES: ChartRange[] = ["1M", "1Y", "ALL"];
-export const RANGE_LABEL: Record<ChartRange, string> = { "1M": "1М", "1Y": "1Г", ALL: "Всё" };
+export type ChartRange = "1D" | "1W" | "1M" | "1Y" | "ALL";
+export const CHART_RANGES: ChartRange[] = ["1D", "1W", "1M", "1Y", "ALL"];
+export const RANGE_LABEL: Record<ChartRange, string> = {
+  "1D": "1Д",
+  "1W": "1Н",
+  "1M": "1М",
+  "1Y": "1Г",
+  ALL: "Всё",
+};
 const RANGE_MS: Record<ChartRange, number> = {
+  "1D": 86_400_000,
+  "1W": 7 * 86_400_000,
   "1M": 30 * 86_400_000,
   "1Y": 365 * 86_400_000,
   ALL: Number.POSITIVE_INFINITY,
@@ -22,7 +30,7 @@ function chartDate(t: number): string {
   return new Date(t).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
 }
 
-/** Переключатель диапазона (1М/1Г/Всё) — общий для карточек графиков. */
+/** Сегмент-контрол выбора окна графика (День/Неделя/Месяц/Год/Всё) — общий для всех карточек графиков. */
 export function RangeTabs({
   range,
   onChange,
@@ -31,15 +39,18 @@ export function RangeTabs({
   onChange: (r: ChartRange) => void;
 }) {
   return (
-    <div className="flex shrink-0 items-center gap-1 rounded-md border border-border p-0.5">
+    <div className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-border bg-[var(--bg)] p-0.5">
       {CHART_RANGES.map((r) => (
         <button
           key={r}
           type="button"
           onClick={() => onChange(r)}
+          aria-pressed={range === r}
           className={cn(
-            "rounded px-2 py-0.5 text-small transition-colors",
-            range === r ? "bg-surface-raised text-fg" : "text-fg-faint hover:text-fg",
+            "rounded-md px-2.5 py-1 text-small font-medium transition-colors",
+            range === r
+              ? "bg-surface-raised text-fg shadow-sm"
+              : "text-fg-faint hover:bg-surface-raised/60 hover:text-fg",
           )}
         >
           {RANGE_LABEL[r]}
