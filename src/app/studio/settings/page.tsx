@@ -20,7 +20,6 @@ interface Draft {
   minDonation: bigint;
   minDonationWithText: bigint;
   messageMaxLen: number;
-  profanityPolicy: ChannelConfig["profanityPolicy"];
   nameMode: ChannelConfig["nameMode"];
   textShowMode: ChannelConfig["textShowMode"];
   moderators: ModeratorRef[];
@@ -33,7 +32,6 @@ function deriveDraft(c: ChannelConfig): Draft {
     minDonation: c.minDonation,
     minDonationWithText: c.minDonationWithText,
     messageMaxLen: c.messageMaxLen,
-    profanityPolicy: c.profanityPolicy,
     nameMode: c.nameMode,
     textShowMode: c.textShowMode,
     moderators: c.moderators,
@@ -53,7 +51,6 @@ function buildPatch(draft: Draft, original: ChannelConfig): ConfigPatch {
   if (draft.minDonationWithText !== original.minDonationWithText)
     patch.minDonationWithText = draft.minDonationWithText;
   if (draft.messageMaxLen !== original.messageMaxLen) patch.messageMaxLen = draft.messageMaxLen;
-  if (draft.profanityPolicy !== original.profanityPolicy) patch.profanityPolicy = draft.profanityPolicy;
   if (draft.nameMode !== original.nameMode) patch.nameMode = draft.nameMode;
   if (draft.textShowMode !== original.textShowMode) patch.textShowMode = draft.textShowMode;
   if (!eq(draft.moderators, original.moderators)) patch.moderators = draft.moderators;
@@ -144,15 +141,6 @@ export default function ChannelSettingsPage() {
             value={String(draft.messageMaxLen)}
             onChange={(e) => set("messageMaxLen", Number(e.target.value) || 0)}
           />
-          <Select
-            label="Профанити-политика"
-            value={draft.profanityPolicy}
-            onChange={(e) => set("profanityPolicy", e.target.value as Draft["profanityPolicy"])}
-          >
-            <option value="mask">Маскировать</option>
-            <option value="hide">Скрыть</option>
-            <option value="queue">В очередь</option>
-          </Select>
         </div>
       </Section>
 

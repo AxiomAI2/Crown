@@ -89,7 +89,6 @@ export interface ChannelConfig {
   minDonation: MicroUSDC;
   minDonationWithText: MicroUSDC;
   messageMaxLen: number;
-  profanityPolicy: "mask" | "hide" | "queue";
   nameMode: "addresses_only" | "allow_display_names";
   textShowMode: "manual" | "auto_if_clean";
   moderators: ModeratorRef[];
@@ -309,7 +308,6 @@ export type ConfigPatch = Partial<
     | "minDonation"
     | "minDonationWithText"
     | "messageMaxLen"
-    | "profanityPolicy"
     | "nameMode"
     | "textShowMode"
     | "moderators"

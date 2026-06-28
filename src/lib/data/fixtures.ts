@@ -42,7 +42,6 @@ export function defaultChannelConfig(channelId: string): ChannelConfig {
     minDonation: toMicro(0.1),
     minDonationWithText: toMicro(0.5),
     messageMaxLen: 200,
-    profanityPolicy: "queue",
     nameMode: "addresses_only",
     textShowMode: "manual",
     moderators: [],
