@@ -63,6 +63,7 @@ async function ensureSchema(db: PGlite): Promise<void> {
       channel_id             text NOT NULL,
       version                integer NOT NULL,
       hash                   text NOT NULL,
+      description            text,
       tiers                  jsonb NOT NULL,
       min_donation           numeric(20,0) NOT NULL,
       min_donation_with_text numeric(20,0) NOT NULL,
