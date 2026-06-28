@@ -825,11 +825,24 @@ export class MockDataProvider implements DataProvider {
    * blocked=true только на HARD_BLOCK (запрещёнка/жёсткое) — как у ника. Мат разрешён → не блокируем.
    * Это не «решение о деньгах»: tx ещё не отправлена. Ingest всё равно проводит модерацию повторно (бэкстоп).
    */
-  async precheckText(text: string): Result<{ blocked: boolean }> {
+  async precheckText(
+    text: string,
+    channelId?: string,
+  ): Result<{ blocked: boolean; reason?: "content" | "blocklist" }> {
     await this.gate("precheckText");
+    // Блок-лист канала: заблокированному кошельку донат-с-текстом нельзя — ловим ДО подписи (деньги не тратятся).
+    const donor = this.session().address;
+    if (
+      channelId &&
+      donor &&
+      this.blocks.some((b) => b.channelId === channelId && b.blockedAddress === donor)
+    ) {
+      return { blocked: true, reason: "blocklist" };
+    }
     const t = (text ?? "").trim();
     if (!t) return { blocked: false };
-    return { blocked: (await resolveAutoModerator().classify(t, "")) === "HARD_BLOCK" };
+    const hard = (await resolveAutoModerator().classify(t, "")) === "HARD_BLOCK";
+    return hard ? { blocked: true, reason: "content" } : { blocked: false };
   }
 
   async listDonations(channelId: string, _opts?: ListOpts): Result<Page<Donation>> {

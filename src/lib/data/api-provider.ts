@@ -90,9 +90,12 @@ export class ApiDataProvider implements DataProvider {
   ingestActivation(signature: string): Promise<{ ok: boolean; pending?: boolean; reason?: string }> {
     return this.rpc("ingestActivation", [signature]);
   }
-  /** Префлайт текста доната ДО отправки: blocked=true при HARD_BLOCK (запрещёнка). Вне DataProvider. */
-  precheckText(text: string): Promise<{ blocked: boolean }> {
-    return this.rpc("precheckText", [text]);
+  /** Префлайт текста доната ДО отправки: blocked при HARD_BLOCK (контент) или блок-листе канала. Вне DataProvider. */
+  precheckText(
+    text: string,
+    channelId?: string,
+  ): Promise<{ blocked: boolean; reason?: "content" | "blocklist" }> {
+    return this.rpc("precheckText", [text, channelId]);
   }
   /** SIWS шаг 1: получить nonce + каноническое сообщение для подписи. Вне DataProvider — для chain. */
   authNonce(address: Address): Promise<{ nonce: string; message: string }> {

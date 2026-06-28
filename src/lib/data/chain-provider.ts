@@ -236,11 +236,13 @@ export class ChainDataProvider implements DataProvider {
     // (политика модерации); ingest всё равно проводит модерацию повторно как бэкстоп. Без текста — нечего.
     const text = input.text?.trim() || undefined;
     if (text) {
-      const { blocked } = await this.api.precheckText(text);
+      const { blocked, reason } = await this.api.precheckText(text, input.channelId);
       if (blocked)
         throw new DataError(
-          "TEXT_BLOCKED",
-          "Сообщение не прошло модерацию (запрещённый/жёсткий контент). Убери его или задонать без текста.",
+          reason === "blocklist" ? "BLOCKED" : "TEXT_BLOCKED",
+          reason === "blocklist"
+            ? "Этот кошелёк заблокирован на канале для донатов-с-сообщениями. Задонатить можно без текста."
+            : "Сообщение не прошло модерацию (запрещённый/жёсткий контент). Убери его или задонать без текста.",
         );
     }
 
