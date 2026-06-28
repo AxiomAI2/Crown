@@ -26,7 +26,7 @@ export function ChannelCardTile({ card }: { card: ChannelCard }) {
         <div className="flex items-start gap-3">
           <div
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full font-display text-h3"
-            style={{ backgroundColor: `hsl(${hue} 16% 15%)`, color: `hsl(${hue} 18% 64%)` }}
+            style={{ backgroundColor: `hsl(${hue} 45% 20%)`, color: `hsl(${hue} 70% 72%)` }}
           >
             {name.replace(/^@/, "")[0]?.toUpperCase() ?? "?"}
           </div>
