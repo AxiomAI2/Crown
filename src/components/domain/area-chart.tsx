@@ -89,50 +89,43 @@ export function CumulativeAreaChart({
 
   const now = Date.now();
   const total = series[series.length - 1]!.y;
-  const firstT = series[0]!.t;
-  const windowStart = range === "ALL" ? firstT : Math.max(firstT, now - RANGE_MS[range]);
+  const windowStart = range === "ALL" ? 0 : now - RANGE_MS[range];
 
-  let baseY = 0;
+  // Уровень, накопленный ДО окна (для 1М/1Г стартуем с него, а не с нуля).
+  let base = 0;
   for (const p of series) {
-    if (p.t <= windowStart) baseY = p.y;
+    if (p.t < windowStart) base = p.y;
     else break;
   }
-  const visible = series.filter((p) => p.t > windowStart);
-  const pts =
-    range === "ALL"
-      ? [{ t: firstT, y: 0 }, ...series, { t: now, y: total }] // старт от нуля → первый донат тоже скачок
-      : [{ t: windowStart, y: baseY }, ...visible, { t: now, y: total }];
+  // События в окне рисуем РАВНОМЕРНО ПО ИНДЕКСУ: каждый донат — ступень одинаковой ширины (а НЕ по времени —
+  // иначе кластер донатов в пару дней сжимается в «плавную» полоску и резкость не видна).
+  const win = range === "ALL" ? series : series.filter((p) => p.t >= windowStart);
 
   const W = 100;
   const H = 40;
-  const xMin = pts[0]!.t;
-  const xMax = Math.max(now, xMin + 1);
   const maxY = Math.max(total, 1);
-  const sx = (t: number) => ((t - xMin) / (xMax - xMin)) * W;
   const sy = (y: number) => H - (y / maxY) * H;
+  const n = win.length;
+  const slot = n > 0 ? W / n : W; // ширина слота одного доната
 
-  // Кумулятив дискретных событий — это СТУПЕНЬКА: между донатами значение держится ровно, а в момент доната
-  // резко прыгает (а не плавно растёт по центам). Поэтому от точки к точке идём горизонталью на прежнем
-  // уровне до времени события, затем вертикалью вверх.
-  let line = `M ${sx(pts[0]!.t).toFixed(2)} ${sy(pts[0]!.y).toFixed(2)}`;
-  for (let i = 1; i < pts.length; i++) {
-    const prev = pts[i - 1]!;
-    const cur = pts[i]!;
-    line += ` L ${sx(cur.t).toFixed(2)} ${sy(prev.y).toFixed(2)} L ${sx(cur.t).toFixed(2)} ${sy(cur.y).toFixed(2)}`;
+  // Ступеньки: каждый донат РЕЗКО прыгает в начале своего слота и держится по слоту. Одинаковой ширины.
+  let line = `M 0 ${sy(base).toFixed(2)}`;
+  for (let i = 0; i < n; i++) {
+    const x0 = i * slot;
+    const prevY = i === 0 ? base : win[i - 1]!.y;
+    line += ` L ${x0.toFixed(2)} ${sy(prevY).toFixed(2)}`;
+    line += ` L ${x0.toFixed(2)} ${sy(win[i]!.y).toFixed(2)}`;
+    line += ` L ${((i + 1) * slot).toFixed(2)} ${sy(win[i]!.y).toFixed(2)}`;
   }
-  const area = `${line} L ${sx(pts[pts.length - 1]!.t).toFixed(2)} ${H} L ${sx(pts[0]!.t).toFixed(2)} ${H} Z`;
+  if (n === 0) line += ` L ${W} ${sy(base).toFixed(2)}`; // событий в окне нет — ровная линия
+  const area = `${line} L ${W} ${H} L 0 ${H} Z`;
 
-  // Значение под курсором: курсор по X → время → НАКОПЛЕННОЕ значение на этот момент (ступенька: берём
-  // уровень последнего события с t ≤ курсора, без интерполяции — иначе показывало бы «промежуточные» центы).
+  // Наведение: снап к ближайшему донату — показываем его накопленное значение и дату.
   let hover: { fx: number; y: number; t: number } | null = null;
-  if (hoverFx != null) {
-    const t = xMin + hoverFx * (xMax - xMin);
-    let y = pts[0]!.y;
-    for (const p of pts) {
-      if (p.t <= t) y = p.y;
-      else break;
-    }
-    hover = { fx: hoverFx, y, t };
+  if (hoverFx != null && n > 0) {
+    const idx = Math.min(n - 1, Math.max(0, Math.floor(hoverFx * n)));
+    const ev = win[idx]!;
+    hover = { fx: (idx + 0.5) / n, y: ev.y, t: ev.t };
   }
 
   return (
