@@ -111,23 +111,26 @@ export function CumulativeAreaChart({
   const sx = (t: number) => ((t - xMin) / (xMax - xMin)) * W;
   const sy = (y: number) => H - (y / maxY) * H;
 
-  const line = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${sx(p.t).toFixed(2)} ${sy(p.y).toFixed(2)}`).join(" ");
+  // Кумулятив дискретных событий — это СТУПЕНЬКА: между донатами значение держится ровно, а в момент доната
+  // резко прыгает (а не плавно растёт по центам). Поэтому от точки к точке идём горизонталью на прежнем
+  // уровне до времени события, затем вертикалью вверх.
+  let line = `M ${sx(pts[0]!.t).toFixed(2)} ${sy(pts[0]!.y).toFixed(2)}`;
+  for (let i = 1; i < pts.length; i++) {
+    const prev = pts[i - 1]!;
+    const cur = pts[i]!;
+    line += ` L ${sx(cur.t).toFixed(2)} ${sy(prev.y).toFixed(2)} L ${sx(cur.t).toFixed(2)} ${sy(cur.y).toFixed(2)}`;
+  }
   const area = `${line} L ${sx(pts[pts.length - 1]!.t).toFixed(2)} ${H} L ${sx(pts[0]!.t).toFixed(2)} ${H} Z`;
 
-  // Значение под курсором: курсор по X → время → значение на линии (интерполяция по сегментам, ровно по линии).
+  // Значение под курсором: курсор по X → время → НАКОПЛЕННОЕ значение на этот момент (ступенька: берём
+  // уровень последнего события с t ≤ курсора, без интерполяции — иначе показывало бы «промежуточные» центы).
   let hover: { fx: number; y: number; t: number } | null = null;
   if (hoverFx != null) {
     const t = xMin + hoverFx * (xMax - xMin);
     let y = pts[0]!.y;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i]!;
-      const b = pts[i + 1]!;
-      if (t >= a.t && t <= b.t) {
-        const f = b.t === a.t ? 0 : (t - a.t) / (b.t - a.t);
-        y = a.y + f * (b.y - a.y);
-        break;
-      }
-      if (t > b.t) y = b.y;
+    for (const p of pts) {
+      if (p.t <= t) y = p.y;
+      else break;
     }
     hover = { fx: hoverFx, y, t };
   }
