@@ -4,9 +4,20 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import { useAddBlock, useChannelBlocklist, useMyChannel, useRemoveBlock } from "@/lib/data/hooks";
 import { shortAddress, timeAgo } from "@/lib/utils";
+
+// Готовые причины канальной блокировки (почему стример закрыл этому кошельку донаты-с-сообщениями).
+const BLOCK_REASONS = [
+  "Спам / реклама",
+  "Оскорбления, травля",
+  "Угрозы, агрессия",
+  "Мошенничество, скам",
+  "Неуместный контент",
+  "Другое",
+];
 
 export default function BlocklistPage() {
   const myChannelQ = useMyChannel();
@@ -53,7 +64,14 @@ export default function BlocklistPage() {
           <Input label="Адрес кошелька" mono value={address} onChange={(e) => setAddress(e.target.value)} />
         </div>
         <div className="flex-1">
-          <Input label="Причина (опц.)" value={reason} onChange={(e) => setReason(e.target.value)} />
+          <Select label="Причина" value={reason} onChange={(e) => setReason(e.target.value)}>
+            <option value="">Без причины</option>
+            {BLOCK_REASONS.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </Select>
         </div>
         <Button onClick={submit} loading={add.isPending}>
           Заблокировать
