@@ -1,8 +1,11 @@
+import { OPERATOR_ADDRESS } from "@/lib/chain/addresses";
+import { resolveToken } from "@/server/auth";
 import { getDb } from "@/server/db";
 
 /**
- * DEV-эндпоинт данных для смотрелки /dev/db: число строк + до 500 строк на таблицу в JSON. Только вне прода.
- * Имена таблиц — фиксированный список (не из пользовательского ввода), поэтому интерполяция в SQL безопасна.
+ * Данные таблиц Postgres для смотрелки /dev/db — ТОЛЬКО для оператора (в таблицах есть приватный текст
+ * сообщений, инциденты, жалобы). POST с session-токеном; пускаем, лишь если токен резолвится в адрес
+ * оператора (OPERATOR_ADDRESS). Имена таблиц — фиксированный список, интерполяция в SQL безопасна.
  */
 const TABLES = [
   "channels",
@@ -18,10 +21,13 @@ const TABLES = [
   "meta",
 ] as const;
 
-export async function GET() {
-  if (process.env.NODE_ENV === "production") {
-    return Response.json({ error: "Доступно только в dev." }, { status: 404 });
+export async function POST(request: Request) {
+  const body = (await request.json().catch(() => null)) as { token?: string } | null;
+  const addr = resolveToken(body?.token);
+  if (!OPERATOR_ADDRESS || addr !== OPERATOR_ADDRESS) {
+    return Response.json({ error: "Только для оператора. Подключи операторский кошелёк." }, { status: 403 });
   }
+
   const db = await getDb();
   const out: Record<string, { count: number; rows: Record<string, unknown>[] }> = {};
   for (const t of TABLES) {

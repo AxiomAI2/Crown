@@ -602,7 +602,7 @@ function DonorDashboard({
           {(
             [
               ["channels", `Каналы · ${overview.channelsSupported}`],
-              ["activity", `Активность · ${pointEvents.length}`],
+              ["activity", `Журнал репутации · ${pointEvents.length}`],
             ] as [Tab, string][]
           ).map(([key, label]) => (
             <button
@@ -676,7 +676,7 @@ function DonorDashboard({
                   setActChannel(e.target.value);
                   setActLimit(12);
                 }}
-                aria-label="Фильтр активности по каналу"
+                aria-label="Фильтр журнала по каналу"
                 className="w-full sm:w-64"
               >
                 <option value="all">Все каналы</option>
@@ -713,12 +713,12 @@ function DonorDashboard({
                 ) : null}
               </>
             ) : (
-              <p className="text-small text-fg-faint">На этом канале активности по очкам нет.</p>
+              <p className="text-small text-fg-faint">По этому каналу записей в журнале нет.</p>
             )}
           </div>
         ) : (
           <p className="rounded-lg border border-dashed border-border p-6 text-center text-small text-fg-faint">
-            Пока нет активности по очкам.
+            Журнал репутации пуст.
           </p>
         )}
       </div>
