@@ -150,5 +150,21 @@ async function ensureSchema(db: PGlite): Promise<void> {
       resolution  text,
       ts          timestamptz NOT NULL DEFAULT now()
     );
+
+    -- Жалобы зрителей (анти-накрутка: одна на пару message_id+reporter). Внутреннее состояние стора.
+    CREATE TABLE IF NOT EXISTS reports (
+      message_id text NOT NULL,
+      channel_id text NOT NULL,
+      reporter   text NOT NULL,
+      reason     text,
+      ts         timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (message_id, reporter)
+    );
+
+    -- KV для служебного состояния (счётчик id и т.п.).
+    CREATE TABLE IF NOT EXISTS meta (
+      key   text PRIMARY KEY,
+      value text NOT NULL
+    );
   `);
 }

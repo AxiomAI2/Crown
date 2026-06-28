@@ -1,5 +1,19 @@
 import type { PGlite } from "@electric-sql/pglite";
-import type { Channel, ChannelConfig, LightProfile } from "@/lib/data/types";
+import type { StoreSnapshot } from "@/lib/data/mock-provider";
+import type {
+  Channel,
+  ChannelBlock,
+  ChannelConfig,
+  Donation,
+  IncidentLog,
+  LedgerEvent,
+  LightProfile,
+  MessageRef,
+  OperatorAction,
+} from "@/lib/data/types";
+
+// ReportRecord — внутренний тип стора (не экспортирован); берём его форму из снимка.
+type ReportRecord = StoreSnapshot["reports"][number];
 
 /**
  * Маппинг состояния стора ↔ реляционные таблицы Postgres (PGlite). Логика и инварианты остаются в
@@ -142,4 +156,237 @@ export async function loadProfiles(db: PGlite): Promise<Map<string, LightProfile
     });
   }
   return m;
+}
+
+// ───────────────────────── ledger_events (источник истины) ─────────────────────────
+export async function saveLedger(db: PGlite, ledger: LedgerEvent[]): Promise<void> {
+  for (const e of ledger) {
+    await db.query(
+      `INSERT INTO ledger_events (id, donor, creator, type, amount, points_delta, config_version, tx_signature, ts)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (id) DO UPDATE SET
+         donor=$2, creator=$3, type=$4, amount=$5, points_delta=$6, config_version=$7, tx_signature=$8, ts=$9`,
+      [e.id, e.donor, e.creator, e.type, String(e.amount), e.pointsDelta, e.configVersion, e.txSignature ?? null, e.ts],
+    );
+  }
+}
+
+export async function loadLedger(db: PGlite): Promise<LedgerEvent[]> {
+  const r = await db.query<Record<string, unknown>>("SELECT * FROM ledger_events ORDER BY ts");
+  return r.rows.map((row) => ({
+    id: row.id as string,
+    donor: row.donor as string,
+    creator: row.creator as string,
+    type: row.type as LedgerEvent["type"],
+    amount: BigInt(row.amount as string),
+    pointsDelta: Number(row.points_delta),
+    configVersion: Number(row.config_version),
+    txSignature: (row.tx_signature as string | null) ?? undefined,
+    ts: toIso(row.ts),
+  }));
+}
+
+// ───────────────────────── donations (без message — он в messages) ─────────────────────────
+export async function saveDonations(db: PGlite, donations: Donation[]): Promise<void> {
+  for (const d of donations) {
+    await db.query(
+      `INSERT INTO donations (id, channel_id, donor, amount, fee_amount, net_to_streamer, tx_signature, final, ts)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (id) DO UPDATE SET
+         channel_id=$2, donor=$3, amount=$4, fee_amount=$5, net_to_streamer=$6, tx_signature=$7, final=$8, ts=$9`,
+      [
+        d.id,
+        d.channelId,
+        d.donor,
+        String(d.amount),
+        String(d.feeAmount),
+        String(d.netToStreamer),
+        d.txSignature ?? null,
+        d.final,
+        d.ts,
+      ],
+    );
+  }
+}
+
+export async function loadDonations(db: PGlite): Promise<Donation[]> {
+  const r = await db.query<Record<string, unknown>>("SELECT * FROM donations ORDER BY ts");
+  return r.rows.map((row) => ({
+    id: row.id as string,
+    channelId: row.channel_id as string,
+    donor: row.donor as string,
+    amount: BigInt(row.amount as string),
+    feeAmount: BigInt(row.fee_amount as string),
+    netToStreamer: BigInt(row.net_to_streamer as string),
+    txSignature: (row.tx_signature as string | null) ?? undefined,
+    final: true as const,
+    ts: toIso(row.ts),
+  }));
+}
+
+// ───────────────────────── messages ─────────────────────────
+export async function saveMessages(db: PGlite, messages: Map<string, MessageRef>): Promise<void> {
+  for (const m of messages.values()) {
+    await db.query(
+      `INSERT INTO messages (id, donation_id, channel_id, text, lang, state, auto_verdict, content_hash, shown_at, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       ON CONFLICT (id) DO UPDATE SET
+         donation_id=$2, channel_id=$3, text=$4, lang=$5, state=$6, auto_verdict=$7, content_hash=$8, shown_at=$9, created_at=$10`,
+      [
+        m.id,
+        m.donationId,
+        m.channelId,
+        m.text,
+        m.lang ?? null,
+        m.state,
+        m.autoVerdict ?? null,
+        m.contentHash,
+        m.shownAt ?? null,
+        m.createdAt,
+      ],
+    );
+  }
+}
+
+export async function loadMessages(db: PGlite): Promise<Map<string, MessageRef>> {
+  const r = await db.query<Record<string, unknown>>("SELECT * FROM messages");
+  const map = new Map<string, MessageRef>();
+  for (const row of r.rows) {
+    map.set(row.id as string, {
+      id: row.id as string,
+      donationId: row.donation_id as string,
+      channelId: row.channel_id as string,
+      text: row.text as string,
+      lang: (row.lang as string | null) ?? undefined,
+      state: row.state as MessageRef["state"],
+      autoVerdict: (row.auto_verdict as MessageRef["autoVerdict"]) ?? undefined,
+      contentHash: row.content_hash as string,
+      shownAt: row.shown_at ? toIso(row.shown_at) : undefined,
+      createdAt: toIso(row.created_at),
+    });
+  }
+  return map;
+}
+
+// ───────────────────────── channel_blocks ─────────────────────────
+export async function saveBlocks(db: PGlite, blocks: ChannelBlock[]): Promise<void> {
+  for (const b of blocks) {
+    await db.query(
+      `INSERT INTO channel_blocks (channel_id, blocked_address, reason, by_moderator, ts)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (channel_id, blocked_address) DO UPDATE SET reason=$3, by_moderator=$4, ts=$5`,
+      [b.channelId, b.blockedAddress, b.reason ?? null, b.byModerator, b.ts],
+    );
+  }
+}
+
+export async function loadBlocks(db: PGlite): Promise<ChannelBlock[]> {
+  const r = await db.query<Record<string, unknown>>("SELECT * FROM channel_blocks");
+  return r.rows.map((row) => ({
+    channelId: row.channel_id as string,
+    blockedAddress: row.blocked_address as string,
+    reason: (row.reason as string | null) ?? undefined,
+    byModerator: row.by_moderator as string,
+    ts: toIso(row.ts),
+  }));
+}
+
+// ───────────────────────── operator_actions ─────────────────────────
+export async function saveOperatorActions(db: PGlite, actions: OperatorAction[]): Promise<void> {
+  for (const a of actions) {
+    await db.query(
+      `INSERT INTO operator_actions (id, action, target_channel_id, target_address, reason, by_operator, preservation, reported, ts)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (id) DO UPDATE SET
+         action=$2, target_channel_id=$3, target_address=$4, reason=$5, by_operator=$6, preservation=$7, reported=$8, ts=$9`,
+      [
+        a.id,
+        a.action,
+        a.targetChannelId ?? null,
+        a.targetAddress ?? null,
+        a.reason,
+        a.byOperator,
+        a.preservation ?? null,
+        a.reported ?? null,
+        a.ts,
+      ],
+    );
+  }
+}
+
+export async function loadOperatorActions(db: PGlite): Promise<OperatorAction[]> {
+  const r = await db.query<Record<string, unknown>>("SELECT * FROM operator_actions ORDER BY ts");
+  return r.rows.map((row) => ({
+    id: row.id as string,
+    action: row.action as OperatorAction["action"],
+    targetChannelId: (row.target_channel_id as string | null) ?? undefined,
+    targetAddress: (row.target_address as string | null) ?? undefined,
+    reason: row.reason as string,
+    byOperator: row.by_operator as string,
+    preservation: (row.preservation as boolean | null) ?? undefined,
+    reported: (row.reported as boolean | null) ?? undefined,
+    ts: toIso(row.ts),
+  }));
+}
+
+// ───────────────────────── incident_logs ─────────────────────────
+export async function saveIncidents(db: PGlite, incidents: IncidentLog[]): Promise<void> {
+  for (const i of incidents) {
+    await db.query(
+      `INSERT INTO incident_logs (id, channel_id, address, kind, detail, text, resolution, ts)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (id) DO UPDATE SET
+         channel_id=$2, address=$3, kind=$4, detail=$5, text=$6, resolution=$7, ts=$8`,
+      [i.id, i.channelId ?? null, i.address ?? null, i.kind, i.detail, i.text ?? null, i.resolution ?? null, i.ts],
+    );
+  }
+}
+
+export async function loadIncidents(db: PGlite): Promise<IncidentLog[]> {
+  const r = await db.query<Record<string, unknown>>("SELECT * FROM incident_logs ORDER BY ts");
+  return r.rows.map((row) => ({
+    id: row.id as string,
+    channelId: (row.channel_id as string | null) ?? undefined,
+    address: (row.address as string | null) ?? undefined,
+    kind: row.kind as IncidentLog["kind"],
+    detail: row.detail as string,
+    text: (row.text as string | null) ?? undefined,
+    resolution: (row.resolution as string | null) ?? undefined,
+    ts: toIso(row.ts),
+  }));
+}
+
+// ───────────────────────── reports + seq (внутреннее состояние) ─────────────────────────
+export async function saveReports(db: PGlite, reports: ReportRecord[]): Promise<void> {
+  for (const rep of reports) {
+    await db.query(
+      `INSERT INTO reports (message_id, channel_id, reporter, reason, ts)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (message_id, reporter) DO UPDATE SET channel_id=$2, reason=$4, ts=$5`,
+      [rep.messageId, rep.channelId, rep.reporter, rep.reason ?? null, rep.ts],
+    );
+  }
+}
+
+export async function loadReports(db: PGlite): Promise<ReportRecord[]> {
+  const r = await db.query<Record<string, unknown>>("SELECT * FROM reports");
+  return r.rows.map((row) => ({
+    messageId: row.message_id as string,
+    channelId: row.channel_id as string,
+    reporter: row.reporter as string,
+    reason: (row.reason as string | null) ?? undefined,
+    ts: toIso(row.ts),
+  }));
+}
+
+export async function saveSeq(db: PGlite, seq: number): Promise<void> {
+  await db.query(
+    `INSERT INTO meta (key, value) VALUES ('seq', $1) ON CONFLICT (key) DO UPDATE SET value=$1`,
+    [String(seq)],
+  );
+}
+
+export async function loadSeq(db: PGlite): Promise<number> {
+  const r = await db.query<{ value: string }>("SELECT value FROM meta WHERE key = 'seq'");
+  return r.rows[0] ? Number(r.rows[0].value) : 0;
 }
