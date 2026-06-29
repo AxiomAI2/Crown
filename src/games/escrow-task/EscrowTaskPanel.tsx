@@ -7,17 +7,55 @@ import { StandingHeadline } from "@/components/domain/standing";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { useChannelConfig, useSession, useStanding } from "@/lib/data/hooks";
 import { pointsForAmount } from "@/lib/reputation";
 import { toMicro } from "@/lib/utils";
 import { useEscrowAction, useEscrowTasks } from "./hooks";
-import { dueResolution } from "./machine";
+import { dueResolution, WINDOWS } from "./machine";
 import type { EscrowTask, TaskDispute } from "./types";
 
 // Те же пресеты сумм, что и в обычном донате (донат-виджет) — единый дизайн.
 const PRESETS = [5, 10, 25, 100];
+
+// Варианты срока на выполнение (в пределах коридора движка). Донор выбирает, сколько у стримера времени.
+const H = 3_600_000;
+const DEADLINES = [
+  { ms: H, label: "1 час" },
+  { ms: 6 * H, label: "6 часов" },
+  { ms: 12 * H, label: "12 часов" },
+  { ms: 24 * H, label: "1 день" },
+  { ms: 3 * 24 * H, label: "3 дня" },
+  { ms: 7 * 24 * H, label: "7 дней" },
+];
+
+/** Человеческое «осталось …» до момента iso (для таймера дедлайна на карточке). */
+function until(iso: string): string {
+  const ms = Date.parse(iso) - Date.now();
+  if (ms <= 0) return "срок истёк";
+  const h = Math.floor(ms / H);
+  if (h >= 24) return `осталось ~${Math.floor(h / 24)} дн`;
+  if (h >= 1) return `осталось ~${h} ч`;
+  return `осталось ~${Math.max(1, Math.floor(ms / 60_000))} мин`;
+}
+
+/** Какой дедлайн сейчас тикает (по стадии) — подпись для карточки. */
+function deadlineLabel(task: EscrowTask): string | null {
+  switch (task.status) {
+    case "PENDING":
+      return `Принять до · ${until(task.acceptDeadline)}`;
+    case "ACCEPTED":
+      return task.executionDeadline ? `Выполнить · ${until(task.executionDeadline)}` : null;
+    case "DONE":
+      return task.disputeWindowEndsAt ? `Оспорить до · ${until(task.disputeWindowEndsAt)}` : null;
+    case "DISPUTED":
+      return task.dispute ? `Голосование · ${until(task.dispute.votingEndsAt)}` : null;
+    default:
+      return null;
+  }
+}
 
 /**
  * UI мини-игры «задание-донат», две поверхности (ADR 0016 / редизайн раздела игр на канале):
@@ -71,6 +109,7 @@ export function EscrowTaskRail({ channelId }: GameProps) {
   const { run, pending } = useRun(channelId);
   const [amount, setAmount] = useState("");
   const [text, setText] = useState("");
+  const [deadlineMs, setDeadlineMs] = useState(WINDOWS.executionDefault); // срок выполнения, задаёт донор
 
   const num = Number(amount);
   const amountValid = amount !== "" && Number.isFinite(num) && num > 0;
@@ -79,7 +118,11 @@ export function EscrowTaskRail({ channelId }: GameProps) {
 
   function create() {
     if (!valid) return;
-    run("create", { amount: toMicro(num).toString(), text: text.trim() }, "Задание создано");
+    run(
+      "create",
+      { amount: toMicro(num).toString(), text: text.trim(), executionMs: deadlineMs },
+      "Задание создано",
+    );
     setAmount("");
     setText("");
   }
@@ -139,6 +182,24 @@ export function EscrowTaskRail({ channelId }: GameProps) {
             onChange={(e) => setText(e.target.value)}
             className="bg-[var(--bg)]"
           />
+
+          <div className="flex flex-col gap-1">
+            <Select
+              label="Срок на выполнение"
+              value={String(deadlineMs)}
+              onChange={(e) => setDeadlineMs(Number(e.target.value))}
+              className="bg-[var(--bg)]"
+            >
+              {DEADLINES.map((d) => (
+                <option key={d.ms} value={d.ms}>
+                  {d.label}
+                </option>
+              ))}
+            </Select>
+            <p className="text-caption text-fg-faint">
+              Сколько у стримера времени после принятия. Не успел — донат вернётся тебе.
+            </p>
+          </div>
 
           <Button
             variant="secondary"
@@ -280,6 +341,8 @@ function TaskCard({
         <p className="text-small text-fg-faint">
           По времени готово к разрешению: {outcomeLabel(due.outcome)}.
         </p>
+      ) : !final && deadlineLabel(task) ? (
+        <p className="text-small text-fg-faint">{deadlineLabel(task)}</p>
       ) : null}
       {task.dispute ? (
         <>
