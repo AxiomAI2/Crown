@@ -198,7 +198,7 @@ function TaskCard({
         <>
           <DisputeTally dispute={task.dispute} />
           <Link
-            href={`/c/${handle}/dispute/${task.id}`}
+            href={`/c/${handle}/dispute/${encodeURIComponent(task.id)}`}
             className="text-small self-start text-info hover:underline"
           >
             Участники и голоса ({task.dispute.votes.length}) →

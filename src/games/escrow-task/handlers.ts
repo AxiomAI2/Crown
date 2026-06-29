@@ -78,7 +78,8 @@ export const escrowTaskHandlers: GameHandlers = {
       if (!text) throw new GameBusError("NO_TEXT", "Нужен текст задания.");
       const task = M.createTask(
         {
-          id: ctx.newId(),
+          // id используется в URL страницы спора → делаем URL-безопасным (id стора несёт ISO с «:»/«.»).
+          id: ctx.newId().replace(/[^a-zA-Z0-9_-]/g, ""),
           channelId: ctx.channelId,
           donor,
           amount,
