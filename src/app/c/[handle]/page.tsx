@@ -1,11 +1,12 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { useState } from "react";
 import { ChannelHeader } from "@/components/domain/channel-header";
 import { DonateWidget } from "@/components/domain/donate";
 import { DonationHistory } from "@/components/domain/donation-history";
 import { TierLadder } from "@/components/domain/standing";
-import { ChannelGames } from "@/games/ChannelGames";
+import { ChannelGames, ChannelGameRail } from "@/games/ChannelGames";
 import { AppHeader } from "@/components/layout/app-header";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,6 +29,15 @@ export default function ChannelPage() {
   const address = sessionQ.data?.address ?? null;
   const standingQ = useStanding(channel?.id, address);
   const donationsQ = useDonations(channel?.id);
+
+  // Игры на канале: «Игры» — первая вкладка и активна ПО УМОЛЧАНИЮ (если включены). Контролируемые табы,
+  // чтобы правый рейл мог меняться под выбранную игру. tabState=null → дефолт (games при наличии игр).
+  const enabledGames = configQ.data?.enabledGames ?? [];
+  const hasGames = enabledGames.length > 0;
+  const [tabState, setTabState] = useState<string | null>(null);
+  const activeTab = tabState ?? (hasGames ? "games" : "feed");
+  const [selGame, setSelGame] = useState<string | null>(null);
+  const selectedGame = selGame ?? enabledGames[0] ?? null;
 
   // Владелец, смотрящий свой канал → в ленте доступна кнопка «Забанить» (модераторы банят из студии/очереди).
   const canManage = !!address && channel?.ownerAddress === address;
@@ -78,7 +88,15 @@ export default function ChannelPage() {
             {/* Донат + моё standing. На мобиле — СРАЗУ под шапкой (в потоке вторым). На lg — правая колонка,
                 ФИКСИРОВАНА при скролле (rail-pinned-right), занимает обе строки правого трека (row-span-2). */}
             <aside className="rail-pinned-right flex flex-col gap-6 lg:col-start-2 lg:row-span-2 lg:row-start-1">
-              {configQ.data && sessionQ.data ? (
+              {activeTab === "games" && hasGames && selectedGame ? (
+                // На вкладке «Игры» рейл — действие выбранной игры (морфинг под игру).
+                <ChannelGameRail
+                  gameId={selectedGame}
+                  channelId={channel.id}
+                  ownerAddress={channel.ownerAddress}
+                  handle={handle}
+                />
+              ) : configQ.data && sessionQ.data ? (
                 <DonateWidget
                   channel={channel}
                   config={configQ.data}
@@ -94,15 +112,26 @@ export default function ChannelPage() {
             {/* Контент канала — табами (мини-хедер), а не простынёй. Новые фичи = новая вкладка.
                 На мобиле идёт после доната; на lg — левая колонка под шапкой (строка 2). */}
             <div className="min-w-0 lg:col-start-1 lg:row-start-2">
-              <Tabs defaultValue="feed" className="flex flex-col gap-1">
+              <Tabs value={activeTab} onValueChange={setTabState} className="flex flex-col gap-1">
                 <TabsList className="w-full">
+                  {hasGames ? <TabsTrigger value="games">Игры</TabsTrigger> : null}
                   <TabsTrigger value="feed">Лента</TabsTrigger>
                   <TabsTrigger value="donations">Донаты</TabsTrigger>
                   <TabsTrigger value="tiers">Тиры</TabsTrigger>
-                  {(configQ.data?.enabledGames?.length ?? 0) > 0 ? (
-                    <TabsTrigger value="games">Игры</TabsTrigger>
-                  ) : null}
                 </TabsList>
+
+                {hasGames ? (
+                  <TabsContent value="games">
+                    <ChannelGames
+                      channelId={channel.id}
+                      ownerAddress={channel.ownerAddress}
+                      handle={handle}
+                      enabledGames={enabledGames}
+                      selectedGame={selectedGame}
+                      onSelect={setSelGame}
+                    />
+                  </TabsContent>
+                ) : null}
 
                 <TabsContent value="feed">
                   {donationsQ.isLoading ? (
@@ -139,17 +168,6 @@ export default function ChannelPage() {
                     <Skeleton className="h-40 w-full" />
                   )}
                 </TabsContent>
-
-                {(configQ.data?.enabledGames?.length ?? 0) > 0 ? (
-                  <TabsContent value="games">
-                    <ChannelGames
-                      channelId={channel.id}
-                      ownerAddress={channel.ownerAddress}
-                      handle={handle}
-                      enabledGames={configQ.data!.enabledGames}
-                    />
-                  </TabsContent>
-                ) : null}
               </Tabs>
             </div>
           </div>

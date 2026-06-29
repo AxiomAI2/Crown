@@ -11,14 +11,21 @@ import { toast } from "@/components/ui/toast";
 import { useSession } from "@/lib/data/hooks";
 import { toMicro } from "@/lib/utils";
 import { useEscrowAction, useEscrowTasks } from "./hooks";
-import { dueResolution, tally } from "./machine";
+import { dueResolution } from "./machine";
 import type { EscrowTask, TaskDispute } from "./types";
 
 /**
- * Экран мини-игры «задание-донат» на странице канала (G1.4). Ролевой: показывает действия по состоянию
- * задания и роли зрителя (донор / стример / присяжный / получатель). Данные — через типизированные хуки
- * (game-bus). Деньги пока мок (claim лишь помечает забранным); реальный эскроу — G3.
+ * UI мини-игры «задание-донат», две поверхности (ADR 0016 / редизайн раздела игр на канале):
+ *  - EscrowTaskRail — ПРАВЫЙ рейл: действие (создать задание-донат);
+ *  - EscrowTaskHub  — ЛЕВО: правила + «почему честно» + активные задания (мониторинг, споры).
+ * Данные — через типизированные хуки (game-bus). Деньги пока мок; реальный эскроу — G3.
  */
+
+interface GameProps {
+  channelId: string;
+  ownerAddress: string;
+  handle: string;
+}
 
 const STATUS_LABEL: Record<EscrowTask["status"], string> = {
   PENDING: "Ждёт стримера",
@@ -32,19 +39,8 @@ const outcomeLabel = (o: "to_streamer" | "to_donor") =>
 
 type Run = (op: string, payload?: unknown, okMsg?: string) => void;
 
-export function EscrowTaskPanel({
-  channelId,
-  ownerAddress,
-  handle,
-}: {
-  channelId: string;
-  ownerAddress: string;
-  handle: string;
-}) {
-  const viewer = useSession().data?.address ?? null;
-  const tasksQ = useEscrowTasks(channelId);
+function useRun(channelId: string): { run: Run; pending: boolean } {
   const action = useEscrowAction(channelId);
-
   const run: Run = (op, payload, okMsg) =>
     action.mutate(
       { op, payload },
@@ -58,51 +54,109 @@ export function EscrowTaskPanel({
           }),
       },
     );
+  return { run, pending: action.isPending };
+}
 
-  const tasks = tasksQ.data?.tasks ?? [];
+// ───────────────────────── правый рейл: действие ─────────────────────────
 
+export function EscrowTaskRail({ channelId }: GameProps) {
+  const viewer = useSession().data?.address ?? null;
+  const { run, pending } = useRun(channelId);
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-small text-fg-muted">
-        Донат с заданием: деньги «в эскроу», стример выполняет и жмёт «Готово», иначе — возврат.
-        Спорные — на проверку комьюнити. Деньги пока имитируются (реальный эскроу — позже).
-      </p>
-
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-[var(--bg)] p-4">
+      <h3 className="text-h3 text-fg">Задание-донат</h3>
       {viewer ? (
         <CreateForm
-          pending={action.isPending}
+          pending={pending}
           onCreate={(amount, text) => run("create", { amount, text }, "Задание создано")}
         />
       ) : (
-        <p className="text-small rounded-lg border border-dashed border-border p-4 text-center text-fg-faint">
-          Подключи кошелёк, чтобы создавать задания.
-        </p>
+        <p className="text-small text-fg-muted">Подключи кошелёк, чтобы создать задание.</p>
       )}
-
-      {tasksQ.isLoading ? (
-        <Skeleton className="h-24 w-full rounded-lg" />
-      ) : tasksQ.error ? (
-        <ErrorState description="Не удалось загрузить задания." onRetry={() => tasksQ.refetch()} />
-      ) : tasks.length === 0 ? (
-        <EmptyState title="Пока нет заданий" description="Создай первое задание-донат." />
-      ) : (
-        <div className="flex flex-col gap-3">
-          {[...tasks].reverse().map((t) => (
-            <TaskCard
-              key={t.id}
-              task={t}
-              viewer={viewer}
-              ownerAddress={ownerAddress}
-              handle={handle}
-              pending={action.isPending}
-              run={run}
-            />
-          ))}
-        </div>
-      )}
+      <p className="text-small text-fg-faint">
+        Деньги «в эскроу» — пока имитируются (реальный ончейн-эскроу позже).
+      </p>
     </div>
   );
 }
+
+// ───────────────────────── левая часть: правила + активные ─────────────────────────
+
+export function EscrowTaskHub({ channelId, ownerAddress, handle }: GameProps) {
+  const viewer = useSession().data?.address ?? null;
+  const tasksQ = useEscrowTasks(channelId);
+  const { run, pending } = useRun(channelId);
+  const tasks = tasksQ.data?.tasks ?? [];
+
+  return (
+    <div className="flex flex-col gap-6">
+      <EscrowTaskRules />
+      <section className="flex flex-col gap-3">
+        <div className="text-caption uppercase tracking-wide text-fg-faint">
+          Активные задания · {tasks.length}
+        </div>
+        {tasksQ.isLoading ? (
+          <Skeleton className="h-24 w-full rounded-lg" />
+        ) : tasksQ.error ? (
+          <ErrorState
+            description="Не удалось загрузить задания."
+            onRetry={() => tasksQ.refetch()}
+          />
+        ) : tasks.length === 0 ? (
+          <EmptyState title="Пока нет заданий" description="Создай первое — форма справа." />
+        ) : (
+          <div className="flex flex-col gap-3">
+            {[...tasks].reverse().map((t) => (
+              <TaskCard
+                key={t.id}
+                task={t}
+                viewer={viewer}
+                ownerAddress={ownerAddress}
+                handle={handle}
+                pending={pending}
+                run={run}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function EscrowTaskRules() {
+  return (
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4">
+      <div className="flex flex-col gap-2">
+        <h3 className="text-h3 text-fg">Как работает</h3>
+        <ol className="text-small flex list-inside list-decimal flex-col gap-1 text-fg-muted">
+          <li>Зритель донатит с заданием — деньги замораживаются в эскроу.</li>
+          <li>Стример выполняет задание и жмёт «Готово» (доказательство — сам стрим/VOD).</li>
+          <li>12 ч окно: если никто не спорит — деньги уходят стримеру.</li>
+          <li>
+            Считаешь, что не выполнено? С репутацией ≥ порога поднимаешь спор → 24 ч голосование.
+          </li>
+          <li>Комьюнити решило «не выполнил» → 100% назад донору; «выполнил» → стримеру.</li>
+        </ol>
+      </div>
+      <div className="flex flex-col gap-2">
+        <h3 className="text-h3 text-fg">Почему это честно</h3>
+        <ul className="text-small flex list-inside list-disc flex-col gap-1 text-fg-muted">
+          <li>
+            Приза нет: деньги либо стримеру за дело, либо назад донору — выиграть чужое нельзя (не
+            пари).
+          </li>
+          <li>
+            Голос взвешен репутацией на момент спора — накрутить «под спор» задним числом нельзя.
+          </li>
+          <li>Жюри не платят, а поднявший ложный спор рискует своей репутацией.</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────── переиспользуемые части ─────────────────────────
 
 function CreateForm({
   onCreate,
@@ -116,8 +170,7 @@ function CreateForm({
   const num = Number(amount);
   const valid = amount !== "" && Number.isFinite(num) && num > 0 && text.trim().length > 0;
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-[var(--bg)] p-4">
-      <span className="font-display text-fg">Новое задание</span>
+    <div className="flex flex-col gap-2">
       <Input
         label="Сумма, USDC"
         mono
@@ -135,7 +188,7 @@ function CreateForm({
         onChange={(e) => setText(e.target.value)}
       />
       <Button
-        variant="secondary"
+        variant="money"
         disabled={!valid || pending}
         onClick={() => {
           onCreate(toMicro(num).toString(), text.trim());
@@ -167,7 +220,7 @@ function TaskCard({
   const now = Date.now();
   const due = task.status !== "RESOLVED" ? dueResolution(task, now) : null;
   const final = task.resolution ?? null;
-  const effective = final ?? due; // итог или ожидаемый по времени исход
+  const effective = final ?? due;
 
   const isStreamer = !!viewer && viewer === ownerAddress;
   const isDonor = !!viewer && viewer === task.donor;
@@ -206,7 +259,6 @@ function TaskCard({
         </>
       ) : null}
 
-      {/* Действия по роли и состоянию */}
       <div className="flex flex-wrap items-center gap-2">
         {isStreamer && task.status === "PENDING" && !due ? (
           <>
@@ -303,10 +355,7 @@ function TaskCard({
   );
 }
 
-/**
- * Визуализация голосования по спору: полоса весов «выполнил» vs «не выполнил» (вес = очки репутации на
- * момент спора), сколько очков и голосов за каждую сторону, прогресс к кворуму и текущий лидер (tally).
- */
+/** Полоса весов «выполнил» vs «не выполнил» + очки/голоса по сторонам + прогресс к кворуму + текущий лидер. */
 function DisputeTally({ dispute }: { dispute: TaskDispute }) {
   let completed = 0;
   let not = 0;
@@ -324,45 +373,26 @@ function DisputeTally({ dispute }: { dispute: TaskDispute }) {
   const total = completed + not;
   const cPct = total > 0 ? (completed / total) * 100 : 50;
   const quorumMet = total >= dispute.quorum;
-  const lead = tally(dispute); // текущий проектируемый исход
-
-  const Side = ({
-    label,
-    points,
-    votes,
-    color,
-    align,
-  }: {
-    label: string;
-    points: number;
-    votes: number;
-    color: string;
-    align: "left" | "right";
-  }) => (
-    <div className={`flex flex-col ${align === "right" ? "items-end" : "items-start"}`}>
-      <span className="text-small" style={{ color }}>
-        {label}
-      </span>
-      <span className="mono text-small text-fg">
-        {points} {points === 1 ? "очко" : "очков"}
-      </span>
-      <span className="text-caption text-fg-faint">{votes} голос(ов)</span>
-    </div>
-  );
+  const lead = total >= dispute.quorum && not > completed ? "to_donor" : "to_streamer";
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border bg-[var(--bg)] p-3">
       <div className="flex items-start justify-between gap-3">
-        <Side
-          label="Выполнил"
-          points={completed}
-          votes={cVotes}
-          color="var(--money)"
-          align="left"
-        />
-        <Side label="Не выполнил" points={not} votes={nVotes} color="var(--danger)" align="right" />
+        <div className="flex flex-col items-start">
+          <span className="text-small" style={{ color: "var(--money)" }}>
+            Выполнил
+          </span>
+          <span className="mono text-small text-fg">{completed} очков</span>
+          <span className="text-caption text-fg-faint">{cVotes} голос(ов)</span>
+        </div>
+        <div className="flex flex-col items-end">
+          <span className="text-small" style={{ color: "var(--danger)" }}>
+            Не выполнил
+          </span>
+          <span className="mono text-small text-fg">{not} очков</span>
+          <span className="text-caption text-fg-faint">{nVotes} голос(ов)</span>
+        </div>
       </div>
-      {/* Полоса весов */}
       <div className="flex h-2 overflow-hidden rounded-pill bg-surface-raised">
         <div style={{ width: `${cPct}%`, backgroundColor: "var(--money)" }} />
         <div style={{ width: `${100 - cPct}%`, backgroundColor: "var(--danger)" }} />
@@ -374,10 +404,8 @@ function DisputeTally({ dispute }: { dispute: TaskDispute }) {
         </span>
         <span>
           сейчас ведёт:{" "}
-          <span
-            style={{ color: lead.outcome === "to_streamer" ? "var(--money)" : "var(--danger)" }}
-          >
-            {lead.outcome === "to_streamer" ? "стримеру" : "возврат донору"}
+          <span style={{ color: lead === "to_streamer" ? "var(--money)" : "var(--danger)" }}>
+            {lead === "to_streamer" ? "стримеру" : "возврат донору"}
           </span>
         </span>
       </div>
