@@ -219,11 +219,13 @@ activate → Discovery, isCreator/isOperator по адресу; build (chain) з
   - [x] G1.5 сюрфейс на странице канала (вкладка «Игры» из реестра по включённым играм; манифест → available)
 - [ ] **G2** — бэкенд: стейт-машина, таймеры, снэпшот-чтения, модерация текста задания, инцидент-лог
 - **G3** — крипта: некастодиальная эскроу на Solana (проект — ADR 0017; код — `anchor/`)
-  - [~] G3a (devnet): эскроу-программа Anchor — исходник написан (`fund/accept/reject/markDone/cancel/
-    resolve_timeout/resolve_dispute/claim_streamer/claim_donor`, claim-модель, 97/3, получатели/сумма
-    зашиты — кражи нет ни у кого). **Не собрана/не задеплоена в окружении** (нет хост-gcc для proc-
-    макросов + devnet-фасет 429 → `anchor/BUILD.md`). Дальше: ончейн-`gameAction` в `ChainDataProvider`
-    + наблюдение программы индексером (`DONATION`/`REFUND`/`DISPUTE_*` в журнал).
+  - [~] G3a (devnet): эскроу-программа Anchor (`fund/accept/reject/markDone/cancel/resolve_timeout/
+    resolve_dispute/claim_streamer/claim_donor`, claim-модель, 97/3, получатели/сумма зашиты — кражи нет
+    ни у кого). **Собрана и ЗАДЕПЛОЕНА на devnet** (2026-06-29): program id
+    `GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4`, upgrade authority — кошелёк `G1vJ…uz14`; рекорд в
+    `.env.local` `NEXT_PUBLIC_ESCROW_PROGRAM_ID`. Тулчейн: Solana 4.0.2 / platform-tools v1.53 / rustc
+    1.89. **Осталось:** ончейн-`gameAction` в `ChainDataProvider` (строить инструкции кошельком) +
+    наблюдение программы индексером (`DONATION`/`REFUND`/`DISPUTE_*` в журнал).
   - [ ] G3b (до мейннета): ончейн commit-reveal взвешенное голосование вместо bounded-резолвера +
     мастер-переменная (юрисдикция/США) + аудит контракта
 
