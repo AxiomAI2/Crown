@@ -26,7 +26,7 @@ export const WINDOWS = {
   accept: 72 * HOUR, // не принят за это время → возврат донору
   grace: 2 * MIN, // окно отмены донором после принятия
   executionDefault: 24 * HOUR,
-  executionMin: 1 * HOUR,
+  executionMin: 1 * MIN, // минимум — 1 минута (донор вписывает срок в минутах/часах/днях)
   executionMax: 90 * DAY, // потолок срока выполнения — до 3 месяцев (донор вписывает число вручную)
   disputeWindow: 12 * HOUR, // от «Готово» — окно поднять спор
   voting: 24 * HOUR,

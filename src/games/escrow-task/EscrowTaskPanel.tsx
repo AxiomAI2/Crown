@@ -20,9 +20,11 @@ import type { EscrowTask, TaskDispute } from "./types";
 // Те же пресеты сумм, что и в обычном донате (донат-виджет) — единый дизайн.
 const PRESETS = [5, 10, 25, 100];
 
-// Срок на выполнение донор вписывает вручную (число + единица), потолок — 3 месяца (WINDOWS.executionMax).
+// Срок на выполнение донор вписывает вручную (число + единица), от 1 минуты до 3 месяцев (см. WINDOWS).
 const H = 3_600_000;
+const MIN = H / 60;
 const DAY = 24 * H;
+const UNIT_MS: Record<"m" | "h" | "d", number> = { m: MIN, h: H, d: DAY };
 
 /** Человеческое «осталось …» до момента iso (для таймера дедлайна на карточке). */
 function until(iso: string): string {
@@ -104,21 +106,21 @@ export function EscrowTaskRail({ channelId }: GameProps) {
   const [text, setText] = useState("");
   // Срок выполнения задаёт донор вручную: число + единица (часы/дни). По умолчанию — 1 день.
   const [dlValue, setDlValue] = useState("1");
-  const [dlUnit, setDlUnit] = useState<"h" | "d">("d");
+  const [dlUnit, setDlUnit] = useState<"m" | "h" | "d">("d");
 
   const num = Number(amount);
   const amountValid = amount !== "" && Number.isFinite(num) && num > 0;
   const gain = amountValid ? pointsForAmount(toMicro(num)) : 0; // предпросмотр прибавки очков
 
   const dlNum = Number(dlValue);
-  const deadlineMs = dlNum * (dlUnit === "h" ? H : DAY);
+  const deadlineMs = dlNum * UNIT_MS[dlUnit];
   const deadlineValid =
     dlValue !== "" &&
     Number.isInteger(dlNum) &&
     deadlineMs >= WINDOWS.executionMin &&
     deadlineMs <= WINDOWS.executionMax;
   const deadlineError =
-    dlValue !== "" && !deadlineValid ? "Срок: от 1 часа до 3 месяцев" : undefined;
+    dlValue !== "" && !deadlineValid ? "Срок: от 1 минуты до 3 месяцев" : undefined;
   const valid = amountValid && text.trim().length > 0 && deadlineValid;
 
   function create() {
@@ -202,10 +204,11 @@ export function EscrowTaskRail({ channelId }: GameProps) {
               />
               <Select
                 value={dlUnit}
-                onChange={(e) => setDlUnit(e.target.value as "h" | "d")}
+                onChange={(e) => setDlUnit(e.target.value as "m" | "h" | "d")}
                 aria-label="Единица срока"
                 className="w-28 bg-[var(--bg)]"
               >
+                <option value="m">минут</option>
                 <option value="h">часов</option>
                 <option value="d">дней</option>
               </Select>
