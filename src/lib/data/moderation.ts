@@ -38,7 +38,8 @@ function isExplicitCsam(text: string): boolean {
 export const localAutoModerator: AutoModerator = {
   async classify(text) {
     const lower = text.toLowerCase();
-    if (isExplicitCsam(text) || DEFAULT_HARD_LIST.some((w) => lower.includes(w))) return "HARD_BLOCK";
+    if (isExplicitCsam(text) || DEFAULT_HARD_LIST.some((w) => lower.includes(w)))
+      return "HARD_BLOCK";
     if (DEFAULT_FLAG_LIST.some((w) => lower.includes(w))) return "FLAG";
     return "CLEAR";
   },
@@ -60,53 +61,104 @@ const SEVERE_THRESHOLDS: Record<string, number> = {
   "hate/threatening": 0.5, // угроза на почве ненависти
 };
 
+// — Политика для ТЕКСТА ЗАДАНИЯ (строже, чем донат-сообщение): задание — это инструкция ДЕЙСТВОВАТЬ, и
+//   платформа фасилитировала бы преступление. Поэтому насилие/нелегальщину/угрозы блокируем по ФЛАГУ
+//   категории OpenAI (а не только при высоком скоре). «Сделай 50 отжиманий» — clear; «убей того» — block. —
+const TASK_HARD_CATEGORIES = [
+  "sexual/minors",
+  "illicit",
+  "illicit/violent",
+  "violence",
+  "violence/graphic",
+  "harassment/threatening",
+  "hate/threatening",
+  "self-harm/instructions",
+] as const;
+
+// Бэкстоп-словарь явно нелегальных заданий (RU/EN) — гарантирует блок даже без OpenAI (offline/прод без ключа).
+const ILLEGAL_TASK_RE =
+  /(убей|убить|убил|убива|убийств|замочи|прикончи|зарежь|застрел|избей|избить|изнасил|укради|украсть|украл|ворова|своров|ограбь|ограбить|похить|похити|похищ|подожги|поджечь|взорви|взорвать|теракт|\bkill\b|\bmurder\b|\bsteal\b|\brob(?:bery)?\b|\brape\b|\bkidnap\b|\bbomb\b|terror)/i;
+
 /**
  * Внешний авто-модератор поверх OpenAI omni-moderation (бесплатный endpoint /v1/moderations). Мультиязычный.
  * Нелегальщина (HARD_ALWAYS) → карантин по флагу; жёсткие угрозы/насилие (HARD_IF_SEVERE) → карантин лишь
  * при score ≥ SEVERE_THRESHOLD (шутки не режем). На сбое/таймауте — FLAG (не блокируем деньги, не авто-
  * публикуем — текст в HELD на ручное решение). Только сервер (ключ серверный).
  */
+interface OpenAiModeration {
+  cats: Record<string, boolean>;
+  scores: Record<string, number>;
+}
+
+/** Один запрос к OpenAI omni-moderation. null — не смогли проверить (сбой/таймаут/не-OK). Только сервер. */
+async function fetchOpenAiModeration(
+  apiKey: string,
+  text: string,
+): Promise<OpenAiModeration | null> {
+  try {
+    const res = await fetch("https://api.openai.com/v1/moderations", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: "omni-moderation-latest", input: text }),
+    });
+    if (!res.ok) {
+      console.error("[moderation] OpenAI вернул", res.status);
+      return null;
+    }
+    const r = (
+      (await res.json()) as {
+        results?: {
+          categories?: Record<string, boolean>;
+          category_scores?: Record<string, number>;
+        }[];
+      }
+    ).results?.[0];
+    return { cats: r?.categories ?? {}, scores: r?.category_scores ?? {} };
+  } catch (e) {
+    console.error("[moderation] OpenAI ошибка:", e);
+    return null;
+  }
+}
+
+/**
+ * Внешний авто-модератор поверх OpenAI omni-moderation. Политика ДОНАТ-СООБЩЕНИЯ: нелегальщина
+ * (HARD_ALWAYS) → карантин по флагу; жёсткие угрозы/насилие — лишь при score ≥ SEVERE_THRESHOLD (шутки
+ * проходят). На сбое — FLAG (текст в HELD на ручное решение, деньги не трогаем).
+ */
 export function createOpenAiModerator(apiKey: string): AutoModerator {
   return {
     async classify(text) {
-      // Явный CSAM-маркер ловим ДО запроса (работает даже если OpenAI недоступен и недооценивает формулировку).
-      if (isExplicitCsam(text)) return "HARD_BLOCK";
-      try {
-        const res = await fetch("https://api.openai.com/v1/moderations", {
-          method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({ model: "omni-moderation-latest", input: text }),
-        });
-        if (!res.ok) {
-          console.error("[moderation] OpenAI вернул", res.status);
-          return "FLAG"; // не смогли проверить → на ручное решение (не показываем авто), деньги не трогаем
-        }
-        const r = (
-          (await res.json()) as {
-            results?: {
-              categories?: Record<string, boolean>;
-              category_scores?: Record<string, number>;
-            }[];
-          }
-        ).results?.[0];
-        const cats = r?.categories ?? {};
-        const scores = r?.category_scores ?? {};
-        if (HARD_ALWAYS.some((c) => cats[c])) return "HARD_BLOCK"; // нелегальщина — при любой уверенности
-        // Комбо CSAM: OpenAI часто недооценивает sexual/minors на обходных формулировках («порнография
-        // младше 18» → 0.02), но даёт высокий sexual. Секс-контент + признак несовершеннолетия = карантин.
-        if ((scores["sexual"] ?? 0) >= SEXUAL_COMBO_THRESHOLD && MINOR_HINT.test(text)) {
-          return "HARD_BLOCK";
-        }
-        if (Object.entries(SEVERE_THRESHOLDS).some(([c, t]) => (scores[c] ?? 0) >= t)) {
-          return "HARD_BLOCK"; // жёсткая угроза/насилие при высоком скоре
-        }
-        return "CLEAR"; // мат/шутки/обычный негатив — пропускаем, стример скрывает вручную
-      } catch (e) {
-        console.error("[moderation] OpenAI ошибка:", e);
-        return "FLAG";
+      if (isExplicitCsam(text)) return "HARD_BLOCK"; // явный CSAM — до запроса
+      const r = await fetchOpenAiModeration(apiKey, text);
+      if (!r) return "FLAG";
+      if (HARD_ALWAYS.some((c) => r.cats[c])) return "HARD_BLOCK"; // нелегальщина — при любой уверенности
+      // Комбо CSAM: OpenAI недооценивает sexual/minors на обходных формулировках, но даёт высокий sexual.
+      if ((r.scores["sexual"] ?? 0) >= SEXUAL_COMBO_THRESHOLD && MINOR_HINT.test(text)) {
+        return "HARD_BLOCK";
       }
+      if (Object.entries(SEVERE_THRESHOLDS).some(([c, t]) => (r.scores[c] ?? 0) >= t)) {
+        return "HARD_BLOCK"; // жёсткая угроза/насилие при высоком скоре
+      }
+      return "CLEAR"; // мат/шутки/обычный негатив — пропускаем, стример скрывает вручную
     },
   };
+}
+
+/**
+ * Модерация ТЕКСТА ЗАДАНИЯ (escrow-task): строже донат-сообщения. Сначала бэкстоп-словарь явной
+ * нелегальщины (работает без OpenAI), затем семантика OpenAI — блок по ФЛАГУ опасной категории
+ * (`TASK_HARD_CATEGORIES`). HARD_BLOCK → задание не создаётся. На сбое OpenAI → FLAG (создание не рубим
+ * жёстко: финальный фильтр — гейт стримера «Принять/Отклонить»). Только сервер (ключ серверный).
+ */
+export async function classifyTaskText(text: string): Promise<ModerationVerdict> {
+  if (isExplicitCsam(text) || ILLEGAL_TASK_RE.test(text)) return "HARD_BLOCK";
+  const key = typeof process !== "undefined" ? process.env.OPENAI_API_KEY : undefined;
+  if (!key) return "CLEAR"; // без ключа — только бэкстоп-словарь (mock-клиент/прод без ключа)
+  const r = await fetchOpenAiModeration(key, text);
+  if (!r) return "FLAG";
+  if (isExplicitCsam(text)) return "HARD_BLOCK";
+  if (TASK_HARD_CATEGORIES.some((c) => r.cats[c])) return "HARD_BLOCK";
+  return "CLEAR";
 }
 
 // Выбор авто-модератора по серверному env (мемоизируется). OPENAI_API_KEY — серверная переменная (НЕ

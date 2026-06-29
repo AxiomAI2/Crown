@@ -68,7 +68,7 @@ function settle(ctx: GameContext, task: EscrowTask): EscrowTask {
 export const escrowTaskHandlers: GameHandlers = {
   actions: {
     // Донор создаёт задание-донат (деньги «в эскроу» — мок).
-    create: (ctx, payload) => {
+    create: async (ctx, payload) => {
       const donor = requireIdentity(ctx);
       const p = (payload ?? {}) as { amount?: unknown; text?: unknown; executionMs?: unknown };
       const amount = String(p.amount ?? "");
@@ -76,6 +76,12 @@ export const escrowTaskHandlers: GameHandlers = {
         throw new GameBusError("BAD_AMOUNT", "Нужна положительная сумма (micro-USDC).");
       const text = typeof p.text === "string" ? p.text.trim() : "";
       if (!text) throw new GameBusError("NO_TEXT", "Нужен текст задания.");
+      // Модерация текста задания: нелегальное/опасное («убей того», «укради» и т.п.) не создаётся вовсе.
+      if ((await ctx.moderate(text)) === "HARD_BLOCK")
+        throw new GameBusError(
+          "ILLEGAL_TASK",
+          "Задание не прошло модерацию: запрещён нелегальный/опасный контент.",
+        );
       const task = M.createTask(
         {
           // id используется в URL страницы спора → делаем URL-безопасным (id стора несёт ISO с «:»/«.»).

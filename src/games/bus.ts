@@ -45,6 +45,8 @@ export interface GameContext {
   reputationAsOf: (address: string, asOf: string) => number;
   /** Забанковать эффекты на репутацию в журнал канала (ADR 0015). */
   bankLedger: (entries: GameLedgerEntry[]) => void;
+  /** Модерация текста (UGC игры): вердикт. HARD_BLOCK → запрещённый/опасный контент, не пропускаем. */
+  moderate: (text: string) => Promise<"CLEAR" | "FLAG" | "HARD_BLOCK">;
 }
 
 export type GameHandler = (ctx: GameContext, payload: unknown) => unknown | Promise<unknown>;

@@ -24,6 +24,7 @@ function makeCtx(overrides: Partial<GameContext> = {}): GameContext {
     },
     reputationAsOf: () => 0,
     bankLedger: () => {},
+    moderate: async () => "CLEAR",
     ...overrides,
   };
 }

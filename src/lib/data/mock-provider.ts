@@ -4,7 +4,7 @@ import { computePoints, computePointsAsOf, pointsForAmount, resolveTier } from "
 import { isLikelyBase58Address, toMicro } from "../utils";
 import { dispatchGame, GAME_HANDLERS, GameBusError, type GameContext } from "../../games";
 import { defaultChannelConfig, MAX_TIERS, TIER_DESC_MAX } from "./fixtures";
-import { resolveAutoModerator, runPipeline } from "./moderation";
+import { classifyTaskText, resolveAutoModerator, runPipeline } from "./moderation";
 import {
   DataError,
   ErrChannelAlreadyExists,
@@ -1140,9 +1140,11 @@ export class MockDataProvider implements DataProvider {
         get: <T = unknown>() => this.gameState.get(req.gameId) as T | undefined,
         set: (value: unknown) => this.gameState.set(req.gameId, value),
       },
-      // Мостики в ядро (ADR 0015): вес = очки на момент; банковка эффектов игры в журнал канала.
+      // Мостики в ядро (ADR 0015): вес = очки на момент; банковка эффектов игры в журнал канала;
+      // модерация UGC игры тем же ядровым пайплайном (для заданий — строгая политика, classifyTaskText).
       reputationAsOf: (address, asOf) =>
         computePointsAsOf(this.eventsFor(address, req.channelId), asOf),
+      moderate: (text) => classifyTaskText(text),
       bankLedger: (entries) => {
         for (const e of entries) {
           this.ledger.push({
