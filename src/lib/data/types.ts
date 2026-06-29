@@ -264,6 +264,15 @@ export interface CreateChannelInput {
   payoutAddress: Address;
 }
 
+// — Мини-игры: запрос через общий game-bus (ADR 0016). gameId/op — строки; ядро про конкретные игры не
+// знает, маршрутизация и валидация — на слое игр (`src/games/bus.ts`). —
+export interface GameRequest {
+  gameId: string;
+  channelId: string;
+  op: string;
+  payload?: unknown;
+}
+
 // — Профиль донатёра: агрегат по всем каналам (для публичной страницы /u/[address]) —
 // ВАЖНО (инвариант §4.3): глобального рейтинга нет. Деньги агрегируемы (сумма донатов — факт), но
 // очки репутации остаются ПОканальными — в overview суммы очков по каналам НЕ складываем.

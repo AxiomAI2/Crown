@@ -29,6 +29,7 @@ const MUTATING = new Set<string>([
   "addChannelBlock",
   "removeChannelBlock",
   "applyOperatorAction",
+  "gameAction", // мутации мини-игр (game-bus, ADR 0016)
 ]);
 
 // Белый список разрешённых методов стора (методы DataProvider). Авторизацию каждой мутации делает сам
@@ -66,6 +67,8 @@ const ALLOWED = new Set<string>([
   "getOperatorQueue",
   "applyOperatorAction",
   "getIncidentLog",
+  "gameAction", // мини-игры (game-bus, ADR 0016)
+  "gameQuery",
 ]);
 
 interface RpcBody {
@@ -85,7 +88,8 @@ function rpcError(code: string, message: string, status = 200): Response {
 // R4 (ADR 0012): клиенту отдаём текст ошибки ТОЛЬКО для доменных DataError (они написаны для пользователя).
 // Прочие (web3.js/PublicKey/сбой RPC/баг) → общий текст, а детали — в серверный лог, чтобы не утекали.
 function caughtError(e: unknown, fallbackCode = "ERROR"): Response {
-  if (e instanceof DataError) return json({ ok: false, error: { code: e.code, message: e.message } });
+  if (e instanceof DataError)
+    return json({ ok: false, error: { code: e.code, message: e.message } });
   console.error("[rpc] необработанная ошибка:", e);
   return json({ ok: false, error: { code: fallbackCode, message: "Внутренняя ошибка сервера." } });
 }

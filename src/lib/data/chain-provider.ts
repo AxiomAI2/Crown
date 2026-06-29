@@ -1,6 +1,11 @@
 import type { WalletContextState } from "@solana/wallet-adapter-react";
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
-import { ACTIVATION_FEE_MICRO, DEVNET_RPC, DEVNET_USDC_MINT, TREASURY_OWNER } from "../chain/config";
+import {
+  ACTIVATION_FEE_MICRO,
+  DEVNET_RPC,
+  DEVNET_USDC_MINT,
+  TREASURY_OWNER,
+} from "../chain/config";
 import {
   buildActivationInstructions,
   buildDonationInstructions,
@@ -23,6 +28,7 @@ import type {
   DonationInput,
   DonationResult,
   DonorOverview,
+  GameRequest,
   IncidentLog,
   LeaderboardEntry,
   LeaderboardPeriod,
@@ -377,7 +383,8 @@ export class ChainDataProvider implements DataProvider {
     // Сервер принимает сбор только на finalized (M2) — повторяем приём, пока tx не финализируется (~15-30с),
     // иначе сбор уплачен, а канал не активирован. Блокирующе: пользователь ждёт на экране активации.
     const res = await this.ingestWithRetry(() => this.api.ingestActivation(signature));
-    if (!res.ok) throw new DataError("ACTIVATION_FAILED", res.reason ?? "Сбор активации не принят.");
+    if (!res.ok)
+      throw new DataError("ACTIVATION_FAILED", res.reason ?? "Сбор активации не принят.");
 
     const channel = await this.api.getMyChannel();
     if (!channel) throw new DataError("NO_CHANNEL", "Канал не найден после активации.");
@@ -430,5 +437,13 @@ export class ChainDataProvider implements DataProvider {
   }
   getIncidentLog(o?: ListOpts): Result<Page<IncidentLog>> {
     return this.api.getIncidentLog(o);
+  }
+
+  // — Мини-игры (game-bus, ADR 0016): чтения/мутации идут на сервер через api (как остальные данные) —
+  gameAction(req: GameRequest): Result<unknown> {
+    return this.api.gameAction(req);
+  }
+  gameQuery(req: GameRequest): Result<unknown> {
+    return this.api.gameQuery(req);
   }
 }

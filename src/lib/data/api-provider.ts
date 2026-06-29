@@ -12,6 +12,7 @@ import type {
   DonationInput,
   DonationResult,
   DonorOverview,
+  GameRequest,
   IncidentLog,
   LeaderboardEntry,
   LeaderboardPeriod,
@@ -46,7 +47,13 @@ export class ApiDataProvider implements DataProvider {
       res = await fetch("/api/v1/rpc", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: encode({ method, args, token: this.token, address: this.address, failMode: this.failMode }),
+        body: encode({
+          method,
+          args,
+          token: this.token,
+          address: this.address,
+          failMode: this.failMode,
+        }),
       });
     } catch {
       throw new DataError("NETWORK", "Сеть недоступна или сервер не отвечает.");
@@ -60,7 +67,10 @@ export class ApiDataProvider implements DataProvider {
       throw new DataError("BAD_RESPONSE", `Сервер вернул неожиданный ответ (HTTP ${res.status}).`);
     }
     if (!payload.ok) {
-      throw new DataError(payload.error?.code ?? "RPC_ERROR", payload.error?.message ?? "Ошибка API");
+      throw new DataError(
+        payload.error?.code ?? "RPC_ERROR",
+        payload.error?.message ?? "Ошибка API",
+      );
     }
     return payload.result as T;
   }
@@ -87,7 +97,9 @@ export class ApiDataProvider implements DataProvider {
     return this.rpc("ingestSignature", [signature, text]);
   }
   /** Приём ончейн-сбора активации по подписи (сервер валидирует из цепочки). Вне DataProvider — для chain. */
-  ingestActivation(signature: string): Promise<{ ok: boolean; pending?: boolean; reason?: string }> {
+  ingestActivation(
+    signature: string,
+  ): Promise<{ ok: boolean; pending?: boolean; reason?: string }> {
     return this.rpc("ingestActivation", [signature]);
   }
   /** Префлайт текста доната ДО отправки: blocked при HARD_BLOCK (контент) или блок-листе канала. Вне DataProvider. */
@@ -199,6 +211,14 @@ export class ApiDataProvider implements DataProvider {
   }
   getIncidentLog(opts?: ListOpts): Result<Page<IncidentLog>> {
     return this.rpc("getIncidentLog", [opts]);
+  }
+
+  // — Мини-игры (game-bus, ADR 0016) —
+  gameAction(req: GameRequest): Result<unknown> {
+    return this.rpc("gameAction", [req]);
+  }
+  gameQuery(req: GameRequest): Result<unknown> {
+    return this.rpc("gameQuery", [req]);
   }
 
   // — Адрес сессии (кошелёк/dev) + dev-контролы; шлются с каждым запросом —

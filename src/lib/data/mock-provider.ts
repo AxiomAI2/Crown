@@ -2,6 +2,7 @@ import { OPERATOR_ADDRESS } from "../chain/addresses";
 import { CHANNEL_DESC_MAX, sanitizeChannelLinks } from "../channel-links";
 import { computePoints, pointsForAmount, resolveTier } from "../reputation";
 import { isLikelyBase58Address, toMicro } from "../utils";
+import { dispatchGame, GAME_HANDLERS, GameBusError, type GameContext } from "../../games/bus";
 import { defaultChannelConfig, MAX_TIERS, TIER_DESC_MAX } from "./fixtures";
 import { resolveAutoModerator, runPipeline } from "./moderation";
 import {
@@ -22,6 +23,7 @@ import type {
   Donation,
   DonationInput,
   DonationResult,
+  GameRequest,
   DonorChannelStanding,
   DonorOverview,
   DonorPointEvent,
@@ -124,6 +126,9 @@ export class MockDataProvider implements DataProvider {
   private latencyScale = 1;
   private seq = 0;
   private modCache = new Map<string, ModerationVerdict>();
+  // Состояние мини-игр: непрозрачный для ядра слайс на каждую игру (форму владеет сама игра; ADR 0016).
+  // В снимок/БД пока НЕ входит — персистентность состояния игр придёт с реальными операциями (G1.3).
+  private gameState = new Map<string, unknown>();
 
   // — Инфраструктура —
   private now(): string {
@@ -349,7 +354,10 @@ export class MockDataProvider implements DataProvider {
     // Модерация ПУБЛИЧНЫХ полей (ник/био видны в ленте и лидерборде): запрещёнка/жёсткое → отказ. Мат — ок.
     const publicText = [patch.displayName, patch.bio].filter(Boolean).join(" ").trim();
     if (publicText && (await resolveAutoModerator().classify(publicText, "")) === "HARD_BLOCK")
-      throw new DataError("PROFILE_BLOCKED", "Профиль не прошёл модерацию (запрещённый/жёсткий контент).");
+      throw new DataError(
+        "PROFILE_BLOCKED",
+        "Профиль не прошёл модерацию (запрещённый/жёсткий контент).",
+      );
     // Аватарки по URL отключены (канал для нецензурного контента) — не принимаем avatarUrl даже из прямого RPC.
     const { avatarUrl: _ignoredAvatar, ...safePatch } = patch;
     // Ссылки на платформы — только профиль/канал на доменах из allowlist (как у канала); чужой URL отброшен.
@@ -504,8 +512,14 @@ export class MockDataProvider implements DataProvider {
     // Описание канала (UGC): лимит + модерация. Имя/ссылки канала живут в профиле владельца, не здесь.
     if (patch.description !== undefined && patch.description.length > CHANNEL_DESC_MAX)
       throw new DataError("TOO_LONG", `Описание — до ${CHANNEL_DESC_MAX} символов.`);
-    if (patch.description && (await resolveAutoModerator().classify(patch.description, "")) === "HARD_BLOCK")
-      throw new DataError("CHANNEL_BLOCKED", "Описание не прошло модерацию (запрещённый/жёсткий контент).");
+    if (
+      patch.description &&
+      (await resolveAutoModerator().classify(patch.description, "")) === "HARD_BLOCK"
+    )
+      throw new DataError(
+        "CHANNEL_BLOCKED",
+        "Описание не прошло модерацию (запрещённый/жёсткий контент).",
+      );
     // Курс репутации фиксирован → версионировать нечего. Тиры/минимумы/настройки применяются сразу.
     const updated: ChannelConfig = { ...current, ...patch, updatedAt: this.now() };
     list[list.length - 1] = updated;
@@ -924,7 +938,10 @@ export class MockDataProvider implements DataProvider {
    * Первая жалоба → инцидент стримеру/оператору; при пороге уникальных жалоб текст авто-скрывается (HIDDEN)
    * до решения человека. Деньги/репутация не трогаются (§4.7). Жаловаться можно только на показанное (§4.6).
    */
-  async reportMessage(messageId: string, reason?: string): Result<{ reports: number; hidden: boolean }> {
+  async reportMessage(
+    messageId: string,
+    reason?: string,
+  ): Result<{ reports: number; hidden: boolean }> {
     await this.gate("reportMessage");
     const reporter = this.requireSession();
     const msg = this.messages.get(messageId);
@@ -932,7 +949,10 @@ export class MockDataProvider implements DataProvider {
     // Показанное может репортить любой вошедший; НЕ показанное (HELD/карантин) — только менеджер канала
     // (эскалация в T&S из очереди модерации).
     if (msg.state !== "SHOWN" && !this.isChannelManager(msg.channelId)) {
-      throw new DataError("NOT_REPORTABLE", "Жаловаться можно на показанный текст или из очереди модерации.");
+      throw new DataError(
+        "NOT_REPORTABLE",
+        "Жаловаться можно на показанный текст или из очереди модерации.",
+      );
     }
     if (this.reports.some((r) => r.messageId === messageId && r.reporter === reporter)) {
       throw new DataError("ALREADY_REPORTED", "Ты уже пожаловался на это сообщение.");
@@ -1087,5 +1107,40 @@ export class MockDataProvider implements DataProvider {
     this.requireOperator();
     const items = [...this.incidents].sort((a, b) => (a.ts < b.ts ? 1 : -1));
     return { items };
+  }
+
+  // — Мини-игры (game-bus, ADR 0016) —
+  async gameAction(req: GameRequest): Result<unknown> {
+    return this.dispatchGameOp("action", req);
+  }
+  async gameQuery(req: GameRequest): Result<unknown> {
+    return this.dispatchGameOp("query", req);
+  }
+  /**
+   * Общий диспатч операций мини-игр: канал должен существовать и игра — быть включена на нём (cold-start).
+   * Дальше маршрутизируем в обработчик игры через шину, дав ему узкий контекст (личность, канал, now, свой
+   * слайс состояния). Ошибки шины мапим в DataError → доходят до клиента понятным кодом.
+   */
+  private async dispatchGameOp(kind: "action" | "query", req: GameRequest): Promise<unknown> {
+    await this.gate(kind === "action" ? "gameAction" : "gameQuery");
+    const cfg = this.latestConfig(req.channelId); // бросит NO_CONFIG, если канала нет
+    if (!cfg.enabledGames.includes(req.gameId)) {
+      throw new DataError("GAME_NOT_ENABLED", "Эта мини-игра не включена на канале.");
+    }
+    const ctx: GameContext = {
+      identity: this.currentAddress(),
+      channelId: req.channelId,
+      now: () => this.now(),
+      state: {
+        get: <T = unknown>() => this.gameState.get(req.gameId) as T | undefined,
+        set: (value: unknown) => this.gameState.set(req.gameId, value),
+      },
+    };
+    try {
+      return await dispatchGame(GAME_HANDLERS, req.gameId, kind, req.op, ctx, req.payload);
+    } catch (e) {
+      if (e instanceof GameBusError) throw new DataError(e.code, e.message);
+      throw e;
+    }
   }
 }

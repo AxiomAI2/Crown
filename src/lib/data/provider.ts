@@ -10,6 +10,7 @@ import type {
   DonationResult,
   Donation,
   DonorOverview,
+  GameRequest,
   IncidentLog,
   LeaderboardEntry,
   LeaderboardPeriod,
@@ -86,6 +87,11 @@ export interface DataProvider {
     action: Omit<OperatorAction, "id" | "ts" | "byOperator">,
   ): Result<OperatorAction>;
   getIncidentLog(opts?: ListOpts): Result<Page<IncidentLog>>;
+
+  // — Мини-игры: один game-bus на все игры (ADR 0016), интерфейс не растёт на каждую. Маршрутизация по
+  //   gameId/op — на слое игр; результат типизируется хуками внутри модуля игры. —
+  gameAction(req: GameRequest): Result<unknown>; // мутации
+  gameQuery(req: GameRequest): Result<unknown>; // чтения
 }
 
 // — Доменные ошибки (бросаются провайдером, ловятся UI) —
@@ -123,7 +129,10 @@ export function createDataProvider(source: string | undefined): DataProvider {
       // ChainDataProvider РЕАЛИЗОВАН, но включается отдельным путём (app/providers.tsx → chain-providers.tsx,
       // динамический chunk: Solana-стек не попадает в bundle mock/api, ADR 0004). Через эту фабрику он не
       // инстанцируется намеренно — она для серверного/SSR-пути, где кошелька нет.
-      throw new DataError("CHAIN_VIA_PROVIDERS", "chain-провайдер подключается в app/providers.tsx (ADR 0004).");
+      throw new DataError(
+        "CHAIN_VIA_PROVIDERS",
+        "chain-провайдер подключается в app/providers.tsx (ADR 0004).",
+      );
     default:
       throw new DataError("BAD_DATA_SOURCE", `Неизвестный NEXT_PUBLIC_DATA_SOURCE: ${source}`);
   }
