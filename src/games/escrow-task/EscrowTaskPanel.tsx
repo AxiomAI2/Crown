@@ -140,7 +140,12 @@ export function EscrowTaskRail({ channelId }: GameProps) {
             className="bg-[var(--bg)]"
           />
 
-          <Button variant="money" disabled={!valid || pending} onClick={create}>
+          <Button
+            variant="secondary"
+            disabled={!valid || pending}
+            onClick={create}
+            className="border-border-strong bg-[var(--bg)] hover:bg-surface-raised"
+          >
             Создать задание
           </Button>
 
