@@ -10,6 +10,7 @@ import type { GameId } from "./types";
 export interface GamePanelProps {
   channelId: string;
   ownerAddress: string;
+  handle: string; // для ссылок на под-страницы игры (напр. страница спора)
 }
 
 export const GAME_PANELS: Partial<Record<GameId, ComponentType<GamePanelProps>>> = {

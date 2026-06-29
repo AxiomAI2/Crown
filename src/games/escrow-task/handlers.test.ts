@@ -130,3 +130,59 @@ describe("авторизация", () => {
     expect(res.tasks[0]!.text).toBe("X");
   });
 });
+
+describe("disputeVotes — постранично, фильтр по стороне, поиск, агрегат (масштаб)", () => {
+  type Result = {
+    found: boolean;
+    total: number;
+    votes: { voter: string; choice: string; weight: number }[];
+    dispute?: {
+      tally: { completed: number; not: number; completedVotes: number; notVotes: number };
+    };
+  };
+
+  async function disputed() {
+    const h = harness({ Disp: 1, A: 5, B: 3, C: 2 });
+    const t = (await h.run("Donor", T0, "create", { amount: AMOUNT, text: "X" })) as EscrowTask;
+    await h.run(STREAMER, T0 + 1, "accept", { taskId: t.id });
+    await h.run(STREAMER, T0 + 2, "markDone", { taskId: t.id });
+    await h.run("Disp", T0 + 3, "raiseDispute", { taskId: t.id });
+    await h.run("A", T0 + 4, "vote", { taskId: t.id, choice: "completed" });
+    await h.run("B", T0 + 5, "vote", { taskId: t.id, choice: "completed" });
+    await h.run("C", T0 + 6, "vote", { taskId: t.id, choice: "not_completed" });
+    return { h, taskId: t.id };
+  }
+
+  it("страница + сортировка по весу + агрегат по ВСЕМ голосам", async () => {
+    const { h, taskId } = await disputed();
+    const r = (await h.query("disputeVotes", {
+      taskId,
+      page: 0,
+      pageSize: 2,
+      sort: "weight",
+    })) as Result;
+    expect(r.total).toBe(3);
+    expect(r.votes.map((v) => v.voter)).toEqual(["A", "B"]); // вес 5,3 — первая страница из 2
+    expect(r.dispute!.tally).toMatchObject({
+      completed: 8,
+      not: 2,
+      completedVotes: 2,
+      notVotes: 1,
+    });
+  });
+
+  it("фильтр по стороне и поиск по адресу", async () => {
+    const { h, taskId } = await disputed();
+    const onlyNot = (await h.query("disputeVotes", { taskId, side: "not_completed" })) as Result;
+    expect(onlyNot.total).toBe(1);
+    expect(onlyNot.votes[0]!.voter).toBe("C");
+    const search = (await h.query("disputeVotes", { taskId, q: "a" })) as Result;
+    expect(search.votes.every((v) => v.voter.toLowerCase().includes("a"))).toBe(true);
+  });
+
+  it("нет спора → found:false", async () => {
+    const h = harness();
+    const t = (await h.run("Donor", T0, "create", { amount: AMOUNT, text: "X" })) as EscrowTask;
+    expect(((await h.query("disputeVotes", { taskId: t.id })) as Result).found).toBe(false);
+  });
+});

@@ -4,19 +4,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { Amount } from "@/components/domain/amount";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { useSession } from "@/lib/data/hooks";
-import { shortAddress, toMicro } from "@/lib/utils";
+import { toMicro } from "@/lib/utils";
 import { useEscrowAction, useEscrowTasks } from "./hooks";
 import { dueResolution, tally } from "./machine";
 import type { EscrowTask, TaskDispute } from "./types";
@@ -42,9 +35,11 @@ type Run = (op: string, payload?: unknown, okMsg?: string) => void;
 export function EscrowTaskPanel({
   channelId,
   ownerAddress,
+  handle,
 }: {
   channelId: string;
   ownerAddress: string;
+  handle: string;
 }) {
   const viewer = useSession().data?.address ?? null;
   const tasksQ = useEscrowTasks(channelId);
@@ -98,6 +93,7 @@ export function EscrowTaskPanel({
               task={t}
               viewer={viewer}
               ownerAddress={ownerAddress}
+              handle={handle}
               pending={action.isPending}
               run={run}
             />
@@ -157,12 +153,14 @@ function TaskCard({
   task,
   viewer,
   ownerAddress,
+  handle,
   pending,
   run,
 }: {
   task: EscrowTask;
   viewer: string | null;
   ownerAddress: string;
+  handle: string;
   pending: boolean;
   run: Run;
 }) {
@@ -199,7 +197,12 @@ function TaskCard({
       {task.dispute ? (
         <>
           <DisputeTally dispute={task.dispute} />
-          <DisputeDetailsDialog task={task} ownerAddress={ownerAddress} />
+          <Link
+            href={`/c/${handle}/dispute/${task.id}`}
+            className="text-small self-start text-info hover:underline"
+          >
+            Участники и голоса ({task.dispute.votes.length}) →
+          </Link>
         </>
       ) : null}
 
@@ -379,84 +382,5 @@ function DisputeTally({ dispute }: { dispute: TaskDispute }) {
         </span>
       </div>
     </div>
-  );
-}
-
-/** Адрес-ссылка на профиль участника (/u/[address]); сам адрес — моноширинно (конвенция «адреса = данные»). */
-function PartyLink({ address }: { address: string }) {
-  return (
-    <Link href={`/u/${address}`} className="mono text-small text-info hover:underline">
-      {shortAddress(address)}
-    </Link>
-  );
-}
-
-function PartyRow({ label, address }: { label: string; address: string }) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-small text-fg-muted">{label}</span>
-      <PartyLink address={address} />
-    </div>
-  );
-}
-
-/**
- * Диалог «Участники спора»: все стороны (стример/донор/оспаривающий) и поимённо голосующие с их выбором и
- * весом — каждый кликабелен в свой профиль. Прозрачность спора: видно, кто и с каким весом на что повлиял.
- */
-function DisputeDetailsDialog({ task, ownerAddress }: { task: EscrowTask; ownerAddress: string }) {
-  const d = task.dispute;
-  if (!d) return null;
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <button type="button" className="text-small self-start text-info hover:underline">
-          Участники спора →
-        </button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Участники спора</DialogTitle>
-        </DialogHeader>
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <PartyRow label="Стример (выполнял)" address={ownerAddress} />
-            <PartyRow label="Донор (платил)" address={task.donor} />
-            <PartyRow label="Оспаривает" address={d.by} />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <div className="text-caption uppercase tracking-wide text-fg-faint">
-              Голоса · {d.votes.length}
-            </div>
-            {d.votes.length === 0 ? (
-              <p className="text-small text-fg-faint">Пока никто не проголосовал.</p>
-            ) : (
-              <div className="scroll-thin flex max-h-60 flex-col overflow-y-auto [&>:last-child]:border-b-0">
-                {d.votes.map((v) => (
-                  <div
-                    key={v.voter}
-                    className="flex items-center justify-between gap-2 border-b border-border py-2"
-                  >
-                    <PartyLink address={v.voter} />
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="text-small"
-                        style={{
-                          color: v.choice === "completed" ? "var(--money)" : "var(--danger)",
-                        }}
-                      >
-                        {v.choice === "completed" ? "выполнил" : "не выполнил"}
-                      </span>
-                      <span className="mono text-small text-fg">{v.weight} оч.</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }

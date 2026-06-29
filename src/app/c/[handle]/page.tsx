@@ -145,6 +145,7 @@ export default function ChannelPage() {
                     <ChannelGames
                       channelId={channel.id}
                       ownerAddress={channel.ownerAddress}
+                      handle={handle}
                       enabledGames={configQ.data!.enabledGames}
                     />
                   </TabsContent>

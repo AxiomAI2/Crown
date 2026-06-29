@@ -12,10 +12,12 @@ import type { GameId } from "./types";
 export function ChannelGames({
   channelId,
   ownerAddress,
+  handle,
   enabledGames,
 }: {
   channelId: string;
   ownerAddress: string;
+  handle: string;
   enabledGames: string[];
 }) {
   const items = enabledGames
@@ -43,7 +45,7 @@ export function ChannelGames({
       {items.map(({ id, game, Panel }) => (
         <section key={id} className="flex flex-col gap-3">
           <div className="text-caption uppercase tracking-wide text-fg-faint">{game.title}</div>
-          <Panel channelId={channelId} ownerAddress={ownerAddress} />
+          <Panel channelId={channelId} ownerAddress={ownerAddress} handle={handle} />
         </section>
       ))}
     </div>

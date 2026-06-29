@@ -2,7 +2,44 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useData } from "@/lib/data/context";
-import type { EscrowTask } from "./types";
+import type { EscrowTask, TaskResolution, TaskVote, VoteChoice } from "./types";
+
+export interface DisputeVotesQuery {
+  page?: number;
+  pageSize?: number;
+  side?: VoteChoice | null;
+  sort?: "weight" | "recent";
+  q?: string;
+}
+
+export interface DisputeVotesResult {
+  found: boolean;
+  task?: {
+    id: string;
+    status: EscrowTask["status"];
+    amount: string;
+    text: string;
+    donor: string;
+    resolution: TaskResolution | null;
+  };
+  dispute?: {
+    by: string;
+    openedAt: string;
+    votingEndsAt: string;
+    quorum: number;
+    tally: {
+      completed: number;
+      not: number;
+      completedVotes: number;
+      notVotes: number;
+      total: number;
+    };
+  };
+  votes: TaskVote[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
 
 /**
  * Типизированные хуки модуля «задание-донат» поверх обобщённого game-bus (ADR 0016). Только тут восстановлена
@@ -34,5 +71,25 @@ export function useEscrowAction(channelId: string) {
       qc.invalidateQueries({ queryKey: ["standing", channelId] });
       qc.invalidateQueries({ queryKey: ["leaderboard", channelId] });
     },
+  });
+}
+
+/** Постраничные голоса спора (для страницы спора): фильтр по стороне, поиск по адресу, сортировка. */
+export function useDisputeVotes(
+  channelId: string | undefined,
+  taskId: string | undefined,
+  opts: DisputeVotesQuery,
+) {
+  const data = useData();
+  return useQuery({
+    queryKey: ["game", "escrow-task", channelId ?? "", "dispute", taskId ?? "", opts],
+    queryFn: () =>
+      data.gameQuery({
+        gameId: "escrow-task",
+        channelId: channelId!,
+        op: "disputeVotes",
+        payload: { taskId, ...opts },
+      }) as Promise<DisputeVotesResult>,
+    enabled: !!channelId && !!taskId,
   });
 }

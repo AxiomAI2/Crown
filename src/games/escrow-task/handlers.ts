@@ -178,6 +178,70 @@ export const escrowTaskHandlers: GameHandlers = {
       const id = idOf(payload);
       return loadTasks(ctx).find((t) => t.id === id && t.channelId === ctx.channelId) ?? null;
     },
+    // Голоса спора — ПОСТРАНИЧНО + фильтр по стороне + поиск по адресу + сортировка. Так страница спора
+    // масштабируется на тысячи голосующих (не грузим всё разом). Агрегат (tally) считается по ВСЕМ голосам.
+    disputeVotes: (ctx, payload) => {
+      const p = (payload ?? {}) as {
+        taskId?: unknown;
+        page?: unknown;
+        pageSize?: unknown;
+        side?: unknown;
+        sort?: unknown;
+        q?: unknown;
+      };
+      const task = loadTasks(ctx).find((t) => t.id === p.taskId && t.channelId === ctx.channelId);
+      if (!task || !task.dispute) return { found: false };
+      const d = task.dispute;
+
+      let completed = 0;
+      let not = 0;
+      let completedVotes = 0;
+      let notVotes = 0;
+      for (const v of d.votes) {
+        if (v.choice === "completed") {
+          completed += v.weight;
+          completedVotes += 1;
+        } else {
+          not += v.weight;
+          notVotes += 1;
+        }
+      }
+
+      const q = typeof p.q === "string" ? p.q.trim().toLowerCase() : "";
+      const side = p.side === "completed" || p.side === "not_completed" ? p.side : null;
+      const sort = p.sort === "recent" ? "recent" : "weight";
+      const filtered = d.votes
+        .filter((v) => (!side || v.choice === side) && (!q || v.voter.toLowerCase().includes(q)))
+        .sort((a, b) => (sort === "recent" ? (a.at < b.at ? 1 : -1) : b.weight - a.weight));
+
+      const total = filtered.length;
+      const page = Math.max(0, Math.floor(Number(p.page) || 0));
+      const pageSize = Math.min(200, Math.max(1, Math.floor(Number(p.pageSize) || 50)));
+      const votes = filtered.slice(page * pageSize, page * pageSize + pageSize);
+
+      return {
+        found: true,
+        task: {
+          id: task.id,
+          status: task.status,
+          amount: task.amount,
+          text: task.text,
+          donor: task.donor,
+          resolution: task.resolution ?? null,
+        },
+        dispute: {
+          by: d.by,
+          openedAt: d.openedAt,
+          votingEndsAt: d.votingEndsAt,
+          quorum: d.quorum,
+          tally: { completed, not, completedVotes, notVotes, total: completed + not },
+        },
+        votes,
+        total,
+        page,
+        pageSize,
+      };
+    },
   },
 };
 
