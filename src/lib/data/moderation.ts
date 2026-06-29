@@ -75,9 +75,18 @@ const TASK_HARD_CATEGORIES = [
   "self-harm/instructions",
 ] as const;
 
-// Бэкстоп-словарь явно нелегальных заданий (RU/EN) — гарантирует блок даже без OpenAI (offline/прод без ключа).
+// Бэкстоп-словарь явно нелегальных заданий (RU/EN) — гарантирует блок даже без OpenAI (offline/прод без
+// ключа). Не исчерпывающий (сленг бесконечен) — семантику добирает LLM-проверка легальности ниже.
 const ILLEGAL_TASK_RE =
-  /(убей|убить|убил|убива|убийств|замочи|прикончи|зарежь|застрел|избей|избить|изнасил|укради|украсть|украл|ворова|своров|ограбь|ограбить|похить|похити|похищ|подожги|поджечь|взорви|взорвать|теракт|\bkill\b|\bmurder\b|\bsteal\b|\brob(?:bery)?\b|\brape\b|\bkidnap\b|\bbomb\b|terror)/i;
+  /(убей|убить|убил|убива|убийств|замочи|прикончи|зарежь|застрел|избей|избить|изнасил|укради|украсть|украл|сопри|спёр|сперт|стащ|стыр|шоплифт|ворова|своров|ограбь|ограбить|похить|похити|похищ|подожги|поджечь|взорви|взорвать|теракт|\bkill\b|\bmurder\b|\bsteal\b|shoplift|\brob(?:bery)?\b|\brape\b|\bkidnap\b|\bbomb\b|terror)/i;
+
+// Запрос к LLM: «требует ли задание совершить НЕЗАКОННОЕ действие?». Ловит сленг/эвфемизмы, которые
+// moderation-эндпоинт (заточен на «вредный контент», а не на «это преступление») и словарь пропускают.
+const TASK_LEGALITY_PROMPT =
+  "Ты модератор заданий для стримеров; задание оплачивается донатом. Запрещены задания, требующие " +
+  "совершить НЕЗАКОННОЕ или опасное действие в реальном мире: кража/шоплифтинг, насилие, угрозы, " +
+  "мошенничество, вандализм, наркотики, незаконное проникновение, вред людям или животным. Разрешены " +
+  "безобидные: спеть, станцевать, сыграть, отжаться, реакция, челлендж. Ответь ОДНИМ словом: ILLEGAL или OK.";
 
 /**
  * Внешний авто-модератор поверх OpenAI omni-moderation (бесплатный endpoint /v1/moderations). Мультиязычный.
@@ -144,20 +153,68 @@ export function createOpenAiModerator(apiKey: string): AutoModerator {
   };
 }
 
+// Доступ к моделям может быть закрыт (ограниченный ключ без scope model.request → 401, или нет биллинга).
+// Тогда отключаем LLM-проверку до перезапуска: не долбим эндпоинт и не тормозим создание каждого задания.
+let llmLegalityDisabled = false;
+
+/** LLM-классификатор легальности задания (gpt-4o-mini, дёшево). null — не смогли проверить. Только сервер. */
+async function llmTaskLegality(apiKey: string, text: string): Promise<"illegal" | "ok" | null> {
+  if (llmLegalityDisabled) return null;
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        temperature: 0,
+        max_tokens: 4,
+        messages: [
+          { role: "system", content: TASK_LEGALITY_PROMPT },
+          { role: "user", content: text },
+        ],
+      }),
+    });
+    if (res.status === 401 || res.status === 403) {
+      llmLegalityDisabled = true;
+      console.error(
+        "[moderation] LLM-проверка легальности недоступна (ключ без доступа к моделям) — отключаю до перезапуска",
+      );
+      return null;
+    }
+    if (!res.ok) {
+      console.error("[moderation] legality LLM вернул", res.status);
+      return null;
+    }
+    const out =
+      ((await res.json()) as { choices?: { message?: { content?: string } }[] }).choices?.[0]
+        ?.message?.content ?? "";
+    return /illegal/i.test(out) ? "illegal" : "ok";
+  } catch (e) {
+    console.error("[moderation] legality LLM ошибка:", e);
+    return null;
+  }
+}
+
 /**
- * Модерация ТЕКСТА ЗАДАНИЯ (escrow-task): строже донат-сообщения. Сначала бэкстоп-словарь явной
- * нелегальщины (работает без OpenAI), затем семантика OpenAI — блок по ФЛАГУ опасной категории
- * (`TASK_HARD_CATEGORIES`). HARD_BLOCK → задание не создаётся. На сбое OpenAI → FLAG (создание не рубим
- * жёстко: финальный фильтр — гейт стримера «Принять/Отклонить»). Только сервер (ключ серверный).
+ * Модерация ТЕКСТА ЗАДАНИЯ (escrow-task): строже донат-сообщения, т.к. задание ОПЛАЧИВАЕТСЯ и платформа
+ * фасилитировала бы действие. Слои: (1) бэкстоп-словарь явной нелегальщины (offline); (2) OpenAI
+ * omni-moderation — блок по флагу опасной категории; (3) LLM-проверка «это призыв к незаконному действию?»
+ * — ловит сленг/эвфемизмы вроде «сопри молоко в магазе», которые первые два слоя пропускают. Любой слой
+ * сказал «нельзя» → HARD_BLOCK (задание не создаётся). Оба внешних слоя не смогли проверить → FLAG (создание
+ * не рубим жёстко: финальный фильтр — гейт стримера «Принять/Отклонить»). Только сервер (ключ серверный).
  */
 export async function classifyTaskText(text: string): Promise<ModerationVerdict> {
   if (isExplicitCsam(text) || ILLEGAL_TASK_RE.test(text)) return "HARD_BLOCK";
   const key = typeof process !== "undefined" ? process.env.OPENAI_API_KEY : undefined;
   if (!key) return "CLEAR"; // без ключа — только бэкстоп-словарь (mock-клиент/прод без ключа)
-  const r = await fetchOpenAiModeration(key, text);
-  if (!r) return "FLAG";
-  if (isExplicitCsam(text)) return "HARD_BLOCK";
-  if (TASK_HARD_CATEGORIES.some((c) => r.cats[c])) return "HARD_BLOCK";
+
+  const mod = await fetchOpenAiModeration(key, text);
+  if (mod && TASK_HARD_CATEGORIES.some((c) => mod.cats[c])) return "HARD_BLOCK";
+
+  const legality = await llmTaskLegality(key, text);
+  if (legality === "illegal") return "HARD_BLOCK";
+
+  if (mod === null && legality === null) return "FLAG"; // оба внешних слоя недоступны
   return "CLEAR";
 }
 

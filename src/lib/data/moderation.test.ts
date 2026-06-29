@@ -6,13 +6,15 @@ import { classifyTaskText } from "./moderation";
  * детерминированный бэкстоп-словарь явной нелегальщины (без сети). Семантику (OpenAI) тут не гоняем.
  */
 describe("classifyTaskText — бэкстоп нелегальных заданий (без OpenAI)", () => {
-  it("явные преступления → HARD_BLOCK", async () => {
+  it("явные преступления (вкл. сленг кражи) → HARD_BLOCK", async () => {
     for (const t of [
       "убей того парня",
       "укради телефон у соседа",
+      "сопри молоко в магазе",
+      "стащи шоколадку",
       "ограбь магазин",
       "kill him",
-      "steal a car",
+      "shoplift a candy",
     ]) {
       expect(await classifyTaskText(t)).toBe("HARD_BLOCK");
     }
