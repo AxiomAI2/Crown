@@ -99,17 +99,17 @@ export function cancel(task: EscrowTask, nowMs: number): EscrowTask {
   return applyResolution(task, { outcome: "to_donor", reason: "canceled" }, nowMs);
 }
 
-export function markDone(task: EscrowTask, proofUrl: string, nowMs: number): EscrowTask {
+export function markDone(task: EscrowTask, nowMs: number): EscrowTask {
   if (task.status !== "ACCEPTED")
     throw new GameBusError("NOT_ACCEPTED", "Отметить «Готово» можно только принятое задание.");
   if (nowMs > ms(task.executionDeadline ?? task.createdAt))
     throw new GameBusError("EXEC_OVER", "Срок выполнения истёк — донат вернётся донору (no-show).");
-  if (!proofUrl.trim()) throw new GameBusError("NO_PROOF", "Нужна ссылка-пруф (VOD/клип).");
+  // Пруфа нет: у контентмейкеров доказательство — сам стрим/VOD, комьюнити его и так мониторит. «Готово» —
+  // просто декларация, открывающая окно оспаривания; не сделано → комьюнити поднимает спор.
   return {
     ...task,
     status: "DONE",
     doneAt: iso(nowMs),
-    proofUrl: proofUrl.trim(),
     disputeWindowEndsAt: iso(nowMs + WINDOWS.disputeWindow),
   };
 }

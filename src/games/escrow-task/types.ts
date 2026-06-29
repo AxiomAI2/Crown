@@ -65,7 +65,6 @@ export interface EscrowTask {
 
   // DONE:
   doneAt?: string;
-  proofUrl?: string;
   disputeWindowEndsAt?: string; // ISO — до него можно поднять спор
 
   // DISPUTED:

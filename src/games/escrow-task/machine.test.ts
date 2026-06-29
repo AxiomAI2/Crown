@@ -82,21 +82,20 @@ describe("создание и принятие", () => {
 describe("выполнение и спор", () => {
   const accepted = () => accept(newTask(), T0);
 
-  it("markDone → DONE с окном оспаривания; нужен пруф", () => {
-    const d = markDone(accepted(), "https://clip", T0 + HOUR());
+  it("markDone → DONE с окном оспаривания (без пруфа)", () => {
+    const d = markDone(accepted(), T0 + HOUR());
     expect(d.status).toBe("DONE");
     expect(Date.parse(d.disputeWindowEndsAt!)).toBe(T0 + HOUR() + WINDOWS.disputeWindow);
-    expect(throwsCode(() => markDone(accepted(), "  ", T0 + HOUR()))).toBe("NO_PROOF");
   });
 
   it("markDone после срока → EXEC_OVER (логика no-show — в dueResolution)", () => {
-    expect(
-      throwsCode(() => markDone(accepted(), "https://clip", T0 + WINDOWS.executionDefault + 1)),
-    ).toBe("EXEC_OVER");
+    expect(throwsCode(() => markDone(accepted(), T0 + WINDOWS.executionDefault + 1))).toBe(
+      "EXEC_OVER",
+    );
   });
 
   it("raiseDispute → DISPUTED; повторный голос отклоняется", () => {
-    const done = markDone(accepted(), "https://clip", T0);
+    const done = markDone(accepted(), T0);
     let disp = raiseDispute(done, "Juror0", 100, T0 + 1);
     expect(disp.status).toBe("DISPUTED");
     disp = castVote(disp, vote("JurorA", "completed", 30), T0 + 2);
@@ -160,7 +159,7 @@ describe("разрешение по времени (dueResolution)", () => {
   });
 
   it("DONE после окна оспаривания без спора → стримеру (completed)", () => {
-    const done = markDone(accept(newTask(), T0), "https://clip", T0);
+    const done = markDone(accept(newTask(), T0), T0);
     expect(dueResolution(done, T0 + WINDOWS.disputeWindow + 1)).toMatchObject({
       reason: "completed",
       outcome: "to_streamer",
@@ -179,7 +178,7 @@ describe("эффекты на репутацию (ADR 0015)", () => {
   });
 
   it("проигранный спор → списание инициатору; деньги стримеру → донор +очки", () => {
-    const done = markDone(accept(newTask(), T0), "https://clip", T0);
+    const done = markDone(accept(newTask(), T0), T0);
     const disp = raiseDispute(done, "Juror0", 1, T0 + 1);
     const fx = repEffects(disp, { outcome: "to_streamer", reason: "vote_completed" });
     expect(fx).toContainEqual({
@@ -196,7 +195,7 @@ describe("эффекты на репутацию (ADR 0015)", () => {
   });
 
   it("подтверждённый спор (донору) → бонус инициатору, доната нет", () => {
-    const done = markDone(accept(newTask(), T0), "https://clip", T0);
+    const done = markDone(accept(newTask(), T0), T0);
     const disp = raiseDispute(done, "Juror0", 1, T0 + 1);
     const fx = repEffects(disp, { outcome: "to_donor", reason: "vote_not_completed" });
     expect(fx).toEqual([
@@ -207,7 +206,7 @@ describe("эффекты на репутацию (ADR 0015)", () => {
 
 describe("claim (ADR 0015)", () => {
   it("забрать может только получатель и только раз", () => {
-    const done = markDone(accept(newTask(), T0), "https://clip", T0);
+    const done = markDone(accept(newTask(), T0), T0);
     const resolved = {
       ...done,
       status: "RESOLVED" as const,

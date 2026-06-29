@@ -63,7 +63,7 @@ describe("happy-path: создал → принял → готово → (окн
     })) as EscrowTask;
     expect(created.status).toBe("PENDING");
     await h.run(STREAMER, T0 + 1, "accept", { taskId: created.id });
-    await h.run(STREAMER, T0 + 2, "markDone", { taskId: created.id, proofUrl: "https://clip" });
+    await h.run(STREAMER, T0 + 2, "markDone", { taskId: created.id });
 
     // окно оспаривания прошло → стример забирает
     const claimed = (await h.run(STREAMER, T0 + 2 + WINDOWS.disputeWindow + 1, "claim", {
@@ -88,7 +88,7 @@ describe("спор: комьюнити решает «не выполнил» �
       text: "сделай X",
     })) as EscrowTask;
     await h.run(STREAMER, T0 + 1, "accept", { taskId: t.id });
-    await h.run(STREAMER, T0 + 2, "markDone", { taskId: t.id, proofUrl: "https://clip" });
+    await h.run(STREAMER, T0 + 2, "markDone", { taskId: t.id });
     await h.run("Disputer", T0 + 3, "raiseDispute", { taskId: t.id });
     await h.run("JurorA", T0 + 4, "vote", { taskId: t.id, choice: "not_completed" });
     await h.run("JurorB", T0 + 5, "vote", { taskId: t.id, choice: "not_completed" });
@@ -113,7 +113,7 @@ describe("авторизация", () => {
       code: "FORBIDDEN",
     });
     await h.run(STREAMER, T0 + 1, "accept", { taskId: t.id });
-    await h.run(STREAMER, T0 + 2, "markDone", { taskId: t.id, proofUrl: "https://clip" });
+    await h.run(STREAMER, T0 + 2, "markDone", { taskId: t.id });
     await h.run("Disputer", T0 + 3, "raiseDispute", { taskId: t.id });
     await expect(
       h.run("Donor", T0 + 4, "vote", { taskId: t.id, choice: "completed" }),

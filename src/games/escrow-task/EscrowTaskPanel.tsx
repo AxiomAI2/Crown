@@ -158,7 +158,6 @@ function TaskCard({
   pending: boolean;
   run: Run;
 }) {
-  const [proof, setProof] = useState("");
   const now = Date.now();
   const due = task.status !== "RESOLVED" ? dueResolution(task, now) : null;
   const final = task.resolution ?? null;
@@ -219,26 +218,14 @@ function TaskCard({
         ) : null}
 
         {isStreamer && task.status === "ACCEPTED" && !due ? (
-          <div className="flex w-full flex-wrap items-end gap-2">
-            <div className="min-w-48 flex-1">
-              <Input
-                label="Пруф (ссылка на VOD/клип)"
-                placeholder="https://…"
-                value={proof}
-                onChange={(e) => setProof(e.target.value)}
-              />
-            </div>
-            <Button
-              size="sm"
-              variant="money"
-              disabled={pending || !proof.trim()}
-              onClick={() =>
-                run("markDone", { taskId: id, proofUrl: proof.trim() }, "Отмечено «Готово»")
-              }
-            >
-              Готово
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            variant="money"
+            disabled={pending}
+            onClick={() => run("markDone", { taskId: id }, "Отмечено «Готово»")}
+          >
+            Готово
+          </Button>
         ) : null}
 
         {isDonor && task.status === "ACCEPTED" && within(task.graceUntil) ? (

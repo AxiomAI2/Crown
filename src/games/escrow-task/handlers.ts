@@ -112,13 +112,11 @@ export const escrowTaskHandlers: GameHandlers = {
     },
     markDone: (ctx, payload) => {
       requireOwner(ctx);
-      const p = (payload ?? {}) as { taskId?: unknown; proofUrl?: unknown };
-      const proof = typeof p.proofUrl === "string" ? p.proofUrl : "";
       const tasks = loadTasks(ctx);
       return commit(
         ctx,
         tasks,
-        M.markDone(findTask(tasks, p.taskId, ctx.channelId), proof, nowMs(ctx)),
+        M.markDone(findTask(tasks, idOf(payload), ctx.channelId), nowMs(ctx)),
       );
     },
 
