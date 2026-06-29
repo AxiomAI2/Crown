@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { LedgerEvent, LedgerType, Tier } from "./data/types";
-import { computePoints, pointsForAmount, POINTS_PER_USDC, resolveTier } from "./reputation";
+import {
+  computePoints,
+  computePointsAsOf,
+  pointsForAmount,
+  POINTS_PER_USDC,
+  resolveTier,
+} from "./reputation";
 
 /**
  * Тесты движка репутации — страховка инвариантов перед тем, как поверх него сядут мини-игры
@@ -102,6 +108,43 @@ describe("computePoints — свёртка журнала", () => {
     it("проигрыш в игре не пробивает пол: кламп к 0", () => {
       expect(computePoints([ev("DONATION", 10), ev("GAME", -999)])).toBe(0);
     });
+  });
+});
+
+describe("computePointsAsOf — снэпшот веса на момент (для спора игр)", () => {
+  // событие с явным таймстампом
+  const at = (pointsDelta: number, ts: string): LedgerEvent => ({
+    ...ev("DONATION", pointsDelta),
+    ts,
+  });
+  const log = [
+    at(100, "2026-01-01T00:00:00.000Z"),
+    at(50, "2026-02-01T00:00:00.000Z"),
+    at(30, "2026-03-01T00:00:00.000Z"),
+  ];
+
+  it("считает только события с ts ≤ asOf", () => {
+    expect(computePointsAsOf(log, "2026-02-15T00:00:00.000Z")).toBe(150); // 100 + 50
+  });
+
+  it("граница включительна (ts == asOf учитывается)", () => {
+    expect(computePointsAsOf(log, "2026-02-01T00:00:00.000Z")).toBe(150);
+  });
+
+  it("asOf раньше всех событий → 0 (нельзя нафармить «под спор» задним числом)", () => {
+    expect(computePointsAsOf(log, "2025-12-31T00:00:00.000Z")).toBe(0);
+  });
+
+  it("asOf в будущем → как полный computePoints", () => {
+    expect(computePointsAsOf(log, "2027-01-01T00:00:00.000Z")).toBe(computePoints(log));
+  });
+
+  it("кламп к 0 действует и на срезе (ADMIN_VOID до отсечки)", () => {
+    const withVoid = [
+      at(10, "2026-01-01T00:00:00.000Z"),
+      { ...ev("ADMIN_VOID", -50), ts: "2026-01-02T00:00:00.000Z" },
+    ];
+    expect(computePointsAsOf(withVoid, "2026-01-03T00:00:00.000Z")).toBe(0);
   });
 });
 

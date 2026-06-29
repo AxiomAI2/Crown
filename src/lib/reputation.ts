@@ -32,6 +32,16 @@ export function computePoints(events: LedgerEvent[]): Points {
   return Math.max(0, Math.round(total));
 }
 
+/**
+ * Очки на МОМЕНТ времени (снэпшот): та же свёртка, но только по событиям с `ts ≤ asOf`. Нужно мини-играм со
+ * спорами — вес голоса фиксируется на секунду поднятия спора (ADR 0015, спека игры §5), чтобы нельзя было
+ * нафармить/докупить репутацию «под этот спор» после его старта. `asOf` — ISO-строка; сравнение по времени.
+ */
+export function computePointsAsOf(events: LedgerEvent[], asOf: string): Points {
+  const cut = Date.parse(asOf);
+  return computePoints(events.filter((e) => Date.parse(e.ts) <= cut));
+}
+
 export interface TierResolution {
   tier?: Tier; // undefined → очков меньше порога ПЕРВОГО тира («без тира»)
   nextTier?: Tier; // следующий рубеж; для «без тира» это первый тир
