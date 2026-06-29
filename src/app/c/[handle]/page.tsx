@@ -6,7 +6,7 @@ import { ChannelHeader } from "@/components/domain/channel-header";
 import { DonateWidget } from "@/components/domain/donate";
 import { DonationHistory } from "@/components/domain/donation-history";
 import { TierLadder } from "@/components/domain/standing";
-import { ChannelGames, ChannelGameRail } from "@/games/ChannelGames";
+import { ChannelGames, ChannelGameRail, DONATE_OPTION } from "@/games/ChannelGames";
 import { AppHeader } from "@/components/layout/app-header";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -38,6 +38,9 @@ export default function ChannelPage() {
   const activeTab = tabState ?? (hasGames ? "games" : "feed");
   const [selGame, setSelGame] = useState<string | null>(null);
   const selectedGame = selGame ?? enabledGames[0] ?? null;
+  // На вкладке «Игры» рейл = действие игры, КРОМЕ случая «Обычный донат» (тогда показываем донат-виджет).
+  const gameRail =
+    activeTab === "games" && hasGames && !!selectedGame && selectedGame !== DONATE_OPTION;
 
   // Владелец, смотрящий свой канал → в ленте доступна кнопка «Забанить» (модераторы банят из студии/очереди).
   const canManage = !!address && channel?.ownerAddress === address;
@@ -88,7 +91,7 @@ export default function ChannelPage() {
             {/* Донат + моё standing. На мобиле — СРАЗУ под шапкой (в потоке вторым). На lg — правая колонка,
                 ФИКСИРОВАНА при скролле (rail-pinned-right), занимает обе строки правого трека (row-span-2). */}
             <aside className="rail-pinned-right flex flex-col gap-6 lg:col-start-2 lg:row-span-2 lg:row-start-1">
-              {activeTab === "games" && hasGames && selectedGame ? (
+              {gameRail && selectedGame ? (
                 // На вкладке «Игры» рейл — действие выбранной игры (морфинг под игру).
                 <ChannelGameRail
                   gameId={selectedGame}
