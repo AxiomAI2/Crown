@@ -21,16 +21,31 @@ const MIN = 60_000;
 const HOUR = 60 * MIN;
 const DAY = 24 * HOUR;
 
+// ⚠️ ВРЕМЕННО (тест ончейн-цикла): короткие окна, чтобы прогонять задание за минуты. ВЕРНУТЬ В ПРОД
+// ОДНИМ ИЗМЕНЕНИЕМ — `FAST_TEST_WINDOWS = false`. ВАЖНО: ончейн-константы (ACCEPT_WINDOW/DISPUTE_WINDOW в
+// anchor/programs/escrow-task/src/lib.rs) должны совпадать с этими — при возврате их тоже вернуть + редеплой.
+const FAST_TEST_WINDOWS = true;
+
 /** Окна процесса (спека §5/§10). Стартовые дефолты — калибруются на тестнете (спека §16). */
-export const WINDOWS = {
-  accept: 72 * HOUR, // не принят за это время → возврат донору
-  grace: 2 * MIN, // окно отмены донором после принятия
-  executionDefault: 24 * HOUR,
-  executionMin: 1 * MIN, // минимум — 1 минута (донор вписывает срок в минутах/часах/днях)
-  executionMax: 90 * DAY, // потолок срока выполнения — до 3 месяцев (донор вписывает число вручную)
-  disputeWindow: 12 * HOUR, // от «Готово» — окно поднять спор
-  voting: 24 * HOUR,
-};
+export const WINDOWS = FAST_TEST_WINDOWS
+  ? {
+      accept: 3 * MIN,
+      grace: 1 * MIN,
+      executionDefault: 2 * MIN,
+      executionMin: 1 * MIN,
+      executionMax: 90 * DAY,
+      disputeWindow: 2 * MIN,
+      voting: 2 * MIN,
+    }
+  : {
+      accept: 72 * HOUR, // не принят за это время → возврат донору
+      grace: 2 * MIN, // окно отмены донором после принятия
+      executionDefault: 24 * HOUR,
+      executionMin: 1 * MIN, // минимум — 1 минута (донор вписывает срок в минутах/часах/днях)
+      executionMax: 90 * DAY, // потолок срока выполнения — до 3 месяцев (донор вписывает число вручную)
+      disputeWindow: 12 * HOUR, // от «Готово» — окно поднять спор
+      voting: 24 * HOUR,
+    };
 
 /** Изменение репутации за спор (спека §8/§16: калибровка так, чтобы clawback был EV-отрицателен). */
 export const DISPUTE_WIN_BONUS = 10; // подтверждённый спор (поднял, комьюнити согласилось)
