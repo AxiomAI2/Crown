@@ -5,7 +5,6 @@ import {
   DEVNET_RPC,
   DEVNET_USDC_MINT,
   ESCROW_PROGRAM_ID,
-  ESCROW_RESOLVER,
   TREASURY_OWNER,
 } from "../chain/config";
 import {
@@ -504,10 +503,10 @@ export class ChainDataProvider implements DataProvider {
     if (req.gameId !== "escrow-task") return this.api.gameAction(req);
     const w = this.wallet;
     if (!w?.publicKey) throw new DataError("NO_WALLET", "Подключи кошелёк.");
-    if (!ESCROW_PROGRAM_ID || !DEVNET_USDC_MINT || !TREASURY_OWNER || !ESCROW_RESOLVER) {
+    if (!ESCROW_PROGRAM_ID || !DEVNET_USDC_MINT) {
       throw new DataError(
         "NOT_CONFIGURED",
-        "Не задан адрес эскроу-программы или денежная конфигурация (NEXT_PUBLIC_ESCROW_PROGRAM_ID/USDC/TREASURY).",
+        "Не задан адрес эскроу-программы или USDC-mint (NEXT_PUBLIC_ESCROW_PROGRAM_ID/USDC).",
       );
     }
     const programId = new PublicKey(ESCROW_PROGRAM_ID);
@@ -543,8 +542,6 @@ export class ChainDataProvider implements DataProvider {
           programId,
           donor: w.publicKey,
           streamer: new PublicKey(channel.payoutAddress),
-          treasury: new PublicKey(TREASURY_OWNER),
-          resolver: new PublicKey(ESCROW_RESOLVER),
           mint,
           taskId,
           amount: BigInt(amountStr),

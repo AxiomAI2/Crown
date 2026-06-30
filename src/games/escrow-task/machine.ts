@@ -112,6 +112,10 @@ export function reject(task: EscrowTask, nowMs: number): EscrowTask {
 export function cancel(task: EscrowTask, nowMs: number): EscrowTask {
   if (task.status !== "PENDING" && task.status !== "ACCEPTED")
     throw new GameBusError("NOT_OPEN", "Отменить можно только до «Готово».");
+  // Грейс-окно от создания (совпадает с ончейн accept_deadline = fund + CANCEL_GRACE; аудит #5) — чтобы
+  // донор не обнулял уже сделанную работу отменой в любой момент.
+  if (nowMs > ms(task.createdAt) + WINDOWS.grace)
+    throw new GameBusError("GRACE_OVER", "Окно отмены закрыто.");
   return applyResolution(task, { outcome: "to_donor", reason: "canceled" }, nowMs);
 }
 

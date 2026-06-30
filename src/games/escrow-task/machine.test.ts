@@ -72,14 +72,14 @@ describe("создание и принятие", () => {
     );
   });
 
-  it("reject → возврат донору; cancel — до «Готово»", () => {
+  it("reject → возврат; cancel только в грейс-окне; после «Готово» нельзя", () => {
     expect(reject(newTask(), T0 + 1).resolution).toMatchObject({
       outcome: "to_donor",
       reason: "rejected",
     });
     const acc = accept(newTask(), T0);
-    expect(cancel(acc, T0 + 1).resolution).toMatchObject({ reason: "canceled" });
-    // после «Готово» отменить уже нельзя
+    expect(cancel(acc, T0 + WINDOWS.grace - 1).resolution).toMatchObject({ reason: "canceled" });
+    expect(throwsCode(() => cancel(acc, T0 + WINDOWS.grace + 1))).toBe("GRACE_OVER");
     const done = markDone(acc, T0 + 1);
     expect(throwsCode(() => cancel(done, T0 + 2))).toBe("NOT_OPEN");
   });

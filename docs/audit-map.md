@@ -79,6 +79,28 @@
 | R9 | Явная авторизация `addChannelBlock` | `lib/data/mock-provider.ts` | 0012 |
 | R10 | Dev-вход по адресу заглушён и в chain-режиме | `app/api/v1/rpc/route.ts` | 0012 |
 
+Аудит эскроу-контракта escrow-task (G3a; ончейн-игра, не ядро — ADR 0015/0017). Пространство имён **ESC**
+(отдельное — не путать с C/H/M/L ядра выше). Объём: `anchor/programs/escrow-task/src/lib.rs` + зеркало
+`src/games/escrow-task/machine.ts` + билдеры `src/lib/chain/escrow-tx.ts` + сверка `src/server/escrow-verify.ts`.
+Редеплой с патчем: devnet tx `51o1WLv8uRTwghpo4ZCkLmMSVHuGZJKsjBRq3suDdmtJrJnyyJSpaDZ5DdZ8r65jcuX58gy5VBGUEiaqfTGNm6nS`
+(program id `GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4`). Все исправления подтверждены `scripts/escrow-smoke.ts`.
+
+| ESC | Severity | Находка | Статус | Где исправлено |
+|-----|----------|---------|--------|----------------|
+| ESC-1 | **CRITICAL** | `resolver`/`treasury` задавал вызывающий `fund` → донор назначал резолвером себя и забирал донат назад после выполнения (clawback) | **закрыто** | `lib.rs` — `RESOLVER`/`TREASURY` теперь протокольные `pubkey!`-константы; `fund` пишет `e.resolver = RESOLVER`/`e.treasury = TREASURY`; `Fund` accounts больше не принимает эти аккаунты. `escrow-tx.ts` — `FundParams` без них. Смоук: чужой ключ не может `mark_disputed` |
+| ESC-2 | **HIGH** | `mark_done` не проверял срок → просрочивший стример (no-show) перехватывал деньги, бесконечно продлевая дедлайн | **закрыто** | `lib.rs → mark_done`: `require!(now <= e.done_deadline)` (как `EXEC_OVER` в `machine.ts`) |
+| ESC-3 | MEDIUM | `resolve_dispute` работал из `Done` без поднятого спора → резолвер мог развернуть любой выполненный эскроу | **закрыто** | `lib.rs → resolve_dispute`: `require!(state == Disputed)`; разворот только после `mark_disputed` |
+| ESC-4 | MEDIUM | `Disputed` — ловушка ликвидности: нет таймаут-выхода, бездействие резолвера = деньги заперты навсегда | **закрыто** | `lib.rs → resolve_timeout`: `Disputed` после `dispute_deadline` → `ToStreamer` (tiebreaker §11), permissionless |
+| ESC-5 | MEDIUM | `cancel` без предела → донор отменял в любой момент до «Готово», обнуляя работу стримера | **закрыто** | `lib.rs → cancel`: `Pending` И `now <= e.accept_deadline` (grace = `CANCEL_GRACE`); `machine.ts → cancel` — то же (`GRACE_OVER`) |
+| ESC-6 | LOW | `verifyEscrowOnChain` сверял donor/amount/mint, но не streamer/resolver/treasury (делало ESC-1 достижимым) | снято в корне | ESC-1 закрыл контрактно: `resolver`/`treasury` неподделываемы (константы), сервер на их сверку не полагается. Косметика зеркала по `streamer` — открыто (LOW, только консистентность, не деньги) |
+| ESC-7 | LOW | `mint` на цепочке не привязан к USDC — `fund` принимает любой mint | **открыто** (отложено) | смягчено серверной сверкой `mint` (`escrow-verify.ts`); ончейн-пин сломал бы смоук на тестовом mint; вернуть перед mainnet |
+| ESC-8 | INFO | anchor-тест звал удалённую `accept()` — не компилировался | **закрыто** | `anchor/tests/escrow-task.ts` переписан под новую модель (refund + проверка ESC-1); каноническая проверка — `scripts/escrow-smoke.ts` |
+| ESC-9 | INFO | тестовые окна + плейсхолдер program id + нет `emit!`-событий + гонка спора у дедлайна | частично | program id уже реальный (задеплоен); окна — намеренно короткие под тест (`FAST_TEST_WINDOWS` + consts в `lib.rs`, вернуть перед mainnet одной правкой). `emit!`/гонка — открыто (INFO; индексер декодирует аккаунты, гонку ADR 0017 признаёт) |
+
+Подтверждено корректным (контр-аудит): получатели зашиты в PDA и читаются в `claim` только из `escrow`
+(даже резолвер не направит деньги третьему — держит некастодиальность маршрутизации); `overflow-checks`;
+нет reinit/double-claim; канонический PDA + ATA в `claim`; `resolve_timeout` реально permissionless.
+
 ---
 
 ## 5. Как читать код под аудит

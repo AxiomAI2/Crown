@@ -23,13 +23,23 @@ use anchor_spl::{
 // Заглушка program id (валидный base58); реальный — `anchor keys sync` при деплое.
 declare_id!("GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4");
 
-// — Протокольные константы (спека §10: окна/комиссия — НЕ рычаг донора) —
+// — Протокольные константы (спека §10: окна/комиссия/роли — НЕ рычаг донора) —
 const FEE_BPS: u64 = 300; // 3% с дошедшего доната (§13); на возврат донору комиссии нет (§6).
 const BPS_DENOM: u64 = 10_000;
-// ⚠️ ВРЕМЕННО (тест): короткое окно спора, чтобы прогонять цикл за минуты. ВЕРНУТЬ В ПРОД + РЕДЕПЛОЙ:
-//   DISPUTE_WINDOW = 12 * 60 * 60 (12ч). Должно совпадать с machine.ts. (Срок СДАЧИ задаёт донор при `fund`;
-//   отдельного окна «принятия» нет — `accept` стал бесплатным оффчейн-шагом.)
-const DISPUTE_WINDOW: i64 = 2 * 60; // ТЕСТ: 2 мин (прод: 12ч) — окно оспаривания от «Готово» (§10)
+
+// РОЛИ — захардкожены в программе (аудит #1): резолвер и трежери НЕ выбирает донор, иначе донор ставит
+// резолвером себя и делает clawback после выполнения. Devnet-адреса; на мейннете → config-PDA (G3b) + редеплой.
+const RESOLVER: Pubkey =
+    anchor_lang::solana_program::pubkey!("6F5Y3qLdDCB7gm1hFwdangodbRjWJRhnvNSxgPofB5xR");
+const TREASURY: Pubkey =
+    anchor_lang::solana_program::pubkey!("9tSWouwVrPahnnLW4AMQcNn53Uk5okFEdduo1M3Gtrpe");
+
+// ⚠️ ВРЕМЕННО (тест): короткие окна, чтобы прогонять цикл за минуты. ВЕРНУТЬ В ПРОД + РЕДЕПЛОЙ (совпадать
+//   с machine.ts): DISPUTE_WINDOW = 12*60*60 (12ч), VOTING_WINDOW = 24*60*60 (24ч), CANCEL_GRACE ≈ 2*60.
+//   Срок СДАЧИ задаёт донор при `fund`; отдельного окна «принятия» нет (`accept` — бесплатный оффчейн-шаг).
+const DISPUTE_WINDOW: i64 = 2 * 60; // ТЕСТ: 2 мин (прод 12ч) — окно оспаривания от «Готово» (§10)
+const VOTING_WINDOW: i64 = 2 * 60; // ТЕСТ: 2 мин (прод 24ч) — на резолв спора; после → дефолт стримеру (§11)
+const CANCEL_GRACE: i64 = 60; // ТЕСТ: 1 мин (прод ~2 мин) — окно отмены донором (аудит #5)
 const EXEC_WINDOW_MIN: i64 = 60; // коридор срока выполнения (паритет с мок-машиной machine.ts)
 const EXEC_WINDOW_MAX: i64 = 90 * 24 * 60 * 60; // ≈3 месяца
 
@@ -55,15 +65,15 @@ pub mod escrow_task {
         let e = &mut ctx.accounts.escrow;
         e.task_id = task_id;
         e.donor = ctx.accounts.donor.key();
-        e.streamer = ctx.accounts.streamer.key();
-        e.treasury = ctx.accounts.treasury.key();
+        e.streamer = ctx.accounts.streamer.key(); // контрагент донора — его законный выбор
+        e.treasury = TREASURY; // аудит #1: роль протокольная, не выбор донора
         e.mint = ctx.accounts.mint.key();
-        e.resolver = ctx.accounts.resolver.key();
+        e.resolver = RESOLVER; // аудит #1: резолвер протокольный, иначе донор-резолвер = clawback
         e.amount = amount;
         e.execution_window = execution_window;
         e.state = TaskState::Pending as u8;
         e.resolution = Resolution::Unresolved as u8;
-        e.accept_deadline = 0; // не используется (accept — бесплатный оффчейн-шаг)
+        e.accept_deadline = now + CANCEL_GRACE; // окно отмены донором (аудит #5)
         e.done_deadline = now + execution_window; // срок сдачи от создания: не сдал → возврат (no-show)
         e.dispute_deadline = 0;
         e.bump = ctx.bumps.escrow;
@@ -104,15 +114,18 @@ pub mod escrow_task {
             e.state == TaskState::Pending as u8 || e.state == TaskState::Accepted as u8,
             EscrowError::BadState
         );
+        require!(now <= e.done_deadline, EscrowError::Expired); // аудит #2: просрочка → no-show, не «Готово»
         e.state = TaskState::Done as u8;
         e.dispute_deadline = now + DISPUTE_WINDOW;
         Ok(())
     }
 
-    /// Донор отменяет до «Готово» → возврат донору.
+    /// Донор отменяет в грейс-окне (до начала работы) → возврат донору.
     pub fn cancel(ctx: Context<DonorAction>) -> Result<()> {
+        let now = Clock::get()?.unix_timestamp;
         let e = &mut ctx.accounts.escrow;
         require!(e.state == TaskState::Pending as u8, EscrowError::BadState);
+        require!(now <= e.accept_deadline, EscrowError::Expired); // аудит #5: только в грейс-окне
         e.resolution = Resolution::ToDonor as u8;
         e.state = TaskState::Resolved as u8;
         Ok(())
@@ -120,7 +133,8 @@ pub mod escrow_task {
 
     /// Разрешение по таймауту — PERMISSIONLESS (вызывает кто угодно; решает блокчейн по часам, не оператор):
     ///   * Pending/Accepted и истёк срок сдачи → возврат донору (не сдал / no-show);
-    ///   * Done и истекло окно спора → стримеру (спора не было).
+    ///   * Done и истекло окно спора → стримеру (спора не было);
+    ///   * Disputed и истёк срок резолва → стримеру (дефолт-tiebreaker §11; аудит #4: не запираем навсегда).
     pub fn resolve_timeout(ctx: Context<ResolveTimeout>) -> Result<()> {
         let now = Clock::get()?.unix_timestamp;
         let e = &mut ctx.accounts.escrow;
@@ -130,6 +144,8 @@ pub mod escrow_task {
             e.resolution = Resolution::ToDonor as u8; // не сдал в срок → возврат
         } else if e.state == TaskState::Done as u8 && now > e.dispute_deadline {
             e.resolution = Resolution::ToStreamer as u8;
+        } else if e.state == TaskState::Disputed as u8 && now > e.dispute_deadline {
+            e.resolution = Resolution::ToStreamer as u8; // резолвер не закрыл спор в срок → дефолт стримеру
         } else {
             return err!(EscrowError::NotDue);
         }
@@ -141,9 +157,11 @@ pub mod escrow_task {
     /// пока резолвер не закроет спор через `resolve_dispute`. Закрывает гонку «таймаут опередил голосование»
     /// (ADR 0017). Devnet-only bounded-резолвер; на мейннете — ончейн-голосование (G3b).
     pub fn mark_disputed(ctx: Context<ResolveDispute>) -> Result<()> {
+        let now = Clock::get()?.unix_timestamp;
         let e = &mut ctx.accounts.escrow;
         require!(e.state == TaskState::Done as u8, EscrowError::BadState);
         e.state = TaskState::Disputed as u8;
+        e.dispute_deadline = now + VOTING_WINDOW; // срок резолва; после → permissionless дефолт стримеру (#4)
         Ok(())
     }
 
@@ -152,10 +170,8 @@ pub mod escrow_task {
     /// мейннете заменяется ончейн commit-reveal голосованием (G3b).
     pub fn resolve_dispute(ctx: Context<ResolveDispute>, to_streamer: bool) -> Result<()> {
         let e = &mut ctx.accounts.escrow;
-        require!(
-            e.state == TaskState::Done as u8 || e.state == TaskState::Disputed as u8,
-            EscrowError::BadState
-        );
+        // Аудит #3: только из Disputed (спор должен быть явно поднят через mark_disputed), не из любого Done.
+        require!(e.state == TaskState::Disputed as u8, EscrowError::BadState);
         require!(
             e.resolution == Resolution::Unresolved as u8,
             EscrowError::AlreadyResolved
@@ -333,12 +349,9 @@ pub struct Fund<'info> {
     )]
     pub donor_token: Account<'info, TokenAccount>,
     pub mint: Account<'info, Mint>,
-    /// CHECK: только записывается как payout-адрес стримера; проверяется по подписи в accept/claim.
+    /// CHECK: payout-адрес стримера (контрагент донора); проверяется по подписи в claim_streamer.
+    /// Трежери и резолвер БОЛЬШЕ НЕ аккаунты — это протокольные константы (аудит #1).
     pub streamer: UncheckedAccount<'info>,
-    /// CHECK: только записывается как получатель комиссии; проверяется по owner трежери-ATA в claim.
-    pub treasury: UncheckedAccount<'info>,
-    /// CHECK: только записывается как bounded-резолвер; проверяется по подписи в resolve_dispute.
-    pub resolver: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,

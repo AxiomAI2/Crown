@@ -68,9 +68,7 @@ async function accountExists(connection: Connection, addr: PublicKey): Promise<b
 export interface FundParams {
   programId: PublicKey;
   donor: PublicKey;
-  streamer: PublicKey; // payout-владелец стримера
-  treasury: PublicKey;
-  resolver: PublicKey;
+  streamer: PublicKey; // payout-владелец стримера (контрагент донора). Трежери/резолвер — константы программы.
   mint: PublicKey;
   taskId: TaskId;
   amount: bigint; // micro-USDC
@@ -98,8 +96,6 @@ export async function buildFundIx(p: FundParams): Promise<TransactionInstruction
       { pubkey: donorAta, isSigner: false, isWritable: true },
       { pubkey: p.mint, isSigner: false, isWritable: false },
       { pubkey: p.streamer, isSigner: false, isWritable: false },
-      { pubkey: p.treasury, isSigner: false, isWritable: false },
-      { pubkey: p.resolver, isSigner: false, isWritable: false },
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
