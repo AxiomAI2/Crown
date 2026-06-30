@@ -82,8 +82,10 @@
 Аудит эскроу-контракта escrow-task (G3a; ончейн-игра, не ядро — ADR 0015/0017). Пространство имён **ESC**
 (отдельное — не путать с C/H/M/L ядра выше). Объём: `anchor/programs/escrow-task/src/lib.rs` + зеркало
 `src/games/escrow-task/machine.ts` + билдеры `src/lib/chain/escrow-tx.ts` + сверка `src/server/escrow-verify.ts`.
-Редеплой с патчем: devnet tx `51o1WLv8uRTwghpo4ZCkLmMSVHuGZJKsjBRq3suDdmtJrJnyyJSpaDZ5DdZ8r65jcuX58gy5VBGUEiaqfTGNm6nS`
-(program id `GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4`). Все исправления подтверждены `scripts/escrow-smoke.ts`.
+Редеплои с патчами (program id неизменен `GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4`): раунд 1 (ESC-1…5) —
+devnet tx `51o1WLv8uRTwghpo4ZCkLmMSVHuGZJKsjBRq3suDdmtJrJnyyJSpaDZ5DdZ8r65jcuX58gy5VBGUEiaqfTGNm6nS`;
+раунд 2 (ESC-10/ESC-11) — tx `4ev52BPL7AzPUQMuYsxyxYGg7fG8TB3RMoPfmJvK9uJdkwtYc4rND8ERqDV4ygwuMpcASxYinQNSfx12rbytejEz`.
+Все исправления подтверждены `scripts/escrow-smoke.ts` (включая DUST-атаку на хранилище для ESC-10).
 
 | ESC | Severity | Находка | Статус | Где исправлено |
 |-----|----------|---------|--------|----------------|
@@ -95,7 +97,9 @@
 | ESC-6 | LOW | `verifyEscrowOnChain` сверял donor/amount/mint, но не streamer/resolver/treasury (делало ESC-1 достижимым) | снято в корне | ESC-1 закрыл контрактно: `resolver`/`treasury` неподделываемы (константы), сервер на их сверку не полагается. Косметика зеркала по `streamer` — открыто (LOW, только консистентность, не деньги) |
 | ESC-7 | LOW | `mint` на цепочке не привязан к USDC — `fund` принимает любой mint | **открыто** (отложено) | смягчено серверной сверкой `mint` (`escrow-verify.ts`); ончейн-пин сломал бы смоук на тестовом mint; вернуть перед mainnet |
 | ESC-8 | INFO | anchor-тест звал удалённую `accept()` — не компилировался | **закрыто** | `anchor/tests/escrow-task.ts` переписан под новую модель (refund + проверка ESC-1); каноническая проверка — `scripts/escrow-smoke.ts` |
-| ESC-9 | INFO | тестовые окна + плейсхолдер program id + нет `emit!`-событий + гонка спора у дедлайна | частично | program id уже реальный (задеплоен); окна — намеренно короткие под тест (`FAST_TEST_WINDOWS` + consts в `lib.rs`, вернуть перед mainnet одной правкой). `emit!`/гонка — открыто (INFO; индексер декодирует аккаунты, гонку ADR 0017 признаёт) |
+| ESC-9 | INFO | тестовые окна + плейсхолдер program id + нет `emit!`-событий + гонка спора у дедлайна | частично | program id уже реальный (задеплоен); окна — намеренно короткие под тест (`FAST_TEST_WINDOWS` + consts в `lib.rs`, вернуть перед mainnet одной правкой). `emit!` — открыто (INFO; индексер декодирует аккаунты). Гонку дедлайна закрыл ESC-11 |
+| ESC-10 | **HIGH** | перманентная заморозка: любой шлёт «пыль» на публичный ATA хранилища → `claim` выводит ровно `e.amount`, остаток валит `close_account` (`NonNativeHasBalance`) → tx claim откатывается навсегда; деньги и рента заперты, цена атаки — пыль+газ | **закрыто** | `lib.rs → claim_streamer`/`claim_donor`: выплата от ЖИВОГО баланса `vault.amount` (не `e.amount`) → пыль распределяется/возвращается, vault обнуляется и закрывается. Смоук: обе ветки с DUST-атакой проходят |
+| ESC-11 | LOW→MED | `mark_disputed` без верхней границы окна: без кипера `Done` висит долго, резолвер мог пометить спор вне окна оспаривания и развернуть к донору (ончейн слабее `machine.ts`) | **закрыто** | `lib.rs → mark_disputed`: `require!(now <= e.dispute_deadline)` (паритет с `raiseDispute`); заодно закрывает гонку ESC-9 (`mark_disputed` и `resolve_timeout`-ветка Done больше не пересекаются во времени) |
 
 Подтверждено корректным (контр-аудит): получатели зашиты в PDA и читаются в `claim` только из `escrow`
 (даже резолвер не направит деньги третьему — держит некастодиальность маршрутизации); `overflow-checks`;

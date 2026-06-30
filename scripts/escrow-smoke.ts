@@ -16,6 +16,7 @@ import {
   getAssociatedTokenAddress,
   getOrCreateAssociatedTokenAccount,
   mintTo,
+  transfer,
 } from "@solana/spl-token";
 import {
   Connection,
@@ -46,8 +47,12 @@ const PROGRAM_ID = new PublicKey(
 // Трежери — протокольная константа контракта (escrow.treasury = TREASURY). Должна совпадать с lib.rs.
 const TREASURY = new PublicKey("9tSWouwVrPahnnLW4AMQcNn53Uk5okFEdduo1M3Gtrpe");
 const AMOUNT = 5_000_000n;
-const FEE = (AMOUNT * 300n) / 10_000n; // 0.15
-const NET = AMOUNT - FEE; // 4.85
+// ESC-10: атакующий шлёт «пыль» на публичный ATA хранилища. Фикс считает выплату от ЖИВОГО баланса
+// (amount + dust), поэтому проверяем split от заражённой суммы, а не от чистой AMOUNT.
+const DUST = 1_000n;
+const DUSTED = AMOUNT + DUST;
+const FEE = (DUSTED * 300n) / 10_000n;
+const NET = DUSTED - FEE;
 const EXEC_WINDOW = 600n; // 10 мин — markDone успеваем; окно спора (2 мин) ждём отдельно
 const DISPUTE_WAIT_MS = 135_000; // > DISPUTE_WINDOW (тест: 2 мин)
 
@@ -92,7 +97,7 @@ async function main() {
   const mint = await createMint(conn, payer, payer.publicKey, null, 6);
   const donorAta = (await getOrCreateAssociatedTokenAccount(conn, payer, mint, donor.publicKey))
     .address;
-  await mintTo(conn, payer, mint, donorAta, payer, Number(AMOUNT) * 2);
+  await mintTo(conn, payer, mint, donorAta, payer, Number(AMOUNT) * 3); // ×3: happy+refund funds + dust-маржа
   console.log("mint:", mint.toBase58());
   // Стример сам платит газ+ренту при claim (claim-модель) — выдаём ему немного SOL.
   await send(
@@ -114,11 +119,15 @@ async function main() {
     });
 
   // ───────── happy-path (через permissionless resolve_timeout) ─────────
-  console.log("\n[happy] fund → mark_done → (ждём окно спора) → resolve_timeout → claim_streamer");
+  console.log("\n[happy] fund → DUST-атака → mark_done → (ждём окно спора) → resolve_timeout → claim_streamer");
   const t1 = randTaskId();
   const escrow1 = escrowPda(PROGRAM_ID, t1);
   await send(conn, [await fund(t1)], payer, []);
   assert((await conn.getAccountInfo(escrow1)) !== null, "эскроу создан после fund");
+  // ESC-10: «отравляем» хранилище пылью (публичный ATA). claim ОБЯЗАН её смести и закрыть vault, не откатиться.
+  const vault1 = await getAssociatedTokenAddress(mint, escrow1, true);
+  await transfer(conn, payer, donorAta, vault1, donor.publicKey, Number(DUST));
+  assert((await bal(conn, vault1)) === DUSTED, "хранилище заражено пылью (amount + dust)");
   await send(conn, [buildMarkDoneIx(PROGRAM_ID, streamer.publicKey, t1)], payer, [streamer]);
 
   // audit #1: резолвер захардкожен → чужой ключ (стример) не может пометить спорным.
@@ -148,16 +157,21 @@ async function main() {
   );
   const streamerAta = await getAssociatedTokenAddress(mint, streamer.publicKey);
   const treasuryAta = await getAssociatedTokenAddress(mint, TREASURY);
-  assert((await bal(conn, streamerAta)) === NET, `стример получил 97% (${NET})`);
+  assert((await bal(conn, streamerAta)) === NET, `стример получил 97% от заражённого баланса (${NET})`);
   assert((await bal(conn, treasuryAta)) === FEE, `трежери получило 3% (${FEE})`);
+  assert((await conn.getAccountInfo(vault1)) === null, "ESC-10: хранилище закрыто, несмотря на пыль");
   assert((await conn.getAccountInfo(escrow1)) === null, "эскроу закрыт после claim");
 
-  // ───────── refund-path ─────────
-  console.log("\n[refund] fund → reject → claim_donor (100%)");
+  // ───────── refund-path (тоже с DUST-атакой) ─────────
+  console.log("\n[refund] fund → DUST-атака → reject → claim_donor (100% + сметённая пыль)");
   const before = await bal(conn, donorAta);
   const t2 = randTaskId();
+  const escrow2 = escrowPda(PROGRAM_ID, t2);
   await send(conn, [await fund(t2)], payer, []);
   assert((await bal(conn, donorAta)) === before - AMOUNT, "сумма списана в эскроу");
+  // ESC-10: травим хранилище возврата. claim_donor обязан вернуть весь живой баланс и закрыть vault.
+  const vault2 = await getAssociatedTokenAddress(mint, escrow2, true);
+  await transfer(conn, payer, donorAta, vault2, donor.publicKey, Number(DUST));
   await send(conn, [buildRejectIx(PROGRAM_ID, streamer.publicKey, t2)], payer, [streamer]);
   await send(
     conn,
@@ -165,7 +179,9 @@ async function main() {
     payer,
     [],
   );
-  assert((await bal(conn, donorAta)) === before, "донору вернулось 100%");
+  // Донор слил пыль из своего же ATA и получил её назад вместе с возвратом → итог равен исходному балансу.
+  assert((await bal(conn, donorAta)) === before, "донору вернулось 100% (включая сметённую пыль)");
+  assert((await conn.getAccountInfo(vault2)) === null, "ESC-10: хранилище возврата закрыто, несмотря на пыль");
 
   console.log("\n✅ ВСЕ ПРОВЕРКИ ПРОШЛИ");
 }

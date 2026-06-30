@@ -160,6 +160,11 @@ pub mod escrow_task {
         let now = Clock::get()?.unix_timestamp;
         let e = &mut ctx.accounts.escrow;
         require!(e.state == TaskState::Done as u8, EscrowError::BadState);
+        // ESC-11: спор поднимается только В ОКНЕ оспаривания (паритет с machine.ts raiseDispute). Иначе при
+        // отсутствии кипера резолвер мог пометить спорным просроченный Done и развернуть к донору вне окна.
+        // Заодно закрывает гонку ESC-9: mark_disputed (now<=deadline) и resolve_timeout-ветка Done (now>deadline)
+        // больше не пересекаются во времени.
+        require!(now <= e.dispute_deadline, EscrowError::Expired);
         e.state = TaskState::Disputed as u8;
         e.dispute_deadline = now + VOTING_WINDOW; // срок резолва; после → permissionless дефолт стримеру (#4)
         Ok(())
@@ -194,9 +199,12 @@ pub mod escrow_task {
             e.resolution == Resolution::ToStreamer as u8,
             EscrowError::WrongOutcome
         );
-        let amount = e.amount;
-        let fee = amount * FEE_BPS / BPS_DENOM;
-        let net = amount - fee;
+        // ESC-10: считаем от ЖИВОГО баланса хранилища, а не от e.amount. Иначе любой может прислать «пыль»
+        // на публичный ATA, claim выведет ровно e.amount, остаток заблокирует close_account (NonNativeHasBalance)
+        // → транзакция claim откатится навсегда. От живого баланса пыль распределяется 97/3, vault обнуляется.
+        let bal = ctx.accounts.vault.amount;
+        let fee = bal * FEE_BPS / BPS_DENOM;
+        let net = bal - fee;
 
         let task_id = e.task_id;
         let bump = e.bump;
@@ -251,7 +259,8 @@ pub mod escrow_task {
             e.resolution == Resolution::ToDonor as u8,
             EscrowError::WrongOutcome
         );
-        let amount = e.amount;
+        // ESC-10: весь живой баланс хранилища (вкл. возможную «пыль»), иначе остаток заблокирует close_account.
+        let amount = ctx.accounts.vault.amount;
         let task_id = e.task_id;
         let bump = e.bump;
         let signer_seeds: &[&[&[u8]]] = &[&[b"escrow", task_id.as_ref(), &[bump]]];
