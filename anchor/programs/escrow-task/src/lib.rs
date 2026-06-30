@@ -115,6 +115,10 @@ pub mod escrow_task {
             EscrowError::BadState
         );
         require!(now <= e.done_deadline, EscrowError::Expired); // аудит #2: просрочка → no-show, не «Готово»
+        // ESC-13: нельзя «Готово», пока не истёк грейс отмены донора — иначе стример фронт-раннит mark_done
+        // сразу после fund и обнуляет аварийный выход донора (cancel доступен только из Pending).
+        // (Требует execution_window > CANCEL_GRACE; для прода держать EXEC_WINDOW_MIN заметно больше грейса.)
+        require!(now > e.accept_deadline, EscrowError::GraceActive);
         e.state = TaskState::Done as u8;
         e.dispute_deadline = now + DISPUTE_WINDOW;
         Ok(())
@@ -480,6 +484,8 @@ pub enum EscrowError {
     WrongOutcome,
     #[msg("Действие запрещено для этого адреса")]
     Forbidden,
+    #[msg("Грейс-окно отмены донора ещё не истекло")]
+    GraceActive,
     #[msg("Неверный владелец токен-аккаунта")]
     BadOwner,
     #[msg("Неверный mint токен-аккаунта")]

@@ -11,7 +11,7 @@
 import { pointsForAmount } from "@/lib/reputation";
 import { GameBusError, type GameContext, type GameHandlers } from "../bus";
 import * as M from "./machine";
-import type { EscrowTask, VoteChoice } from "./types";
+import type { EscrowTask, ResolutionReason, TaskOutcome, VoteChoice } from "./types";
 
 /** Минимальная репутация, чтобы поднять спор (спека §10 — рычаг стримера; для мока — константа, калибровка). */
 const DISPUTE_MIN_REP = 1;
@@ -55,11 +55,43 @@ function requireOwner(ctx: GameContext): string {
   return id;
 }
 
-/** Разрешить по времени и забанковать эффекты, если пора (один раз — потом статус RESOLVED). */
-function settle(ctx: GameContext, task: EscrowTask): EscrowTask {
+/**
+ * Свести офчейн-исход (по времени/голосам) с ОНЧЕЙН-исходом эскроу (ESC-12, деньги = истина). Если цепочка
+ * расходится с офчейн-таймером (напр. резолвер не успел до дедлайна → resolve_timeout отдал стримеру),
+ * берём ончейн-сторону и синтезируем когерентный reason, чтобы спор-эффекты следовали за деньгами.
+ */
+function reconcile(
+  due: { outcome: TaskOutcome; reason: ResolutionReason },
+  chain: "to_streamer" | "to_donor",
+  task: EscrowTask,
+): { outcome: TaskOutcome; reason: ResolutionReason } {
+  if (chain === due.outcome) return due;
+  return chain === "to_streamer"
+    ? { outcome: "to_streamer", reason: task.dispute ? "vote_completed" : "completed" }
+    : { outcome: "to_donor", reason: task.dispute ? "vote_not_completed" : "expired" };
+}
+
+/**
+ * Разрешить по времени и забанковать эффекты, если пора (один раз — потом статус RESOLVED).
+ * ESC-12: для chain-backed задания (есть `escrowTaskId`) банкуем донат-репутацию только когда исход
+ * ПОДТВЕРЖДЁН на цепочке — деньги истина, не офчейн-таймер. Эскроу ещё не разрешён на цепочке → откладываем.
+ */
+async function settle(ctx: GameContext, task: EscrowTask): Promise<EscrowTask> {
   if (task.status === "RESOLVED") return task;
   const due = M.dueResolution(task, nowMs(ctx));
   if (!due) return task;
+  if (task.escrowTaskId && ctx.escrowOutcome) {
+    const oc = await ctx.escrowOutcome(task.escrowTaskId);
+    if (oc) {
+      // present без исхода → на цепочке ещё не зафиксировано → не банкуем (сеттлер повторит на след. опросе).
+      if (oc.present && !oc.outcome) return task;
+      // present с исходом → ончейн-сторона; gone (закрыт/заклеймлен) → best-effort офчейн (остаток M3, документирован).
+      const res = oc.present && oc.outcome ? reconcile(due, oc.outcome, task) : due;
+      const resolved = M.applyResolution(task, res, nowMs(ctx));
+      ctx.bankLedger(M.repEffects(resolved, res));
+      return resolved;
+    }
+  }
   const resolved = M.applyResolution(task, due, nowMs(ctx));
   ctx.bankLedger(M.repEffects(resolved, due));
   return resolved;
@@ -91,10 +123,12 @@ export const escrowTaskHandlers: GameHandlers = {
       // Трастлесс-сверка ончейн-эскроу (chain-режим): задание без подтверждённого эскроу (нет аккаунта,
       // чужой донор/сумма/mint) не записываем — сервер не верит клиенту (ADR 0017). В mock/api — всегда ок.
       const escrowTaskId = typeof p.escrowTaskId === "string" ? p.escrowTaskId : undefined;
-      if (escrowTaskId && !(await ctx.verifyEscrow(escrowTaskId, { donor, amount }))) {
+      // ESC-6: вяжем эскроу к payout-адресу ИМЕННО этого канала (streamer) + требуем свежий Pending.
+      const streamer = ctx.channelPayout ?? undefined;
+      if (escrowTaskId && !(await ctx.verifyEscrow(escrowTaskId, { donor, amount, streamer }))) {
         throw new GameBusError(
           "ESCROW_INVALID",
-          "Ончейн-эскроу не найден или не совпадает (донор/сумма/mint).",
+          "Ончейн-эскроу не найден или не совпадает (донор/сумма/mint/канал).",
         );
       }
       const task = M.createTask(
@@ -191,25 +225,29 @@ export const escrowTaskHandlers: GameHandlers = {
     },
 
     // Получатель забирает деньги (claim-модель, ADR 0015): тут же разрешаем по времени + банкуем эффекты.
-    claim: (ctx, payload) => {
+    claim: async (ctx, payload) => {
       const by = requireIdentity(ctx);
       const tasks = loadTasks(ctx);
-      const settled = settle(ctx, findTask(tasks, idOf(payload), ctx.channelId));
+      const settled = await settle(ctx, findTask(tasks, idOf(payload), ctx.channelId));
       return commit(ctx, tasks, M.claim(settled, by, ctx.channelOwner ?? "", nowMs(ctx)));
     },
 
     // PERMISSIONLESS: разрешить по времени + забанковать репутацию для ВСЕХ дозревших заданий канала, не
     // дожидаясь claim (ADR 0015 §2 — репутация в момент резолва). Зовётся фоновым сеттлером (indexer-service)
     // независимо от браузера. Идемпотентно: settle() не трогает уже RESOLVED. Деньги не двигает (claim-модель).
-    settleDue: (ctx) => {
+    settleDue: async (ctx) => {
       const tasks = loadTasks(ctx);
       let settledCount = 0;
-      const next = tasks.map((t) => {
-        if (t.status === "RESOLVED" || t.channelId !== ctx.channelId) return t;
-        const s = settle(ctx, t); // банкует эффекты при переходе в RESOLVED (побочный эффект bankLedger)
+      const next: EscrowTask[] = [];
+      for (const t of tasks) {
+        if (t.status === "RESOLVED" || t.channelId !== ctx.channelId) {
+          next.push(t);
+          continue;
+        }
+        const s = await settle(ctx, t); // банкует эффекты при переходе в RESOLVED (побочный эффект bankLedger)
         if (s !== t) settledCount++;
-        return s;
-      });
+        next.push(s);
+      }
       if (settledCount > 0) saveTasks(ctx, next);
       return { settled: settledCount };
     },

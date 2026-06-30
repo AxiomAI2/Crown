@@ -1134,6 +1134,7 @@ export class MockDataProvider implements DataProvider {
       identity: this.currentAddress(),
       channelId: req.channelId,
       channelOwner: this.channelsById.get(req.channelId)?.ownerAddress ?? null,
+      channelPayout: this.channelsById.get(req.channelId)?.payoutAddress ?? null,
       now: () => this.now(),
       newId: () => this.nextId("game"),
       state: {
@@ -1151,6 +1152,13 @@ export class MockDataProvider implements DataProvider {
         if (typeof window !== "undefined") return true;
         const { verifyEscrowOnChain } = await import("@/server/escrow-verify");
         return verifyEscrowOnChain(escrowTaskId, expect);
+      },
+      // ESC-12: ончейн-исход эскроу для реконсайла репутации (деньги = истина). На сервере читает devnet;
+      // в браузере исхода не знаем → null (тогда settle банкует по офчейн-таймеру, как раньше).
+      escrowOutcome: async (escrowTaskId) => {
+        if (typeof window !== "undefined") return null;
+        const { readEscrowOutcome } = await import("@/server/escrow-verify");
+        return readEscrowOutcome(escrowTaskId);
       },
       bankLedger: (entries) => {
         for (const e of entries) {

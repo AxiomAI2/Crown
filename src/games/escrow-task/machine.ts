@@ -122,6 +122,10 @@ export function cancel(task: EscrowTask, nowMs: number): EscrowTask {
 export function markDone(task: EscrowTask, nowMs: number): EscrowTask {
   if (task.status !== "PENDING" && task.status !== "ACCEPTED")
     throw new GameBusError("NOT_OPEN", "Отметить «Готово» можно только до разрешения.");
+  // ESC-13: нельзя сдать в грейс-окне отмены донора (совпадает с ончейн accept_deadline = fund + grace) —
+  // иначе стример фронт-раннит «Готово» сразу после fund и обнуляет аварийную отмену донора.
+  if (nowMs <= ms(task.createdAt) + WINDOWS.grace)
+    throw new GameBusError("GRACE_ACTIVE", "Сдать можно после грейс-окна отмены донора.");
   if (nowMs > ms(task.executionDeadline ?? task.createdAt))
     throw new GameBusError("EXEC_OVER", "Срок сдачи истёк — донат вернётся донору (no-show).");
   // Пруфа нет: у контентмейкеров доказательство — сам стрим/VOD, комьюнити его и так мониторит. «Готово» —

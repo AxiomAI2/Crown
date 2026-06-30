@@ -81,11 +81,13 @@
 
 Аудит эскроу-контракта escrow-task (G3a; ончейн-игра, не ядро — ADR 0015/0017). Пространство имён **ESC**
 (отдельное — не путать с C/H/M/L ядра выше). Объём: `anchor/programs/escrow-task/src/lib.rs` + зеркало
-`src/games/escrow-task/machine.ts` + билдеры `src/lib/chain/escrow-tx.ts` + сверка `src/server/escrow-verify.ts`.
+`src/games/escrow-task/machine.ts` + билдеры `src/lib/chain/escrow-tx.ts` + сверка `src/server/escrow-verify.ts`
++ сеттлер/банковка репутации (`src/server/indexer-service.ts`, `src/games/escrow-task/handlers.ts`).
 Редеплои с патчами (program id неизменен `GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4`): раунд 1 (ESC-1…5) —
 devnet tx `51o1WLv8uRTwghpo4ZCkLmMSVHuGZJKsjBRq3suDdmtJrJnyyJSpaDZ5DdZ8r65jcuX58gy5VBGUEiaqfTGNm6nS`;
-раунд 2 (ESC-10/ESC-11) — tx `4ev52BPL7AzPUQMuYsxyxYGg7fG8TB3RMoPfmJvK9uJdkwtYc4rND8ERqDV4ygwuMpcASxYinQNSfx12rbytejEz`.
-Все исправления подтверждены `scripts/escrow-smoke.ts` (включая DUST-атаку на хранилище для ESC-10).
+раунд 2 (ESC-10/ESC-11) — tx `4ev52BPL7AzPUQMuYsxyxYGg7fG8TB3RMoPfmJvK9uJdkwtYc4rND8ERqDV4ygwuMpcASxYinQNSfx12rbytejEz`;
+раунд 3 (ESC-13 контракт; ESC-12 + ESC-6 — серверные) — tx `LDESFuePHUi1CLpPRfz2BzU5E37PLWvtdq5Jb26vccc8mgvpL6YGZgvi8cS6Bv6kuQgDcWJzpoe7avXGQJSTNMB`.
+Все исправления подтверждены `scripts/escrow-smoke.ts` (DUST-атака для ESC-10; mark_done-в-грейсе для ESC-13).
 
 | ESC | Severity | Находка | Статус | Где исправлено |
 |-----|----------|---------|--------|----------------|
@@ -94,12 +96,14 @@ devnet tx `51o1WLv8uRTwghpo4ZCkLmMSVHuGZJKsjBRq3suDdmtJrJnyyJSpaDZ5DdZ8r65jcuX58
 | ESC-3 | MEDIUM | `resolve_dispute` работал из `Done` без поднятого спора → резолвер мог развернуть любой выполненный эскроу | **закрыто** | `lib.rs → resolve_dispute`: `require!(state == Disputed)`; разворот только после `mark_disputed` |
 | ESC-4 | MEDIUM | `Disputed` — ловушка ликвидности: нет таймаут-выхода, бездействие резолвера = деньги заперты навсегда | **закрыто** | `lib.rs → resolve_timeout`: `Disputed` после `dispute_deadline` → `ToStreamer` (tiebreaker §11), permissionless |
 | ESC-5 | MEDIUM | `cancel` без предела → донор отменял в любой момент до «Готово», обнуляя работу стримера | **закрыто** | `lib.rs → cancel`: `Pending` И `now <= e.accept_deadline` (grace = `CANCEL_GRACE`); `machine.ts → cancel` — то же (`GRACE_OVER`) |
-| ESC-6 | LOW | `verifyEscrowOnChain` сверял donor/amount/mint, но не streamer/resolver/treasury (делало ESC-1 достижимым) | снято в корне | ESC-1 закрыл контрактно: `resolver`/`treasury` неподделываемы (константы), сервер на их сверку не полагается. Косметика зеркала по `streamer` — открыто (LOW, только консистентность, не деньги) |
+| ESC-6 | LOW | `verifyEscrowOnChain` сверял donor/amount/mint, но не streamer и не состояние → задание канала C могло ссылаться на эскроу с чужим streamer | **закрыто** | `escrow-verify.ts`: сверяет `e.streamer == channel.payoutAddress` (payout канала прокинут через `GameContext.channelPayout`) + `state == Pending` (свежий эскроу). `resolver`/`treasury` уже неподделываемы (ESC-1) |
 | ESC-7 | LOW | `mint` на цепочке не привязан к USDC — `fund` принимает любой mint | **открыто** (отложено) | смягчено серверной сверкой `mint` (`escrow-verify.ts`); ончейн-пин сломал бы смоук на тестовом mint; вернуть перед mainnet |
 | ESC-8 | INFO | anchor-тест звал удалённую `accept()` — не компилировался | **закрыто** | `anchor/tests/escrow-task.ts` переписан под новую модель (refund + проверка ESC-1); каноническая проверка — `scripts/escrow-smoke.ts` |
 | ESC-9 | INFO | тестовые окна + плейсхолдер program id + нет `emit!`-событий + гонка спора у дедлайна | частично | program id уже реальный (задеплоен); окна — намеренно короткие под тест (`FAST_TEST_WINDOWS` + consts в `lib.rs`, вернуть перед mainnet одной правкой). `emit!` — открыто (INFO; индексер декодирует аккаунты). Гонку дедлайна закрыл ESC-11 |
 | ESC-10 | **HIGH** | перманентная заморозка: любой шлёт «пыль» на публичный ATA хранилища → `claim` выводит ровно `e.amount`, остаток валит `close_account` (`NonNativeHasBalance`) → tx claim откатывается навсегда; деньги и рента заперты, цена атаки — пыль+газ | **закрыто** | `lib.rs → claim_streamer`/`claim_donor`: выплата от ЖИВОГО баланса `vault.amount` (не `e.amount`) → пыль распределяется/возвращается, vault обнуляется и закрывается. Смоук: обе ветки с DUST-атакой проходят |
 | ESC-11 | LOW→MED | `mark_disputed` без верхней границы окна: без кипера `Done` висит долго, резолвер мог пометить спор вне окна оспаривания и развернуть к донору (ончейн слабее `machine.ts`) | **закрыто** | `lib.rs → mark_disputed`: `require!(now <= e.dispute_deadline)` (паритет с `raiseDispute`); заодно закрывает гонку ESC-9 (`mark_disputed` и `resolve_timeout`-ветка Done больше не пересекаются во времени) |
+| ESC-12 | **HIGH** | репутация банкуется по офчейн-таймеру без сверки с ончейн-исходом (`settleDue` падал в api, не читал `escrow.resolution`) → liveness-резолвера: офчейн-вердикт `to_donor`, а деньги по `resolve_timeout` ушли стримеру → репутация ≠ деньги (открытые H1/M3, бьющие по продукту) | **закрыто** (остаток M3) | `handlers.ts → settle` async: для chain-backed задания читает ончейн-исход (`GameContext.escrowOutcome` → `readEscrowOutcome`) и банкует по ДЕНЬГАМ (`reconcile`), Unresolved → откладывает. Остаток: эскроу закрыт до того, как сеттлер увидел resolution → best-effort офчейн (нужен event-индексер, M3) |
+| ESC-13 | MEDIUM | `mark_done` из `Pending` затирал грейс-окно: стример фронт-раннил «Готово» сразу после `fund` → донорская отмена (`cancel` только из Pending) мертва, ошибочный донат невозвратен | **закрыто** | `lib.rs → mark_done`: `require!(now > e.accept_deadline)` (нельзя сдать в грейсе); зеркало `machine.ts → markDone` (`GRACE_ACTIVE`). Смоук: mark_done-в-грейсе отклонён. Требует `execution_window > CANCEL_GRACE` (учесть в прод-окнах, ESC-9) |
 
 Подтверждено корректным (контр-аудит): получатели зашиты в PDA и читаются в `claim` только из `escrow`
 (даже резолвер не направит деньги третьему — держит некастодиальность маршрутизации); `overflow-checks`;

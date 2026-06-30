@@ -35,6 +35,8 @@ export interface GameContext {
   channelId: string;
   /** Владелец канала (стример) — для авторизации действий вроде «Принять»/«Готово». */
   channelOwner: string | null;
+  /** Payout-адрес канала (получатель денег на цепочке). Нужен, чтобы привязать эскроу к каналу (ESC-6). */
+  channelPayout: string | null;
   /** ISO-таймстамп «сейчас» от стора (детерминируемо в тестах через подмену). */
   now: () => string;
   /** Новый уникальный id (для создаваемых сущностей игры). */
@@ -54,8 +56,17 @@ export interface GameContext {
    */
   verifyEscrow: (
     escrowTaskId: string,
-    expect: { donor: string; amount: string },
+    expect: { donor: string; amount: string; streamer?: string },
   ) => Promise<boolean>;
+  /**
+   * Реконсайл репутации против ЦЕПОЧКИ (ESC-12, chain-режим): читает ончейн-исход эскроу. Возвращает
+   * `null` вне chain-режима (тогда банкуем по офчейн-таймеру, как раньше — mock/api). `outcome` не-null
+   * только когда исход на цепочке зафиксирован (resolution = ToStreamer|ToDonor). Деньги = истина:
+   * сеттлер банкует донат-репутацию только при подтверждённом ончейн-исходе, а не по офчейн-таймеру.
+   */
+  escrowOutcome?: (
+    escrowTaskId: string,
+  ) => Promise<{ present: boolean; outcome: "to_streamer" | "to_donor" | null } | null>;
 }
 
 export type GameHandler = (ctx: GameContext, payload: unknown) => unknown | Promise<unknown>;

@@ -55,6 +55,7 @@ const FEE = (DUSTED * 300n) / 10_000n;
 const NET = DUSTED - FEE;
 const EXEC_WINDOW = 600n; // 10 мин — markDone успеваем; окно спора (2 мин) ждём отдельно
 const DISPUTE_WAIT_MS = 135_000; // > DISPUTE_WINDOW (тест: 2 мин)
+const GRACE_WAIT_MS = 65_000; // > CANCEL_GRACE (тест: 1 мин) — ESC-13: mark_done только после грейса
 
 const loadPayer = () =>
   Keypair.fromSecretKey(
@@ -119,7 +120,9 @@ async function main() {
     });
 
   // ───────── happy-path (через permissionless resolve_timeout) ─────────
-  console.log("\n[happy] fund → DUST-атака → mark_done → (ждём окно спора) → resolve_timeout → claim_streamer");
+  console.log(
+    "\n[happy] fund → DUST → (грейс) mark_done заблокирован → ждём грейс → mark_done → ждём окно спора → resolve_timeout → claim_streamer",
+  );
   const t1 = randTaskId();
   const escrow1 = escrowPda(PROGRAM_ID, t1);
   await send(conn, [await fund(t1)], payer, []);
@@ -128,6 +131,16 @@ async function main() {
   const vault1 = await getAssociatedTokenAddress(mint, escrow1, true);
   await transfer(conn, payer, donorAta, vault1, donor.publicKey, Number(DUST));
   assert((await bal(conn, vault1)) === DUSTED, "хранилище заражено пылью (amount + dust)");
+  // ESC-13: в грейс-окне отмены донора стример НЕ может пометить «Готово» (фронт-раннинг отмены закрыт).
+  let graceBlocked = false;
+  try {
+    await send(conn, [buildMarkDoneIx(PROGRAM_ID, streamer.publicKey, t1)], payer, [streamer]);
+  } catch {
+    graceBlocked = true;
+  }
+  assert(graceBlocked, "ESC-13: mark_done в грейс-окне отклонён");
+  console.log(`  ждём ${GRACE_WAIT_MS / 1000}с (грейс отмены донора)…`);
+  await new Promise((r) => setTimeout(r, GRACE_WAIT_MS));
   await send(conn, [buildMarkDoneIx(PROGRAM_ID, streamer.publicKey, t1)], payer, [streamer]);
 
   // audit #1: резолвер захардкожен → чужой ключ (стример) не может пометить спорным.

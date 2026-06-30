@@ -14,6 +14,7 @@ function makeCtx(overrides: Partial<GameContext> = {}): GameContext {
     identity: "Donor111",
     channelId: "chan-1",
     channelOwner: "Streamer1",
+    channelPayout: null,
     now: () => "2026-01-01T00:00:00.000Z",
     newId: () => "id-1",
     state: {

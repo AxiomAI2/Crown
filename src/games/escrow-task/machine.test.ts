@@ -26,6 +26,7 @@ import type { EscrowTask, TaskVote } from "./types";
 const T0 = Date.parse("2026-01-01T00:00:00.000Z");
 const AMOUNT = "5000000"; // 5 USDC → 5 очков (pointsForAmount)
 const STREAMER = "Streamer1";
+const TD = T0 + WINDOWS.grace + 1; // время «Готово» — сразу ПОСЛЕ грейса отмены донора (ESC-13)
 
 function newTask(executionMs?: number): EscrowTask {
   return createTask(
@@ -80,8 +81,8 @@ describe("создание и принятие", () => {
     const acc = accept(newTask(), T0);
     expect(cancel(acc, T0 + WINDOWS.grace - 1).resolution).toMatchObject({ reason: "canceled" });
     expect(throwsCode(() => cancel(acc, T0 + WINDOWS.grace + 1))).toBe("GRACE_OVER");
-    const done = markDone(acc, T0 + 1);
-    expect(throwsCode(() => cancel(done, T0 + 2))).toBe("NOT_OPEN");
+    const done = markDone(acc, TD);
+    expect(throwsCode(() => cancel(done, TD + 1))).toBe("NOT_OPEN");
   });
 });
 
@@ -89,9 +90,13 @@ describe("выполнение и спор", () => {
   const accepted = () => accept(newTask(), T0);
 
   it("markDone → DONE с окном оспаривания (без пруфа)", () => {
-    const d = markDone(accepted(), T0 + 1000);
+    const d = markDone(accepted(), TD);
     expect(d.status).toBe("DONE");
-    expect(Date.parse(d.disputeWindowEndsAt!)).toBe(T0 + 1000 + WINDOWS.disputeWindow);
+    expect(Date.parse(d.disputeWindowEndsAt!)).toBe(TD + WINDOWS.disputeWindow);
+  });
+
+  it("markDone в грейс-окне → GRACE_ACTIVE (ESC-13: стример не фронт-раннит отмену донора)", () => {
+    expect(throwsCode(() => markDone(accepted(), T0 + WINDOWS.grace - 1))).toBe("GRACE_ACTIVE");
   });
 
   it("markDone после срока → EXEC_OVER (логика no-show — в dueResolution)", () => {
@@ -101,11 +106,11 @@ describe("выполнение и спор", () => {
   });
 
   it("raiseDispute → DISPUTED; повторный голос отклоняется", () => {
-    const done = markDone(accepted(), T0);
-    let disp = raiseDispute(done, "Juror0", 100, T0 + 1);
+    const done = markDone(accepted(), TD);
+    let disp = raiseDispute(done, "Juror0", 100, TD + 1);
     expect(disp.status).toBe("DISPUTED");
-    disp = castVote(disp, vote("JurorA", "completed", 30), T0 + 2);
-    expect(throwsCode(() => castVote(disp, vote("JurorA", "not_completed", 30), T0 + 3))).toBe(
+    disp = castVote(disp, vote("JurorA", "completed", 30), TD + 2);
+    expect(throwsCode(() => castVote(disp, vote("JurorA", "not_completed", 30), TD + 3))).toBe(
       "ALREADY_VOTED",
     );
   });
@@ -165,8 +170,8 @@ describe("разрешение по времени (dueResolution)", () => {
   });
 
   it("DONE после окна оспаривания без спора → стримеру (completed)", () => {
-    const done = markDone(accept(newTask(), T0), T0);
-    expect(dueResolution(done, T0 + WINDOWS.disputeWindow + 1)).toMatchObject({
+    const done = markDone(accept(newTask(), T0), TD);
+    expect(dueResolution(done, TD + WINDOWS.disputeWindow + 1)).toMatchObject({
       reason: "completed",
       outcome: "to_streamer",
     });
@@ -184,8 +189,8 @@ describe("эффекты на репутацию (ADR 0015)", () => {
   });
 
   it("проигранный спор → списание инициатору; деньги стримеру → донор +очки", () => {
-    const done = markDone(accept(newTask(), T0), T0);
-    const disp = raiseDispute(done, "Juror0", 1, T0 + 1);
+    const done = markDone(accept(newTask(), T0), TD);
+    const disp = raiseDispute(done, "Juror0", 1, TD + 1);
     const fx = repEffects(disp, { outcome: "to_streamer", reason: "vote_completed" });
     expect(fx).toContainEqual({
       address: "Juror0",
@@ -201,8 +206,8 @@ describe("эффекты на репутацию (ADR 0015)", () => {
   });
 
   it("подтверждённый спор (донору) → бонус инициатору, доната нет", () => {
-    const done = markDone(accept(newTask(), T0), T0);
-    const disp = raiseDispute(done, "Juror0", 1, T0 + 1);
+    const done = markDone(accept(newTask(), T0), TD);
+    const disp = raiseDispute(done, "Juror0", 1, TD + 1);
     const fx = repEffects(disp, { outcome: "to_donor", reason: "vote_not_completed" });
     expect(fx).toEqual([
       { address: "Juror0", type: "DISPUTE_WON", pointsDelta: DISPUTE_WIN_BONUS },
@@ -212,7 +217,7 @@ describe("эффекты на репутацию (ADR 0015)", () => {
 
 describe("claim (ADR 0015)", () => {
   it("забрать может только получатель и только раз", () => {
-    const done = markDone(accept(newTask(), T0), T0);
+    const done = markDone(accept(newTask(), T0), TD);
     const resolved = {
       ...done,
       status: "RESOLVED" as const,
