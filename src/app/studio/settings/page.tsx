@@ -57,6 +57,36 @@ function buildPatch(draft: Draft, original: ChannelConfig): ConfigPatch {
   return patch;
 }
 
+/**
+ * Поле суммы в USDC: держит СЫРУЮ строку (чтобы можно было набрать «0.», «0.5» — иначе round-trip через
+ * Number→toMicro→fromMicro съедал бы дробную точку на каждом нажатии). В micro отдаёт только валидное число.
+ */
+function UsdcAmountInput({
+  label,
+  micro,
+  onMicro,
+}: {
+  label: string;
+  micro: bigint;
+  onMicro: (v: bigint) => void;
+}) {
+  const [str, setStr] = useState(String(fromMicro(micro)));
+  return (
+    <Input
+      label={label}
+      mono
+      inputMode="decimal"
+      value={str}
+      onChange={(e) => {
+        const s = e.target.value;
+        setStr(s);
+        const n = Number(s);
+        if (s.trim() !== "" && Number.isFinite(n) && n >= 0) onMicro(toMicro(n));
+      }}
+    />
+  );
+}
+
 export default function ChannelSettingsPage() {
   const myChannelQ = useMyChannel();
   const channelId = myChannelQ.data?.id;
@@ -123,17 +153,15 @@ export default function ChannelSettingsPage() {
 
       <Section title="Донаты">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input
+          <UsdcAmountInput
             label="Минимум доната, USDC"
-            mono
-            value={String(fromMicro(draft.minDonation))}
-            onChange={(e) => set("minDonation", toMicro(Number(e.target.value) || 0))}
+            micro={draft.minDonation}
+            onMicro={(v) => set("minDonation", v)}
           />
-          <Input
+          <UsdcAmountInput
             label="Минимум доната с текстом, USDC"
-            mono
-            value={String(fromMicro(draft.minDonationWithText))}
-            onChange={(e) => set("minDonationWithText", toMicro(Number(e.target.value) || 0))}
+            micro={draft.minDonationWithText}
+            onMicro={(v) => set("minDonationWithText", v)}
           />
           <Input
             label="Лимит длины сообщения"

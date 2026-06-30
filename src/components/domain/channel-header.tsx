@@ -6,6 +6,7 @@ import { Amount } from "./amount";
 import { ChannelLinkButtons } from "./channel-links";
 import { CheckIcon, CopyIcon } from "@/components/ui/icons";
 import { toast } from "@/components/ui/toast";
+import { useCopied } from "@/components/ui/use-copied";
 import { explorerAddressUrl } from "@/lib/chain/addresses";
 import { useProfile } from "@/lib/data/hooks";
 import type { Channel, ChannelConfig } from "@/lib/data/types";
@@ -74,8 +75,8 @@ const actionBtn =
 
 /** Ряд иконок-действий: поделиться (ссылка) + скопировать payout-адрес + открыть его в Solana Explorer. */
 function HeaderActions({ payoutAddress }: { payoutAddress: string }) {
-  const [copied, setCopied] = useState(false);
-  const [copiedAddr, setCopiedAddr] = useState(false);
+  const [copied, markCopied] = useCopied();
+  const [copiedAddr, markCopiedAddr] = useCopied();
   return (
     <div className="flex shrink-0 items-center gap-2">
       <button
@@ -86,8 +87,7 @@ function HeaderActions({ payoutAddress }: { payoutAddress: string }) {
         onClick={async () => {
           try {
             await navigator.clipboard.writeText(window.location.href);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
+            markCopied();
             toast({ variant: "success", title: "Ссылка скопирована" });
           } catch {
             toast({ variant: "error", title: "Не удалось скопировать" });
@@ -104,8 +104,7 @@ function HeaderActions({ payoutAddress }: { payoutAddress: string }) {
         onClick={async () => {
           try {
             await navigator.clipboard.writeText(payoutAddress);
-            setCopiedAddr(true);
-            setTimeout(() => setCopiedAddr(false), 1500);
+            markCopiedAddr();
             toast({ variant: "success", title: "Адрес скопирован" });
           } catch {
             toast({ variant: "error", title: "Не удалось скопировать" });

@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
+import { useCopied } from "@/components/ui/use-copied";
 import { explorerTxUrl } from "@/lib/chain/addresses";
 import { useDonorOverview, useProfile, useUpdateProfile } from "@/lib/data/hooks";
 import type { Donation, DonorChannelStanding, DonorOverview, DonorPointEvent } from "@/lib/data/types";
@@ -61,7 +62,7 @@ function dollars(n: number): string {
 
 /** Кнопка-иконка «скопировать» (адрес / ссылка) с галочкой-подтверждением. */
 function CopyIconButton({ value, title }: { value: string; title: string }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, markCopied] = useCopied();
   return (
     <button
       type="button"
@@ -71,8 +72,7 @@ function CopyIconButton({ value, title }: { value: string; title: string }) {
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(value);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
+          markCopied();
           toast({ variant: "success", title: "Скопировано" });
         } catch {
           toast({ variant: "error", title: "Не удалось скопировать" });

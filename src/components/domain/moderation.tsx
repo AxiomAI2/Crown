@@ -78,7 +78,9 @@ export function ModerationItem({
             <span className="text-small text-danger">Авто-карантин — показать нельзя</span>
           ) : (
             <>
-              <Button variant="secondary" size="sm" onClick={onShow} loading={pending}>
+              {/* Один `pending` на обе кнопки → не вешаем спиннер на «Показать» (иначе он крутится и при «Скрыть»).
+                  Обе просто блокируются на время операции. */}
+              <Button variant="secondary" size="sm" onClick={onShow} disabled={pending}>
                 <EyeIcon className="h-4 w-4" />
                 Показать
               </Button>

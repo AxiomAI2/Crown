@@ -18,7 +18,10 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   ) => {
     const autoId = useId();
     const fieldId = id ?? autoId;
-    const [count, setCount] = useState(String(defaultValue ?? props.value ?? "").length);
+    // Контролируемый value → счётчик считаем от него (иначе при программной смене value — очистке после
+    // отправки, async-предзаполнении — он бы завис). Неконтролируемый → ведём внутренним state по onChange.
+    const [internalCount, setInternalCount] = useState(String(defaultValue ?? "").length);
+    const count = props.value != null ? String(props.value).length : internalCount;
 
     return (
       <div className="flex flex-col gap-1.5">
@@ -34,7 +37,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           defaultValue={defaultValue}
           aria-invalid={error ? true : undefined}
           onChange={(e) => {
-            setCount(e.target.value.length);
+            setInternalCount(e.target.value.length);
             onChange?.(e);
           }}
           className={cn(

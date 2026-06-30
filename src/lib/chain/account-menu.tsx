@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { CheckIcon, CopyIcon } from "@/components/ui/icons";
 import { NotificationDot } from "@/components/ui/notification-dot";
+import { useCopied } from "@/components/ui/use-copied";
 import { toast } from "@/components/ui/toast";
 import { useData } from "@/lib/data/context";
 import { useModerationAttention, useProfile, useSession } from "@/lib/data/hooks";
@@ -23,7 +23,7 @@ export function AccountMenu() {
   const address = session.data?.address ?? null;
   const profile = useProfile(address);
   const { hasPending } = useModerationAttention();
-  const [copied, setCopied] = useState(false);
+  const [copied, markCopied] = useCopied(1200);
 
   if (!address) return null;
   const display = profile.data?.displayName?.trim();
@@ -59,8 +59,7 @@ export function AccountMenu() {
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(address);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1200);
+                markCopied();
               } catch {
                 toast({ variant: "error", title: "Не удалось скопировать" });
               }

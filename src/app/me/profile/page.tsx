@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   inputsFromLinks,
   LinkEditor,
@@ -27,14 +27,18 @@ export default function ProfileSettingsPage() {
   const [bio, setBio] = useState("");
   const [linkInputs, setLinkInputs] = useState<LinkInputs>([]);
 
+  // Заполняем форму ОДИН раз на адрес: фоновый рефетч (напр. инвалидация после save) не должен затирать
+  // несохранённые правки пользователя. Смена адреса (другой кошелёк) → пере-гидрация.
+  const hydratedFor = useRef<string | null>(null);
   useEffect(() => {
     const p = profileQ.data;
-    if (p) {
+    if (p && hydratedFor.current !== address) {
+      hydratedFor.current = address;
       setDisplayName(p.displayName ?? "");
       setBio(p.bio ?? "");
       setLinkInputs(inputsFromLinks(p.links));
     }
-  }, [profileQ.data]);
+  }, [profileQ.data, address]);
 
   function save() {
     update.mutate(
