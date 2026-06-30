@@ -6,10 +6,12 @@ import { Amount } from "@/components/domain/amount";
 import { StandingHeadline } from "@/components/domain/standing";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
+import { ExternalLinkIcon } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
+import { explorerTxUrl } from "@/lib/chain/addresses";
 import { useChannelConfig, useSession, useStanding } from "@/lib/data/hooks";
 import { pointsForAmount } from "@/lib/reputation";
 import { toMicro } from "@/lib/utils";
@@ -347,11 +349,26 @@ function TaskCard({
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
       <div className="flex items-center justify-between gap-2">
         <Amount micro={BigInt(task.amount)} variant="money" />
-        <span className="text-caption rounded-pill border border-border px-2 py-0.5 text-fg-faint">
-          {final
-            ? `Итог: ${outcomeLabel(final.outcome)}${final.claimed ? " · забрано" : ""}`
-            : STATUS_LABEL[task.status]}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-caption rounded-pill border border-border px-2 py-0.5 text-fg-faint">
+            {final
+              ? `Итог: ${outcomeLabel(final.outcome)}${final.claimed ? " · забрано" : ""}`
+              : STATUS_LABEL[task.status]}
+          </span>
+          {/* Эскроу на цепочке (chain-режим): ссылка на tx фандинга — постоянная запись, переживает claim. */}
+          {task.fundTx ? (
+            <a
+              href={explorerTxUrl(task.fundTx)}
+              target="_blank"
+              rel="noreferrer"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
+              title="Эскроу в блокчейн-эксплорере"
+              aria-label="Эскроу в блокчейн-эксплорере"
+            >
+              <ExternalLinkIcon className="h-4 w-4" />
+            </a>
+          ) : null}
+        </div>
       </div>
       <p className="text-body break-words text-fg">{task.text}</p>
 
