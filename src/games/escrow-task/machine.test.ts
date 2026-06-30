@@ -60,10 +60,10 @@ describe("создание и принятие", () => {
     expect(Date.parse(t.executionDeadline!)).toBe(T0 + WINDOWS.executionMax);
   });
 
-  it("accept → ACCEPTED с грейсом; срок сдачи НЕ сбрасывается (задан при создании)", () => {
+  it("accept → ACCEPTED; грейс и срок сдачи заданы при СОЗДАНИИ, accept их не сбрасывает", () => {
     const t = accept(newTask(), T0 + 1000);
     expect(t.status).toBe("ACCEPTED");
-    expect(Date.parse(t.graceUntil!)).toBe(T0 + 1000 + WINDOWS.grace);
+    expect(Date.parse(t.graceUntil!)).toBe(T0 + WINDOWS.grace); // от создания (= ончейн accept_deadline), не от accept
     expect(Date.parse(t.executionDeadline!)).toBe(T0 + WINDOWS.executionDefault); // от создания, не от accept
   });
 

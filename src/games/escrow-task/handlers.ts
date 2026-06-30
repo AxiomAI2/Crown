@@ -123,8 +123,15 @@ export const escrowTaskHandlers: GameHandlers = {
       // Трастлесс-сверка ончейн-эскроу (chain-режим): задание без подтверждённого эскроу (нет аккаунта,
       // чужой донор/сумма/mint) не записываем — сервер не верит клиенту (ADR 0017). В mock/api — всегда ок.
       const escrowTaskId = typeof p.escrowTaskId === "string" ? p.escrowTaskId : undefined;
+      // ESC-18: один ончейн-эскроу = одно зеркало. Повторная привязка того же escrowTaskId насчитала бы
+      // репутацию N раз за ОДИН платёж (verifyEscrow пропускает дубль, пока эскроу в Pending) → инфляция §4.4.
+      if (escrowTaskId && loadTasks(ctx).some((t) => t.escrowTaskId === escrowTaskId))
+        throw new GameBusError("ESCROW_REUSED", "Этот эскроу уже привязан к заданию.");
       // ESC-6: вяжем эскроу к payout-адресу ИМЕННО этого канала (streamer) + требуем свежий Pending.
+      // fail-closed: chain-эскроу без payout канала не привязываем (иначе streamer-сверка молча пропущена).
       const streamer = ctx.channelPayout ?? undefined;
+      if (escrowTaskId && !streamer)
+        throw new GameBusError("NO_PAYOUT", "У канала нет payout-адреса — эскроу нельзя привязать.");
       if (escrowTaskId && !(await ctx.verifyEscrow(escrowTaskId, { donor, amount, streamer }))) {
         throw new GameBusError(
           "ESCROW_INVALID",

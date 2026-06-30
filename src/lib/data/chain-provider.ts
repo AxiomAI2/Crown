@@ -25,6 +25,7 @@ import {
   decodeEscrow,
   escrowPda,
 } from "../chain/escrow-tx";
+import { WINDOWS } from "@/games/escrow-task/machine";
 import { resolveTier } from "../reputation";
 import { toMicro } from "../utils";
 import { ApiDataProvider } from "./api-provider";
@@ -536,7 +537,10 @@ export class ChainDataProvider implements DataProvider {
         const card = list.items.find((c) => c.channelId === req.channelId);
         const channel = card ? await this.api.getChannel(card.handle) : null;
         if (!channel) throw new DataError("NO_CHANNEL", "Канал не найден или не активирован.");
-        const executionMs = typeof p.executionMs === "number" ? p.executionMs : 24 * 3600 * 1000;
+        const rawMs = typeof p.executionMs === "number" ? p.executionMs : 24 * 3600 * 1000;
+        // Клампим окно сдачи > грейса (паритет с machine.createTask и ончейн require execution_window >
+        // CANCEL_GRACE, ESC-17) — иначе fund ревертит. То же значение уходит в офчейн-create (без рассинхрона окон).
+        const executionMs = Math.max(rawMs, WINDOWS.grace + 1000);
         const taskId = randomTaskId();
         const ix = await buildFundIx({
           programId,
@@ -550,7 +554,7 @@ export class ChainDataProvider implements DataProvider {
         const fundTx = await this.sendTx([ix]);
         return this.api.gameAction({
           ...req,
-          payload: { ...p, escrowTaskId: toHex(taskId), fundTx },
+          payload: { ...p, executionMs, escrowTaskId: toHex(taskId), fundTx },
         });
       }
 

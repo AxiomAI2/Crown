@@ -15,7 +15,7 @@ const STREAMER = "Streamer";
 const AMOUNT = "5000000"; // 5 USDC → 5 очков; кворум = 5
 const TD = T0 + WINDOWS.grace + 2; // «Готово» — сразу после грейса отмены донора (ESC-13)
 
-function harness(rep: Record<string, number> = {}) {
+function harness(rep: Record<string, number> = {}, channelPayout: string | null = "Payout1") {
   let slice: unknown;
   let counter = 0;
   const ledger: GameLedgerEntry[] = [];
@@ -23,7 +23,7 @@ function harness(rep: Record<string, number> = {}) {
     identity,
     channelId: "ch-1",
     channelOwner: STREAMER,
-    channelPayout: null,
+    channelPayout,
     now: () => new Date(t).toISOString(),
     newId: () => `task-${++counter}`,
     state: {
@@ -125,6 +125,23 @@ describe("ESC-14: claim неполучателем не чеканит репу�
     expect(h.ledger).toEqual([
       { address: "Donor", type: "DONATION", pointsDelta: 5, amount: AMOUNT },
     ]);
+  });
+});
+
+describe("ESC-18 / ESC-6: привязка ончейн-эскроу к каналу", () => {
+  it("ESC-18: повторный escrowTaskId отклоняется (одно зеркало на один платёж)", async () => {
+    const h = harness();
+    await h.run("Donor", T0, "create", { amount: AMOUNT, text: "X", escrowTaskId: "abc123" });
+    await expect(
+      h.run("Donor", T0 + 1, "create", { amount: AMOUNT, text: "Y", escrowTaskId: "abc123" }),
+    ).rejects.toMatchObject({ code: "ESCROW_REUSED" });
+  });
+
+  it("ESC-6 fail-closed: chain-эскроу без payout канала отклоняется", async () => {
+    const h = harness({}, null); // канал без payoutAddress
+    await expect(
+      h.run("Donor", T0, "create", { amount: AMOUNT, text: "X", escrowTaskId: "abc123" }),
+    ).rejects.toMatchObject({ code: "NO_PAYOUT" });
   });
 });
 

@@ -87,9 +87,10 @@
 devnet tx `51o1WLv8uRTwghpo4ZCkLmMSVHuGZJKsjBRq3suDdmtJrJnyyJSpaDZ5DdZ8r65jcuX58gy5VBGUEiaqfTGNm6nS`;
 раунд 2 (ESC-10/ESC-11) — tx `4ev52BPL7AzPUQMuYsxyxYGg7fG8TB3RMoPfmJvK9uJdkwtYc4rND8ERqDV4ygwuMpcASxYinQNSfx12rbytejEz`;
 раунд 3 (ESC-13 контракт; ESC-12 + ESC-6 — серверные) — tx `LDESFuePHUi1CLpPRfz2BzU5E37PLWvtdq5Jb26vccc8mgvpL6YGZgvi8cS6Bv6kuQgDcWJzpoe7avXGQJSTNMB`;
-раунд 4 (ESC-17 контракт; ESC-14/ESC-15/ESC-16 — серверные) — tx `uaryR9At2WrHco7NFVYWRHEcudjq8u6R7uagfwzZbicwfYi4tUzU13npE6y6j12x42A14fA2kd7y9qtkFZYTxhx`.
+раунд 4 (ESC-17 контракт; ESC-14/ESC-15/ESC-16 — серверные) — tx `uaryR9At2WrHco7NFVYWRHEcudjq8u6R7uagfwzZbicwfYi4tUzU13npE6y6j12x42A14fA2kd7y9qtkFZYTxhx`;
+раунд 5 (ESC-18 + ESC-6 fail-closed + кламп окна + `graceUntil` — БЕЗ редеплоя, серверные/клиентские/доки).
 Все исправления подтверждены `scripts/escrow-smoke.ts` (DUST-атака ESC-10; mark_done-в-грейсе ESC-13; bad-window ESC-17)
-и vitest (`handlers.test.ts` — ESC-14 повторный claim неполучателем не чеканит репутацию).
+и vitest (ESC-14 повторный claim не чеканит репутацию; ESC-18 повторный escrowTaskId отклонён; ESC-6 fail-closed).
 
 | ESC | Severity | Находка | Статус | Где исправлено |
 |-----|----------|---------|--------|----------------|
@@ -98,7 +99,7 @@ devnet tx `51o1WLv8uRTwghpo4ZCkLmMSVHuGZJKsjBRq3suDdmtJrJnyyJSpaDZ5DdZ8r65jcuX58
 | ESC-3 | MEDIUM | `resolve_dispute` работал из `Done` без поднятого спора → резолвер мог развернуть любой выполненный эскроу | **закрыто** | `lib.rs → resolve_dispute`: `require!(state == Disputed)`; разворот только после `mark_disputed` |
 | ESC-4 | MEDIUM | `Disputed` — ловушка ликвидности: нет таймаут-выхода, бездействие резолвера = деньги заперты навсегда | **закрыто** | `lib.rs → resolve_timeout`: `Disputed` после `dispute_deadline` → `ToStreamer` (tiebreaker §11), permissionless |
 | ESC-5 | MEDIUM | `cancel` без предела → донор отменял в любой момент до «Готово», обнуляя работу стримера | **закрыто** | `lib.rs → cancel`: `Pending` И `now <= e.accept_deadline` (grace = `CANCEL_GRACE`); `machine.ts → cancel` — то же (`GRACE_OVER`) |
-| ESC-6 | LOW | `verifyEscrowOnChain` сверял donor/amount/mint, но не streamer и не состояние → задание канала C могло ссылаться на эскроу с чужим streamer | **закрыто** | `escrow-verify.ts`: сверяет `e.streamer == channel.payoutAddress` (payout канала прокинут через `GameContext.channelPayout`) + `state == Pending` (свежий эскроу). `resolver`/`treasury` уже неподделываемы (ESC-1) |
+| ESC-6 | LOW | `verifyEscrowOnChain` сверял donor/amount/mint, но не streamer и не состояние → задание канала C могло ссылаться на эскроу с чужим streamer | **закрыто** | `escrow-verify.ts`: сверяет `e.streamer == channel.payoutAddress` (payout канала прокинут через `GameContext.channelPayout`) + `state == Pending`. **fail-closed (раунд 5):** chain-эскроу без payout канала → `create` бросает `NO_PAYOUT` (раньше streamer-сверка молча пропускалась). `resolver`/`treasury` уже неподделываемы (ESC-1) |
 | ESC-7 | LOW | `mint` на цепочке не привязан к USDC — `fund` принимает любой mint | **открыто** (отложено) | смягчено серверной сверкой `mint` (`escrow-verify.ts`); ончейн-пин сломал бы смоук на тестовом mint; вернуть перед mainnet |
 | ESC-8 | INFO | anchor-тест звал удалённую `accept()` — не компилировался | **закрыто** | `anchor/tests/escrow-task.ts` переписан под новую модель (refund + проверка ESC-1); каноническая проверка — `scripts/escrow-smoke.ts` |
 | ESC-9 | INFO | тестовые окна + плейсхолдер program id + нет `emit!`-событий + гонка спора у дедлайна | частично | program id уже реальный (задеплоен); окна — намеренно короткие под тест (`FAST_TEST_WINDOWS` + consts в `lib.rs`, вернуть перед mainnet одной правкой). `emit!` — открыто (INFO; индексер декодирует аккаунты). Гонку дедлайна закрыл ESC-11 |
@@ -110,6 +111,19 @@ devnet tx `51o1WLv8uRTwghpo4ZCkLmMSVHuGZJKsjBRq3suDdmtJrJnyyJSpaDZ5DdZ8r65jcuX58
 | ESC-15 | MEDIUM | гонка двойной банковки (регрессия от async-`settle` ESC-12): фоновый сеттлер и пользовательский claim/settleDue заходят в `settle` по одному заданию, оба ждут RPC, оба банкуют (мьютекса в сторе нет) | **закрыто** | `mock-provider.ts → serializeGameAction`: мутации игры сериализованы по каналу (per-channel очередь) → нет интерливинга на `await` в `settle` |
 | ESC-16 | MEDIUM | ESC-12 неполный: при сбое RPC `escrowOutcome` возвращал `null` → `settle` падал в офчейн-таймер и фиксировал RESOLVED (репутация ≠ деньги; не самолечится) | **закрыто** | `handlers.ts → settle`: `!oc` (null/сбой RPC) для chain-backed задания → ОТКЛАДЫВАЕМ банковку (как present-без-исхода), не по таймеру; сеттлер повторит, когда RPC ответит |
 | ESC-17 | LOW | `fund` не гарантировал `execution_window > CANCEL_GRACE` → донор задаёт окно = грейсу → окно `mark_done` пустое (ESC-13): стример не сдаст никогда → вечный no-show (грифинг + заморозка до возврата) | **закрыто** | `lib.rs → fund`: `require!(execution_window > CANCEL_GRACE)`; зеркало `machine.ts → createTask` клампит нижнюю границу к `grace + 1`. Смоук: fund с окном = грейсу отклонён |
+| ESC-18 | MEDIUM | `create` не проверял уникальность `escrowTaskId` → один профинансированный эскроу (ОДИН платёж) зеркалится в N офчейн-заданий; каждое при `to_streamer` банкует `DONATION` донору → инфляция репутации (§4.4) + удешевление clawback | **закрыто** | `handlers.ts → create`: `escrowTaskId`, уже привязанный к заданию канала, → `ESCROW_REUSED`. Тест `handlers.test.ts` ESC-18 |
+
+Мелочи/робастность (раунд 5): клиентский `execution_window` теперь клампится в `chain-provider.create` к `> grace`
+(паритет с `createTask`/ESC-17 — не шлём заведомо ревертящий `fund`); `graceUntil` задаётся в `createTask` от
+СОЗДАНИЯ (= ончейн `accept_deadline`), `accept` его не переопределяет (раньше писал `acceptedAt+grace`, расходясь
+с реальным окном отмены и сбивая UI-гейт кнопки отмены).
+
+Известно открытым (не патч, отдельные сборки/политика): **M3** — «репутация ≠ деньги», если эскроу закрыт до того,
+как сеттлер прочитал `resolution` (ветка `present=false → due`); полное закрытие — event-индексер (декод `resolution`
+из логов до закрытия аккаунта). **ESC-18 — частный случай M3, закрыт точечно.** Модерация задания fail-open (только
+HARD_BLOCK; без `OPENAI_API_KEY` → CLEAR кроме CSAM) — осознанный размен (память проекта), флаг §12 к mainnet.
+Спека §5 разошлась с реализацией (нет «72ч окна принятия»/«грейса после принятия» — срок сдачи и грейс от СОЗДАНИЯ);
+учтено здесь, чтобы будущий аудитор не искал несуществующее окно.
 
 Подтверждено корректным (контр-аудит): получатели зашиты в PDA и читаются в `claim` только из `escrow`
 (даже резолвер не направит деньги третьему — держит некастодиальность маршрутизации); `overflow-checks`;
