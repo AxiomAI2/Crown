@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Amount } from "@/components/domain/amount";
 import { StandingHeadline } from "@/components/domain/standing";
 import { Button } from "@/components/ui/button";
@@ -28,27 +28,41 @@ const MIN = H / 60;
 const DAY = 24 * H;
 const UNIT_MS: Record<"m" | "h" | "d", number> = { m: MIN, h: H, d: DAY };
 
-/** Человеческое «осталось …» до момента iso (для таймера дедлайна на карточке). */
-function until(iso: string): string {
-  const ms = Date.parse(iso) - Date.now();
-  if (ms <= 0) return "срок истёк";
-  const h = Math.floor(ms / H);
-  if (h >= 24) return `осталось ~${Math.floor(h / 24)} дн`;
-  if (h >= 1) return `осталось ~${h} ч`;
-  return `осталось ~${Math.max(1, Math.floor(ms / 60_000))} мин`;
+/** Живой таймстамп: тикает раз в секунду → таймеры на карточке идут в реальном времени (real-time). */
+function useNow(intervalMs = 1000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
 }
 
-/** Какой дедлайн сейчас тикает (по стадии) — подпись для карточки. */
-function deadlineLabel(task: EscrowTask): string | null {
+/** Обратный отсчёт до iso: «M:SS» посекундно (под короткие окна), ч/дн — для длинных. `now` — живой. */
+function until(iso: string, now: number): string {
+  const left = Date.parse(iso) - now;
+  if (left <= 0) return "срок истёк";
+  const s = Math.floor(left / 1000);
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (d > 0) return `осталось ${d}д ${h}ч`;
+  if (h > 0) return `осталось ${h}ч ${m.toString().padStart(2, "0")}м`;
+  return `осталось ${m}:${sec.toString().padStart(2, "0")}`;
+}
+
+/** Какой дедлайн сейчас тикает (по стадии) — живая подпись для карточки. */
+function deadlineLabel(task: EscrowTask, now: number): string | null {
   switch (task.status) {
     case "PENDING":
-      return `Принять до · ${until(task.acceptDeadline)}`;
+      return `Принять до · ${until(task.acceptDeadline, now)}`;
     case "ACCEPTED":
-      return task.executionDeadline ? `Выполнить · ${until(task.executionDeadline)}` : null;
+      return task.executionDeadline ? `Выполнить · ${until(task.executionDeadline, now)}` : null;
     case "DONE":
-      return task.disputeWindowEndsAt ? `Оспорить до · ${until(task.disputeWindowEndsAt)}` : null;
+      return task.disputeWindowEndsAt ? `Оспорить до · ${until(task.disputeWindowEndsAt, now)}` : null;
     case "DISPUTED":
-      return task.dispute ? `Голосование · ${until(task.dispute.votingEndsAt)}` : null;
+      return task.dispute ? `Голосование · ${until(task.dispute.votingEndsAt, now)}` : null;
     default:
       return null;
   }
@@ -332,7 +346,7 @@ function TaskCard({
   pending: boolean;
   run: Run;
 }) {
-  const now = Date.now();
+  const now = useNow(); // живой — таймеры и появление кнопок (claim/резолв) в реальном времени
   const due = task.status !== "RESOLVED" ? dueResolution(task, now) : null;
   const final = task.resolution ?? null;
   const effective = final ?? due;
@@ -378,8 +392,8 @@ function TaskCard({
         <p className="text-small text-fg-faint">
           По времени готово к разрешению: {outcomeLabel(due.outcome)}.
         </p>
-      ) : !final && deadlineLabel(task) ? (
-        <p className="text-small text-fg-faint">{deadlineLabel(task)}</p>
+      ) : !final && deadlineLabel(task, now) ? (
+        <p className="text-small mono text-fg-faint">{deadlineLabel(task, now)}</p>
       ) : null}
       {task.dispute ? (
         <>
