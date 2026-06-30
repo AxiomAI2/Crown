@@ -21,7 +21,7 @@ use anchor_spl::{
 };
 
 // Заглушка program id (валидный base58); реальный — `anchor keys sync` при деплое.
-declare_id!("11111111111111111111111111111111");
+declare_id!("GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4");
 
 // — Протокольные константы (спека §10: окна/комиссия — НЕ рычаг донора) —
 const FEE_BPS: u64 = 300; // 3% с дошедшего доната (§13); на возврат донору комиссии нет (§6).
@@ -143,12 +143,25 @@ pub mod escrow_task {
         Ok(())
     }
 
+    /// Резолвер помечает эскроу СПОРНЫМ (поднят оффчейн-спор) → `resolve_timeout` его больше не трогает,
+    /// пока резолвер не закроет спор через `resolve_dispute`. Закрывает гонку «таймаут опередил голосование»
+    /// (ADR 0017). Devnet-only bounded-резолвер; на мейннете — ончейн-голосование (G3b).
+    pub fn mark_disputed(ctx: Context<ResolveDispute>) -> Result<()> {
+        let e = &mut ctx.accounts.escrow;
+        require!(e.state == TaskState::Done as u8, EscrowError::BadState);
+        e.state = TaskState::Disputed as u8;
+        Ok(())
+    }
+
     /// Резолв СПОРА (G3a, bounded): только зафиксированный `resolver` и только выбор стороны.
     /// Получатели/сумма зашиты в эскроу — украсть/перенаправить нельзя. Devnet-only (ADR 0017); на
     /// мейннете заменяется ончейн commit-reveal голосованием (G3b).
     pub fn resolve_dispute(ctx: Context<ResolveDispute>, to_streamer: bool) -> Result<()> {
         let e = &mut ctx.accounts.escrow;
-        require!(e.state == TaskState::Done as u8, EscrowError::BadState);
+        require!(
+            e.state == TaskState::Done as u8 || e.state == TaskState::Disputed as u8,
+            EscrowError::BadState
+        );
         require!(
             e.resolution == Resolution::Unresolved as u8,
             EscrowError::AlreadyResolved
@@ -267,6 +280,7 @@ pub enum TaskState {
     Accepted = 1,
     Done = 2,
     Resolved = 3,
+    Disputed = 4, // оффчейн-спор поднят; resolve_timeout заблокирован до resolve_dispute (ADR 0017)
 }
 
 #[derive(Clone, Copy, PartialEq)]

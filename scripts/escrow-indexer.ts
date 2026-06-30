@@ -19,7 +19,7 @@ const MINT = new PublicKey(
 );
 // Размер аккаунта Escrow = 8 (Anchor-дискриминатор) + INIT_SPACE(235) — фильтруем по нему.
 const ESCROW_SIZE = 243;
-const STATE = ["Pending", "Accepted", "Done", "Resolved"];
+const STATE = ["Pending", "Accepted", "Done", "Resolved", "Disputed"];
 const RES = ["Unresolved", "ToStreamer", "ToDonor"];
 const short = (s: string) => `${s.slice(0, 4)}…${s.slice(-4)}`;
 const usdc = (micro: bigint) => `${(Number(micro) / 1e6).toFixed(2)} USDC`;

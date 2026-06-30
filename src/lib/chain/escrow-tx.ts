@@ -27,6 +27,7 @@ const DISC = {
   markDone: [112, 146, 215, 90, 40, 16, 44, 149], // mark_done
   cancel: [232, 219, 223, 41, 219, 236, 220, 190],
   resolveTimeout: [149, 55, 89, 144, 121, 143, 48, 210], // resolve_timeout
+  markDisputed: [136, 86, 152, 120, 3, 21, 223, 251], // mark_disputed
   resolveDispute: [231, 6, 202, 6, 96, 103, 12, 230], // resolve_dispute
   claimStreamer: [126, 138, 229, 228, 43, 41, 147, 179], // claim_streamer
   claimDonor: [50, 4, 6, 190, 27, 110, 39, 211], // claim_donor
@@ -151,6 +152,18 @@ export function buildResolveTimeoutIx(programId: PublicKey, caller: PublicKey, t
     data: disc(DISC.resolveTimeout),
     keys: [
       { pubkey: caller, isSigner: true, isWritable: false },
+      { pubkey: escrowPda(programId, taskId), isSigner: false, isWritable: true },
+    ],
+  });
+}
+
+/** `mark_disputed` (bounded резолвер): пометить эскроу спорным → resolve_timeout блокируется до резолва. */
+export function buildMarkDisputedIx(programId: PublicKey, resolver: PublicKey, taskId: TaskId) {
+  return new TransactionInstruction({
+    programId,
+    data: disc(DISC.markDisputed),
+    keys: [
+      { pubkey: resolver, isSigner: true, isWritable: false },
       { pubkey: escrowPda(programId, taskId), isSigner: false, isWritable: true },
     ],
   });
