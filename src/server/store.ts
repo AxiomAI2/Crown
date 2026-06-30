@@ -1,4 +1,5 @@
 import { MockDataProvider, type StoreSnapshot } from "@/lib/data/mock-provider";
+import { readEscrowOutcome, verifyEscrowOnChain } from "@/server/escrow-verify";
 import { startIndexer } from "@/server/indexer-service";
 import { readSnapshot } from "@/server/persist";
 import { currentIdentity } from "@/server/request-context";
@@ -30,6 +31,10 @@ async function init(): Promise<MockDataProvider> {
   const store = new MockDataProvider();
   // H3: личность запроса — из per-request AsyncLocalStorage (request-context), а не из мутируемого поля.
   store.__setIdentityResolver(() => currentIdentity() ?? null);
+  // Серверные хуки сверки эскроу (ADR 0017/ESC-12): инжектим ТОЛЬКО здесь (store.ts — серверный модуль), чтобы
+  // `@/server/escrow-verify` → store-db → PGlite/node:path не утягивались в клиентский бандл mock-провайдера.
+  store.verifyEscrowHook = (id, expect) => verifyEscrowOnChain(id, expect);
+  store.escrowOutcomeHook = (id) => readEscrowOutcome(id);
 
   const snap = await loadStore();
   if (snap) {

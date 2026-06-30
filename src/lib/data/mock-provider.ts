@@ -1134,6 +1134,15 @@ export class MockDataProvider implements DataProvider {
   async gameQuery(req: GameRequest): Result<unknown> {
     return this.dispatchGameOp("query", req);
   }
+  // Серверные хуки сверки эскроу (chain). Инжектятся из store.ts (сервер), чтобы серверный граф
+  // (`@/server/escrow-verify` → store-db → PGlite/node:path) не попадал в клиентский бандл. В браузере/mock
+  // не заданы → verifyEscrow=true, escrowOutcome отсутствует (эскроу нет).
+  verifyEscrowHook?: (
+    escrowTaskId: string,
+    expect: { donor: string; amount: string; streamer?: string },
+  ) => Promise<boolean>;
+  escrowOutcomeHook?: (escrowTaskId: string) => Promise<"to_streamer" | "to_donor" | null>;
+
   // Очереди сериализации операций над общим in-memory стором: мутации игры по gameId (ESC-15; слайс игры
   // один на ВСЕ каналы) и приём доната по подписи (B1). Закрывают гонки «прочитал → await → записал»
   // (двойная банковка, потеря обновлений) — один писатель на ключ за раз. Рост ограничен числом ключей.
@@ -1192,20 +1201,11 @@ export class MockDataProvider implements DataProvider {
         reputationAsOf: (address, asOf) =>
           computePointsAsOf(this.eventsFor(address, req.channelId), asOf),
         moderate: (text) => classifyTaskText(text),
-        // Трастлесс-сверка эскроу (ADR 0017): на сервере читаем devnet (динамический импорт — web3.js не
-        // тащим в клиентский mock-бандл); в браузере (mock) эскроу нет → true.
-        verifyEscrow: async (escrowTaskId, expect) => {
-          if (typeof window !== "undefined") return true;
-          const { verifyEscrowOnChain } = await import("@/server/escrow-verify");
-          return verifyEscrowOnChain(escrowTaskId, expect);
-        },
-        // ESC-12: ончейн-исход эскроу для реконсайла репутации (деньги = истина). На сервере читает devnet;
-        // null (браузер / сбой RPC) → settle ОТКЛАДЫВАЕТ банковку chain-backed задания (ESC-16), не по таймеру.
-        escrowOutcome: async (escrowTaskId) => {
-          if (typeof window !== "undefined") return null;
-          const { readEscrowOutcome } = await import("@/server/escrow-verify");
-          return readEscrowOutcome(escrowTaskId);
-        },
+        // Серверные хуки сверки эскроу (ADR 0017/ESC-12) ИНЖЕКТЯТСЯ из store.ts (сервер) — так серверный DB/
+        // web3.js-граф (`@/server/escrow-verify` → store-db → PGlite/node:path) НЕ попадает в клиентский бандл
+        // mock-провайдера. В браузере/mock хуки не заданы → verifyEscrow=true, escrowOutcome отсутствует (эскроу нет).
+        verifyEscrow: this.verifyEscrowHook ?? (async () => true),
+        escrowOutcome: this.escrowOutcomeHook,
         bankLedger: (entries) => {
           for (const e of entries) {
             this.ledger.push({
