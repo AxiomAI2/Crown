@@ -503,23 +503,33 @@ export async function loadStore(): Promise<StoreSnapshot | null> {
  */
 export async function saveStore(snap: StoreSnapshot): Promise<void> {
   const db = await getDb();
-  await saveChannels(
-    db,
-    snap.channelsById.map(([, c]) => c),
-  );
-  await saveConfigs(db, new Map(snap.configsByChannel));
-  await saveProfiles(db, new Map(snap.profiles));
-  await saveLedger(db, snap.ledger);
-  await saveDonations(db, snap.donations);
-  await saveMessages(db, new Map(snap.messages));
-  await db.exec("DELETE FROM channel_blocks");
-  await saveBlocks(db, snap.blocks);
-  await saveOperatorActions(db, snap.operatorActions);
-  await saveIncidents(db, snap.incidents);
-  await saveReports(db, snap.reports);
-  await saveGameState(db, snap.gameState);
-  await saveSeq(db, snap.seq);
-  await db.query(
-    "INSERT INTO meta (key, value) VALUES ('initialized', '1') ON CONFLICT (key) DO NOTHING",
-  );
+  // B2: весь снимок пишем В ОДНОЙ ТРАНЗАКЦИИ. Иначе краш между `DELETE channel_blocks` и повторной вставкой
+  // потерял бы все баны каналов (контроль безопасности), а частичная запись дала бы «рваный» снимок.
+  // PGlite — одно соединение, поэтому BEGIN/COMMIT на `db` оборачивает и все save*-хелперы (им передаём тот же `db`).
+  await db.exec("BEGIN");
+  try {
+    await saveChannels(
+      db,
+      snap.channelsById.map(([, c]) => c),
+    );
+    await saveConfigs(db, new Map(snap.configsByChannel));
+    await saveProfiles(db, new Map(snap.profiles));
+    await saveLedger(db, snap.ledger);
+    await saveDonations(db, snap.donations);
+    await saveMessages(db, new Map(snap.messages));
+    await db.exec("DELETE FROM channel_blocks");
+    await saveBlocks(db, snap.blocks);
+    await saveOperatorActions(db, snap.operatorActions);
+    await saveIncidents(db, snap.incidents);
+    await saveReports(db, snap.reports);
+    await saveGameState(db, snap.gameState);
+    await saveSeq(db, snap.seq);
+    await db.query(
+      "INSERT INTO meta (key, value) VALUES ('initialized', '1') ON CONFLICT (key) DO NOTHING",
+    );
+    await db.exec("COMMIT");
+  } catch (e) {
+    await db.exec("ROLLBACK");
+    throw e;
+  }
 }

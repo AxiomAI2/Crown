@@ -17,7 +17,6 @@ export interface AutoModerator {
 // скрывает вручную. Авто-слой ловит только запрещёнку → HARD_BLOCK (карантин + эскалация в T&S). FLAG-
 // словаря по умолчанию НЕТ. Семантический детект — OpenAI (ниже); локальный список — заглушка под явные маркеры.
 const DEFAULT_HARD_LIST = ["csam", "childporn", "child porn", "zoophilia", "hardblock"];
-const DEFAULT_FLAG_LIST: string[] = [];
 
 // Явные маркеры CSAM (RU/EN) — backstop НЕЗАВИСИМО от OpenAI: он недооценивает обходные формулировки
 // (напр. «порнография младше 18» даёт sexual/minors≈0.02, хотя «детское порно» ловит на 0.9).
@@ -35,12 +34,11 @@ function isExplicitCsam(text: string): boolean {
 }
 
 /** Локальный авто-модератор: ловит хард-маркеры запрещёнки/CSAM; мат/любые слова пропускает (CLEAR). */
-export const localAutoModerator: AutoModerator = {
+const localAutoModerator: AutoModerator = {
   async classify(text) {
     const lower = text.toLowerCase();
     if (isExplicitCsam(text) || DEFAULT_HARD_LIST.some((w) => lower.includes(w)))
       return "HARD_BLOCK";
-    if (DEFAULT_FLAG_LIST.some((w) => lower.includes(w))) return "FLAG";
     return "CLEAR";
   },
 };
@@ -135,7 +133,7 @@ async function fetchOpenAiModeration(
  * (HARD_ALWAYS) → карантин по флагу; жёсткие угрозы/насилие — лишь при score ≥ SEVERE_THRESHOLD (шутки
  * проходят). На сбое — FLAG (текст в HELD на ручное решение, деньги не трогаем).
  */
-export function createOpenAiModerator(apiKey: string): AutoModerator {
+function createOpenAiModerator(apiKey: string): AutoModerator {
   return {
     async classify(text) {
       if (isExplicitCsam(text)) return "HARD_BLOCK"; // явный CSAM — до запроса
@@ -155,12 +153,14 @@ export function createOpenAiModerator(apiKey: string): AutoModerator {
 }
 
 // Доступ к моделям может быть закрыт (ограниченный ключ без scope model.request → 401, или нет биллинга).
-// Тогда отключаем LLM-проверку до перезапуска: не долбим эндпоинт и не тормозим создание каждого задания.
-let llmLegalityDisabled = false;
+// Тогда временно отключаем LLM-проверку (КУЛДАУН, не навсегда — B6): транзиентный 401/403 не должен глушить
+// слой легальности до перезапуска. По истечении кулдауна сами пробуем снова → самовосстановление.
+const LLM_LEGALITY_COOLDOWN_MS = 10 * 60_000; // 10 мин
+let llmLegalityCooldownUntil = 0;
 
 /** LLM-классификатор легальности задания (gpt-4o-mini, дёшево). null — не смогли проверить. Только сервер. */
 async function llmTaskLegality(apiKey: string, text: string): Promise<"illegal" | "ok" | null> {
-  if (llmLegalityDisabled) return null;
+  if (Date.now() < llmLegalityCooldownUntil) return null;
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -176,9 +176,9 @@ async function llmTaskLegality(apiKey: string, text: string): Promise<"illegal" 
       }),
     });
     if (res.status === 401 || res.status === 403) {
-      llmLegalityDisabled = true;
+      llmLegalityCooldownUntil = Date.now() + LLM_LEGALITY_COOLDOWN_MS;
       console.error(
-        "[moderation] LLM-проверка легальности недоступна (ключ без доступа к моделям) — отключаю до перезапуска",
+        "[moderation] LLM-проверка легальности недоступна (ключ без доступа к моделям) — пауза на 10 мин",
       );
       return null;
     }
@@ -233,7 +233,7 @@ export function resolveAutoModerator(): AutoModerator {
   return cachedModerator;
 }
 
-export function detectLang(text: string): string {
+function detectLang(text: string): string {
   if (/[¡¿]|gracias|directo/i.test(text)) return "es";
   if (/[а-яё]/i.test(text)) return "ru";
   return "en";

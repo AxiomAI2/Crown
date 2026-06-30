@@ -140,6 +140,36 @@ devnet tx `51o1WLv8uRTwghpo4ZCkLmMSVHuGZJKsjBRq3suDdmtJrJnyyJSpaDZ5DdZ8r65jcuX58
 
 ---
 
+## 6. Независимый аудит бэкенда (пространство имён **B**)
+
+Параллельный аудит 5 агентов по зонам (приём денег, авторизация/RPC, стор/репутация, персистентность/модерация,
+минимализм); каждая находка перепроверена по коду вручную. Денежный путь и авторизация по сути держатся (подделки
+доната/личности, обхода вайтлиста, SQL-инъекций, утечки приватного текста — нет). Найдено и **исправлено** (всё
+off-chain, без редеплоя; 69 тестов + typecheck + lint зелёные):
+
+| B | Severity | Находка | Где исправлено |
+|---|----------|---------|----------------|
+| B1 | MEDIUM | гонка двойного зачисления: `recordDonationFromChain` дедупил по подписи через «нашёл→await(модерация)→записал» без сериализации → 2 параллельных приёма одной подписи (RPC + индексер) зачисляли донат+репутацию дважды | `mock-provider.ts`: `recordDonationFromChain` обёрнут в `runSerialized(ingestTails, signature, …)` (тот же механизм, что ESC-15) |
+| B2 | MEDIUM | `saveStore` не транзакционный: `DELETE channel_blocks`+вставка без BEGIN/COMMIT → краш теряет все баны каналов | `store-db.ts`: весь снимок в одной транзакции (BEGIN/COMMIT/ROLLBACK на едином PGlite-соединении) |
+| B3 | MEDIUM | escrow event-индексер двигал курсор при `null`-tx (транзиентный RPC) → исход claim'а пропускался навсегда (хвост M3) | `indexer-service.ts → scanEscrowClaims`: `if (!tx) break` — не двигаем курсор, повторим |
+| B4 | MEDIUM | нет лимита длины текста у `createDonation`/`precheckText` (chain-приём капал, off-chain нет) → DoS/амплификация OpenAI | `mock-provider.ts`: `createDonation` отклоняет `> messageMaxLen`; `precheckText` режет до лимита перед модерацией |
+| B5 | MEDIUM | нет рейт-лимита на `__authNonce`/`__authVerify` (availability, не подделка) | `auth.ts`: `prune` и так чистит протухшие первыми; поднят `MAX_NONCES` (запас). **Настоящая защита — рейт-лимит на краю (Cloudflare/nginx)**, не app-код — задокументировано |
+| B6 | LOW→MED | `llmLegalityDisabled` — вечная защёлка: один 401/403 глушил legality-LLM до перезапуска | `moderation.ts`: кулдаун 10 мин вместо защёлки (самовосстановление) |
+| B7 | LOW | chain-приём не проверял мин. сумму доната (off-chain проверяет) — обход спам-порога/текст-порога | `ingest.ts`: `amountMicro < cfg.minDonation` → отказ; текст требует `≥ minDonationWithText` |
+
+Ложная тревога (отклонена на перепроверке): «донат-индексер теряет tx при throw» — НЕВЕРНО: `setMeta(курсор)`
+стоит после успешной обработки, при throw курсор остаётся на последнем успехе, бросивший sig подтянется на
+следующем опросе (`until` эксклюзивный).
+
+Минимализм (мёртвый код удалён, поведение неизменно): снят `parseActivationTx` (0 ссылок), `USDC_MINT_MAINNET`
+(0 ссылок), мёртвая ветка `DEFAULT_FLAG_LIST`; сняты лишние `export` (`isValidAddress`, `localAutoModerator`,
+`createOpenAiModerator`, `detectLang`, `EscrowOutcome`, `ACTIVATION_FEE_USDC`).
+
+Известный пробел тестов: data-слой (`mock-provider`, `ingest`) и `auth` не покрыты прямыми юнит-тестами —
+рекомендуется добавить (B1-гонка, B4-кап, SIWS-nonce). B1 опирается на уже доказанный сериализатор ESC-15.
+
+---
+
 ## 5. Как читать код под аудит
 
 - Денежный путь: `chain-provider.ts` (сборка/подпись) → цепочка → `ingest.ts` (трастлесс-приём) →

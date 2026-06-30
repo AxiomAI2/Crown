@@ -54,12 +54,21 @@ export async function ingestSignature(
     return { ok: false, reason: "97%-нога ушла не на payout канала" };
   }
 
-  // Трастлесс-привязка текста: memo.m несёт contentHash(текста). Принимаем текст ТОЛЬКО если его хэш
-  // совпал с ончейн-memo (донор подписал именно его) И длина в пределах лимита канала (R5/ADR 0012 — иначе
-  // донор прислал бы мегабайты на хранение/модерацию/SSE). Иначе текст игнорируем — деньги/репутация не зависят.
-  const maxLen = (await store.getChannelConfig(channelId)).messageMaxLen;
+  const cfg = await store.getChannelConfig(channelId);
+  // B7: ниже минимума канала донат не принимаем (паритет с off-chain createDonation — анти-спам). Деньги
+  // реальны, но политику спам-порога держим одинаковой на обоих путях.
+  if (indexed.amountMicro < cfg.minDonation) {
+    return { ok: false, reason: "сумма доната ниже минимума канала" };
+  }
+  // Трастлесс-привязка текста: memo.m несёт contentHash(текста). Принимаем текст ТОЛЬКО если его хэш совпал
+  // с ончейн-memo (донор подписал именно его), длина в пределах лимита канала (R5/ADR 0012) И сумма ≥
+  // minDonationWithText (как off-chain — текст требует порога). Иначе текст игнорируем — деньги/репутация не зависят.
   const verifiedText =
-    text && text.length <= maxLen && indexed.memo.m && hashContent(text) === indexed.memo.m
+    text &&
+    text.length <= cfg.messageMaxLen &&
+    indexed.amountMicro >= cfg.minDonationWithText &&
+    indexed.memo.m &&
+    hashContent(text) === indexed.memo.m
       ? text
       : undefined;
 

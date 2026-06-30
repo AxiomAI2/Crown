@@ -38,7 +38,10 @@ async function scanEscrowClaims(connection: Connection, programId: PublicKey): P
   let wrote = false;
   for (const sig of sigs) {
     const tx = await connection.getParsedTransaction(sig, { maxSupportedTransactionVersion: 0 });
-    const ixs = (tx?.transaction.message.instructions ?? [])
+    // B3: tx ещё не отдалась (транзиентный RPC / не доехала до confirmed) → НЕ двигаем курсор, повторим на
+    // следующем опросе. Иначе claim-исход был бы пропущен навсегда → репутация по эскроу не начислится.
+    if (!tx) break;
+    const ixs = tx.transaction.message.instructions
       .filter((ix): ix is PartiallyDecodedInstruction => "data" in ix && "accounts" in ix)
       .map((ix) => ({ programId: ix.programId, accounts: ix.accounts, data: ix.data }));
     for (const { escrow, outcome } of decodeEscrowClaims(programId, ixs)) {

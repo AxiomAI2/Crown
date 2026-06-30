@@ -23,7 +23,10 @@ const SESSION_TTL_MS = 12 * 60 * 60_000; // 12 часов
 // M1 (аудит): домен в SIWS-сообщении — пользователь видит, куда входит, и подпись не переносится меж-app.
 const SIWS_DOMAIN = process.env.APP_DOMAIN ?? "standing.local";
 // M1: жёсткие потолки на in-memory сторы — `__authNonce` неаутентифицирован, иначе рост памяти безграничен.
-const MAX_NONCES = 5_000;
+// B5: `prune` чистит ПРОТУХШИЕ первыми, поэтому честный nonce вытесняется (FIFO) лишь при > MAX_NONCES ЖИВЫХ
+// одновременно — это требует устойчивого спрея многими адресами. Держим запас (записи крошечные); НАСТОЯЩАЯ
+// защита неаутентифицированного эндпоинта от флуда — рейт-лимит на краю (Cloudflare/nginx), не в app-коде.
+const MAX_NONCES = 50_000;
 const MAX_SESSIONS = 50_000;
 
 interface NonceRec {
@@ -77,7 +80,7 @@ function siwsFields(issuedAt: number, exp: number): SiwsFields {
 }
 
 /** Валидный ли это base58 Solana-адрес на кривой ed25519 (авторитетная проверка, в отличие от формата). */
-export function isValidAddress(address: string): boolean {
+function isValidAddress(address: string): boolean {
   try {
     // PublicKey бросает на кривом base58; isOnCurve отсекает PDA/мусор (у входящего кошелька ключ на кривой).
     return PublicKey.isOnCurve(new PublicKey(address).toBytes());

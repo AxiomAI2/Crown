@@ -6,7 +6,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 /** M3: префикс meta-ключа, под которым event-индексер пишет ончейн-исход эскроу по его PDA (base58). */
 export const ESCROW_OUTCOME_META_PREFIX = "escrowOutcome:";
 
-export type EscrowOutcome = "to_streamer" | "to_donor";
+type EscrowOutcome = "to_streamer" | "to_donor";
 
 /**
  * Прочитать эскроу-аккаунт по hex `task_id`. Возвращает `{ pda, escrow }` — `escrow=null`, если аккаунт

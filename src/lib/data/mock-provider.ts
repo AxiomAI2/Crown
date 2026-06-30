@@ -687,6 +687,10 @@ export class MockDataProvider implements DataProvider {
     if (!ch) throw new DataError("NO_CHANNEL", "Канал не найден.");
     const cfg = this.latestConfig(input.channelId);
     const hasText = Boolean(input.text && input.text.trim());
+    // B4: лимит длины текста (как трастлесс-приём в server/ingest.ts) — иначе мегабайтный текст осел бы в
+    // сторе и каждый раз гонялся в OpenAI-модерацию (DoS/амплификация).
+    if (hasText && input.text!.trim().length > cfg.messageMaxLen)
+      throw new DataError("TEXT_TOO_LONG", "Текст доната превышает лимит канала.");
     const amount = toMicro(input.amountUSDC);
     const min = hasText ? cfg.minDonationWithText : cfg.minDonation;
     if (amount < min) throw new DataError("BELOW_MIN", "Сумма ниже минимума канала.");
@@ -724,30 +728,35 @@ export class MockDataProvider implements DataProvider {
     netMicro: bigint;
     text?: string;
   }): Promise<DonationResult | null> {
-    const existing = this.donations.find((d) => d.txSignature === params.signature);
-    if (existing) {
-      const blocked = this.blocks.some(
-        (b) => b.channelId === existing.channelId && b.blockedAddress === existing.donor,
-      );
-      if (params.text && !existing.message && !blocked) {
-        // Поздняя привязка текста к уже принятому донату (клиент/индексер пришли в разном порядке).
-        await this.buildMessage(existing, params.text, this.now());
-        const standing = this.standingFor(existing.channelId, existing.donor)!; // донат уже в журнале
-        return { donation: existing, standing, tierChanged: false }; // R7 (ADR 0012): успех, а не null
+    // B1: сериализуем по подписи — дедуп ниже это «нашёл → await(модерация) → записал», и без очереди два
+    // параллельных приёма одной подписи (клиентский RPC + опрос индексера) оба прошли бы find и записали
+    // донат+репутацию дважды за один платёж. Очередь по подписи → второй увидит existing (дедуп/поздний текст).
+    return this.runSerialized(this.ingestTails, params.signature, async () => {
+      const existing = this.donations.find((d) => d.txSignature === params.signature);
+      if (existing) {
+        const blocked = this.blocks.some(
+          (b) => b.channelId === existing.channelId && b.blockedAddress === existing.donor,
+        );
+        if (params.text && !existing.message && !blocked) {
+          // Поздняя привязка текста к уже принятому донату (клиент/индексер пришли в разном порядке).
+          await this.buildMessage(existing, params.text, this.now());
+          const standing = this.standingFor(existing.channelId, existing.donor)!; // донат уже в журнале
+          return { donation: existing, standing, tierChanged: false }; // R7 (ADR 0012): успех, а не null
+        }
+        return null; // дубль подписи без нового текста — идемпотентно, добавлять нечего
       }
-      return null; // дубль подписи без нового текста — идемпотентно, добавлять нечего
-    }
-    const ch = this.channelsById.get(params.channelId);
-    if (!ch) return null;
-    return this.record({
-      channelId: params.channelId,
-      donor: params.donor,
-      amount: params.amountMicro,
-      fee: params.feeMicro,
-      net: params.netMicro,
-      signature: params.signature,
-      text: params.text,
-      textShowMode: this.latestConfig(params.channelId).textShowMode,
+      const ch = this.channelsById.get(params.channelId);
+      if (!ch) return null;
+      return this.record({
+        channelId: params.channelId,
+        donor: params.donor,
+        amount: params.amountMicro,
+        fee: params.feeMicro,
+        net: params.netMicro,
+        signature: params.signature,
+        text: params.text,
+        textShowMode: this.latestConfig(params.channelId).textShowMode,
+      });
     });
   }
 
@@ -867,7 +876,13 @@ export class MockDataProvider implements DataProvider {
     }
     const t = (text ?? "").trim();
     if (!t) return { blocked: false };
-    const hard = (await resolveAutoModerator().classify(t, "")) === "HARD_BLOCK";
+    // B4: не отправляем в модерацию неограниченный текст (DoS/амплификация OpenAI) — режем до лимита канала
+    // (тот же текст потом всё равно капается в createDonation). Без канала — разумный потолок.
+    const maxLen =
+      channelId && this.configsByChannel.has(channelId)
+        ? this.latestConfig(channelId).messageMaxLen
+        : 2000;
+    const hard = (await resolveAutoModerator().classify(t.slice(0, maxLen), "")) === "HARD_BLOCK";
     return hard ? { blocked: true, reason: "content" } : { blocked: false };
   }
 
@@ -1119,19 +1134,21 @@ export class MockDataProvider implements DataProvider {
   async gameQuery(req: GameRequest): Result<unknown> {
     return this.dispatchGameOp("query", req);
   }
-  /** ESC-15: хвост очереди сериализации мутаций игры по gameId (слайс игры один на ВСЕ каналы; рост ограничен). */
+  // Очереди сериализации операций над общим in-memory стором: мутации игры по gameId (ESC-15; слайс игры
+  // один на ВСЕ каналы) и приём доната по подписи (B1). Закрывают гонки «прочитал → await → записал»
+  // (двойная банковка, потеря обновлений) — один писатель на ключ за раз. Рост ограничен числом ключей.
   private gameActionTails = new Map<string, Promise<void>>();
-  /**
-   * Сериализует мутацию игры по ключу очереди: следующая ждёт предыдущую. Ключ = `gameId`, потому что слайс
-   * состояния игры один на ВСЕ каналы (`gameState.get(gameId)`) — лок по каналу не спас бы от гонки между
-   * каналами (read→await(RPC)→write всего массива). Закрывает и двойную банковку, и потерю обновлений:
-   * фоновый сеттлер и пользовательские create/vote/claim/settleDue не перетрут общий слайс устаревшим снимком.
-   */
-  private serializeGameAction<T>(key: string, run: () => Promise<T>): Promise<T> {
-    const prev = this.gameActionTails.get(key) ?? Promise.resolve();
+  private ingestTails = new Map<string, Promise<void>>();
+  /** Сериализует операцию по ключу в указанной очереди: следующая ждёт предыдущую. */
+  private runSerialized<T>(
+    tails: Map<string, Promise<void>>,
+    key: string,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    const prev = tails.get(key) ?? Promise.resolve();
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
-    this.gameActionTails.set(
+    tails.set(
       key,
       prev.then(() => gate),
     );
@@ -1142,6 +1159,9 @@ export class MockDataProvider implements DataProvider {
         release();
       }
     });
+  }
+  private serializeGameAction<T>(gameId: string, run: () => Promise<T>): Promise<T> {
+    return this.runSerialized(this.gameActionTails, gameId, run);
   }
 
   /**

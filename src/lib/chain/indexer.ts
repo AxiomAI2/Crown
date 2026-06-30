@@ -115,18 +115,6 @@ export interface IndexedActivation {
   blockTime: number | null;
 }
 
-export async function parseActivationTx(
-  connection: Connection,
-  signature: string,
-  opts: { mint: PublicKey; treasuryAta: PublicKey; commitment?: "confirmed" | "finalized" },
-): Promise<IndexedActivation | null> {
-  const tx = await connection.getParsedTransaction(signature, {
-    commitment: opts.commitment ?? "confirmed",
-    maxSupportedTransactionVersion: 0,
-  });
-  return extractActivation(tx, signature, opts);
-}
-
 /**
  * Чистый разбор сбора активации: ищет transferChecked нужного mint в treasuryAta + memo `{act}`.
  * Сумму НЕ валидирует здесь (порог проверяет ingest против ACTIVATION_FEE_MICRO). Выделено для тестов.
