@@ -580,36 +580,31 @@ export class ChainDataProvider implements DataProvider {
         const escrow = escrowPda(programId, taskId);
         const info = await this.connection.getAccountInfo(escrow);
         if (info) {
-          let acc = decodeEscrow(info.data);
-          if (acc.resolution === 0) {
-            // Unresolved → авторазрешение по таймауту (permissionless). Если ещё «не дозрело» или открыт
-            // спор — программа откатит (claim станет возможен после окна/резолва спора оператором).
-            await this.sendTx([buildResolveTimeoutIx(programId, w.publicKey, taskId)]);
-            const after = await this.connection.getAccountInfo(escrow);
-            if (after) acc = decodeEscrow(after.data);
-          }
+          const me = w.publicKey; // сужение из гварда не доживает до замыканий — фиксируем в const
+          const acc = decodeEscrow(info.data);
+          const claimStreamerIxs = () =>
+            buildClaimStreamerIxs(this.connection, {
+              programId,
+              streamer: me,
+              donor: acc.donor,
+              treasury: acc.treasury,
+              mint,
+              taskId,
+            });
+          const claimDonorIxs = () =>
+            buildClaimDonorIxs(this.connection, { programId, donor: me, mint, taskId });
+
           if (acc.resolution === 1) {
-            await this.sendTx(
-              await buildClaimStreamerIxs(this.connection, {
-                programId,
-                streamer: w.publicKey,
-                donor: acc.donor,
-                treasury: acc.treasury,
-                mint,
-                taskId,
-              }),
-            );
+            await this.sendTx(await claimStreamerIxs()); // ToStreamer (уже разрешено)
           } else if (acc.resolution === 2) {
-            await this.sendTx(
-              await buildClaimDonorIxs(this.connection, {
-                programId,
-                donor: w.publicKey,
-                mint,
-                taskId,
-              }),
-            );
+            await this.sendTx(await claimDonorIxs()); // ToDonor (уже разрешено)
           } else {
-            throw new DataError("NOT_RESOLVED", "Задание ещё не разрешено (спор не закрыт оператором).");
+            // Unresolved → авторазрешение по таймауту + claim ОДНОЙ транзакцией (одно подтверждение/газ
+            // вместо двух). Сторону предсказываем по on-chain состоянию (то же выставит resolve_timeout):
+            // Done → стримеру; Pending/Accepted-просрочка → донору. Не дозрело / открыт спор → программа
+            // откатит всю tx (claim откроется после окна или резолва спора оператором).
+            const claimIxs = acc.state === 2 ? await claimStreamerIxs() : await claimDonorIxs();
+            await this.sendTx([buildResolveTimeoutIx(programId, me, taskId), ...claimIxs]);
           }
         }
         // Оффчейн-settle забанкует репутацию (DONATION/REFUND) — мозг состояния/репутации остаётся оффчейн.
