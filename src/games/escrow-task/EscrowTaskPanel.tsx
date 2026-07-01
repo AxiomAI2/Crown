@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Amount, FeeSplit } from "@/components/domain/amount";
+import { ModerationMenu } from "@/components/domain/moderation-menu";
 import { StandingHeadline } from "@/components/domain/standing";
 import { Button } from "@/components/ui/button";
 import {
@@ -393,7 +394,15 @@ export function EscrowTaskRules() {
  * метка «Задание» + статус/исход, сумма, текст, время, ссылка на эскроу. Без действий/таймера (управление —
  * во вкладке «Игры»). Тот же ряд-скелет, что DonationCard variant="row" → единый вид с обычными донатами.
  */
-export function TaskFeedRow({ task, handle }: { task: EscrowTask; handle: string }) {
+export function TaskFeedRow({
+  task,
+  handle,
+  manageChannelId,
+}: {
+  task: EscrowTask;
+  handle: string;
+  manageChannelId?: string; // задан (владелец/модератор) → «…» с бан/скрытием донора, как у доната
+}) {
   const final = task.resolution ?? null;
   const status = final
     ? `Итог: ${outcomeLabel(final.outcome)}${final.claimed ? " · забрано" : ""}`
@@ -432,18 +441,23 @@ export function TaskFeedRow({ task, handle }: { task: EscrowTask; handle: string
       ) : null}
       <div className="flex flex-wrap items-center gap-2 text-small text-fg-faint">
         <span title={task.createdAt}>{timeAgo(task.createdAt)}</span>
-        {task.fundTx ? (
-          <a
-            href={explorerTxUrl(task.fundTx)}
-            target="_blank"
-            rel="noreferrer"
-            className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
-            title="Эскроу в блокчейн-эксплорере"
-            aria-label="Эскроу в блокчейн-эксплорере"
-          >
-            <ExternalLinkIcon className="h-4 w-4" />
-          </a>
-        ) : null}
+        <div className="ml-auto flex items-center gap-2">
+          {task.fundTx ? (
+            <a
+              href={explorerTxUrl(task.fundTx)}
+              target="_blank"
+              rel="noreferrer"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
+              title="Эскроу в блокчейн-эксплорере"
+              aria-label="Эскроу в блокчейн-эксплорере"
+            >
+              <ExternalLinkIcon className="h-4 w-4" />
+            </a>
+          ) : null}
+          {/* «…» модерации, как у доната. Показ/скрытие и жалоба завязаны на сообщение доната — у задания его
+              нет, поэтому меню задания даёт донор-действия (скрыть все сообщения донора / бан донатов-с-текстом). */}
+          {manageChannelId ? <ModerationMenu channelId={manageChannelId} donor={task.donor} /> : null}
+        </div>
       </div>
     </div>
   );

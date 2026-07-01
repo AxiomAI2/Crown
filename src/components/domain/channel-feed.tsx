@@ -128,7 +128,12 @@ export function ChannelFeed({
                   manageChannelId={manageChannelId}
                 />
               ) : (
-                <TaskFeedRow key={it.key} task={it.t} handle={handle} />
+                <TaskFeedRow
+                  key={it.key}
+                  task={it.t}
+                  handle={handle}
+                  manageChannelId={manageChannelId}
+                />
               ),
             )}
           </div>
