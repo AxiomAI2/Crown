@@ -7,6 +7,7 @@ import {
   claim,
   createTask,
   dueResolution,
+  hide,
   DISPUTE_LOSS_PENALTY,
   DISPUTE_WIN_BONUS,
   markDone,
@@ -254,5 +255,18 @@ describe("report (жалоба зрителя на текст задания)", 
     expect(t.reports).toHaveLength(REPORT_HIDE_THRESHOLD);
     expect(t.textState).toBe("HIDDEN");
     expect(t.status).toBe("PENDING"); // жалоба на текст не двигает стадию/деньги
+  });
+});
+
+describe("hide (отказ стримера — скрыть без резолва/ончейна)", () => {
+  it("ставит hidden; деньги/статус/резолюцию не трогает", () => {
+    const t = hide(newTask());
+    expect(t.hidden).toBe(true);
+    expect(t.status).toBe("PENDING");
+    expect(t.resolution).toBeUndefined();
+  });
+  it("на завершённом задании нельзя", () => {
+    const resolved = reject(newTask(), T0 + 1); // RESOLVED to_donor
+    expect(throwsCode(() => hide(resolved))).toBe("NOT_OPEN");
   });
 });

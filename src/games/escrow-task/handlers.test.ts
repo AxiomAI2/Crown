@@ -330,3 +330,17 @@ describe("очередь модерации текста задания (textSta
     ).rejects.toMatchObject({ code: "TEXT_LOCKED" });
   });
 });
+
+describe("hide («Отклонить» = скрыть без ончейна/резолва; возврат по таймеру)", () => {
+  it("владелец скрывает → hidden=true без резолва; чужой → FORBIDDEN", async () => {
+    const h = harness();
+    const t = (await h.run("Donor", T0, "create", { amount: AMOUNT, text: "X" })) as EscrowTask;
+    await expect(h.run("NotOwner", T0, "hide", { taskId: t.id })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    const hidden = (await h.run(STREAMER, T0, "hide", { taskId: t.id })) as EscrowTask;
+    expect(hidden.hidden).toBe(true);
+    expect(hidden.status).toBe("PENDING"); // не резолвим — эскроу вернётся донору сам по таймеру
+    expect(hidden.resolution).toBeUndefined();
+  });
+});

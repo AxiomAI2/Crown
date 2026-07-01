@@ -203,6 +203,15 @@ export const escrowTaskHandlers: GameHandlers = {
       return commit(ctx, tasks, M.cancel(task, nowMs(ctx)));
     },
 
+    // Стример «Отклонить»: прячем задание из фронтенда БЕЗ ончейн-tx и немедленного возврата. Эскроу вернётся
+    // донору сам по таймеру (no-show) — стример не платит газ. Оффчейн-only (в chain-провайдере уходит в
+    // default → api, транзакция не строится).
+    hide: (ctx, payload) => {
+      requireOwner(ctx);
+      const tasks = loadTasks(ctx);
+      return commit(ctx, tasks, M.hide(findTask(tasks, idOf(payload), ctx.channelId)));
+    },
+
     // Зритель: жалоба на текст задания (публичный UGC). Дедуп/порог/авто-скрытие текста — в машине; деньги
     // и эскроу не трогаем (§7). Возвращаем {reports,hidden} — как reportMessage, чтобы UI дал тот же тост.
     report: (ctx, payload) => {

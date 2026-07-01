@@ -35,10 +35,9 @@ export default function ChannelPage() {
   // правый рейл (GameActionRail), поэтому табы больше не управляют рейлом. tabState=null → дефолт.
   const enabledGames = configQ.data?.enabledGames ?? [];
   const hasGames = enabledGames.length > 0;
-  // Донаты-с-заданиями (игра escrow-task) вливаем в общую ленту «Донаты». Запрос активен только если игра
-  // включена (иначе хук отключён). Будущие игры добавят свои записи сюда же.
-  const escrowTasks =
-    useEscrowTasks(enabledGames.includes("escrow-task") ? channel?.id : undefined).data?.tasks ?? [];
+  // Донаты-с-заданиями (игра escrow-task) вливаем в общую ленту «Донаты». Читаем ВСЕГДА (не зависит от того,
+  // включена ли игра сейчас): выключение режима не должно стирать связанные донаты из ленты — это история.
+  const escrowTasks = useEscrowTasks(channel?.id).data?.tasks ?? [];
   const [tabState, setTabState] = useState<string | null>(null);
   const activeTab = tabState ?? (hasGames ? "games" : "donations");
 

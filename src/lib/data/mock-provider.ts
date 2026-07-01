@@ -1303,7 +1303,10 @@ export class MockDataProvider implements DataProvider {
   private async dispatchGameOp(kind: "action" | "query", req: GameRequest): Promise<unknown> {
     await this.gate(kind === "action" ? "gameAction" : "gameQuery");
     const cfg = this.latestConfig(req.channelId); // бросит NO_CONFIG, если канала нет
-    if (!cfg.enabledGames.includes(req.gameId)) {
+    // Выключение игры не стирает историю и не ломает существующие партии: ЧТЕНИЕ (query) и действия по уже
+    // созданным заданиям (принять/забрать/скрыть/сеттл — деньги должны довинтиться, история остаётся в ленте)
+    // разрешены всегда. Блокируем только СОЗДАНИЕ новой партии (create) на выключенной игре.
+    if (kind === "action" && req.op === "create" && !cfg.enabledGames.includes(req.gameId)) {
       throw new DataError("GAME_NOT_ENABLED", "Эта мини-игра не включена на канале.");
     }
     const exec = async (): Promise<unknown> => {

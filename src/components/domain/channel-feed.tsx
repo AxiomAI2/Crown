@@ -60,13 +60,15 @@ export function ChannelFeed({
       hay: donationHay(d),
       d,
     }));
-    const ts = tasks.map<FeedItem>((t) => ({
-      kind: "task",
-      key: `t:${t.id}`,
-      ts: Date.parse(t.createdAt),
-      hay: taskHay(t),
-      t,
-    }));
+    const ts = tasks
+      .filter((t) => !t.hidden) // отклонённые стримером не показываем в ленте (вернутся донору по таймеру)
+      .map<FeedItem>((t) => ({
+        kind: "task",
+        key: `t:${t.id}`,
+        ts: Date.parse(t.createdAt),
+        hay: taskHay(t),
+        t,
+      }));
     return [...ds, ...ts].sort((a, b) => b.ts - a.ts); // новее сверху
   }, [donations, tasks]);
 

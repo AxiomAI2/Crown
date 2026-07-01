@@ -313,6 +313,15 @@ export function setTextState(task: EscrowTask, state: "SHOWN" | "HIDDEN"): Escro
   return { ...task, textState: state };
 }
 
+/**
+ * Стример «отклоняет» задание: прячем из фронтенда БЕЗ ончейн-tx и без немедленного резолва — эскроу останется
+ * и вернётся донору сам по таймеру (no-show/expired). Деньги/статус не трогаем; только для незавершённого.
+ */
+export function hide(task: EscrowTask): EscrowTask {
+  if (task.status === "RESOLVED") throw new GameBusError("NOT_OPEN", "Задание уже завершено.");
+  return { ...task, hidden: true };
+}
+
 /** Виден ли текст задания в ПУБЛИЧНОЙ ленте (без учёта роли смотрящего). Пусто = SHOWN (совместимость). */
 export function isTextPublic(task: EscrowTask): boolean {
   return (task.textState ?? "SHOWN") === "SHOWN";

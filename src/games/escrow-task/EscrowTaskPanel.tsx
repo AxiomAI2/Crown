@@ -309,9 +309,10 @@ export function EscrowTaskHub({ channelId, ownerAddress, handle }: GameProps) {
   const viewer = useSession().data?.address ?? null;
   const tasksQ = useEscrowTasks(channelId);
   const { run, pending } = useRun(channelId);
-  // «Активные» = цикл ещё идёт. Завершённые (RESOLVED + забрано) уезжают в общую ленту «Донаты».
+  // «Активные» = цикл ещё идёт. Завершённые (RESOLVED + забрано) уезжают в ленту; отклонённые стримером
+  // (hidden) прячем отсюда тоже — эскроу вернётся донору сам по таймеру.
   const active = (tasksQ.data?.tasks ?? []).filter(
-    (t) => !(t.status === "RESOLVED" && t.resolution?.claimed),
+    (t) => !t.hidden && !(t.status === "RESOLVED" && t.resolution?.claimed),
   );
 
   return (
@@ -644,7 +645,8 @@ function TaskCard({
               size="sm"
               variant="ghost"
               disabled={pending}
-              onClick={() => run("reject", { taskId: id }, "Отклонено")}
+              // Отказ = скрыть из фронтенда (без ончейн-tx/газа). Эскроу вернётся донору сам по таймеру.
+              onClick={() => run("hide", { taskId: id }, "Отклонено — вернётся донору по таймеру")}
             >
               Отклонить
             </Button>
