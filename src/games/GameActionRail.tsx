@@ -77,7 +77,7 @@ export function GameActionRail({
           <button
             type="button"
             onClick={() => setPicking(true)}
-            className="absolute right-4 top-4 z-10 flex items-center gap-0.5 text-caption text-fg-muted transition-colors hover:text-fg"
+            className="absolute right-4 top-4 z-10 flex items-center gap-0.5 text-[11px] leading-none text-fg-muted transition-colors hover:text-fg"
           >
             другие игры
             <ChevronRightIcon className="h-3 w-3" />
