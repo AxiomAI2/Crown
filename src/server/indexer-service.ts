@@ -54,6 +54,18 @@ async function scanEscrowClaims(connection: Connection, programId: PublicKey): P
   return wrote;
 }
 
+/**
+ * M3 on-demand: досканировать claim-исходы ПРЯМО СЕЙЧАС (вне фонового опроса). Нужен на горячем пути claim:
+ * chain-провайдер только что сделал resolve_timeout+claim ончейн (эскроу закрыт), а фоновый индексер ещё не
+ * записал исход → off-chain settle иначе откладывает и claim падает с NOT_RESOLVED, хотя деньги уже вернулись.
+ * Курсор общий с фоновым циклом (идемпотентно). Тихо возвращает false, если эскроу-программа не настроена.
+ */
+export async function scanEscrowClaimsNow(): Promise<boolean> {
+  if (!ESCROW_PROGRAM_ID) return false;
+  const connection = new Connection(DEVNET_RPC, "confirmed");
+  return scanEscrowClaims(connection, new PublicKey(ESCROW_PROGRAM_ID));
+}
+
 export function startIndexer(store: MockDataProvider, persist: () => void): void {
   if (process.env.NEXT_PUBLIC_DATA_SOURCE !== "chain") return; // ончейн-донатов нет вне chain
   const g = globalThis as unknown as { __indexerOn?: boolean };

@@ -1,6 +1,6 @@
 import { MockDataProvider, type StoreSnapshot } from "@/lib/data/mock-provider";
 import { readEscrowOutcome, verifyEscrowOnChain } from "@/server/escrow-verify";
-import { startIndexer } from "@/server/indexer-service";
+import { scanEscrowClaimsNow, startIndexer } from "@/server/indexer-service";
 import { readSnapshot } from "@/server/persist";
 import { currentIdentity } from "@/server/request-context";
 import { loadStore, saveStore } from "@/server/store-db";
@@ -34,7 +34,20 @@ async function init(): Promise<MockDataProvider> {
   // Серверные хуки сверки эскроу (ADR 0017/ESC-12): инжектим ТОЛЬКО здесь (store.ts — серверный модуль), чтобы
   // `@/server/escrow-verify` → store-db → PGlite/node:path не утягивались в клиентский бандл mock-провайдера.
   store.verifyEscrowHook = (id, expect) => verifyEscrowOnChain(id, expect);
-  store.escrowOutcomeHook = (id) => readEscrowOutcome(id);
+  // Исход эскроу с самолечением гонки: claim только что прошёл ончейн (эскроу закрыт), но фоновый индексер
+  // ещё не записал исход → readEscrowOutcome вернул бы null и off-chain claim упал бы с NOT_RESOLVED, хотя
+  // деньги уже вернулись донору (инцидент «Забрать → задание не разрешено»). При промахе досканируем claim-tx
+  // сейчас (курсор общий, идемпотентно) и перечитываем. Сбой скана (429/RPC) не рушит claim — вернём прежний null.
+  store.escrowOutcomeHook = async (id) => {
+    const outcome = await readEscrowOutcome(id);
+    if (outcome !== null) return outcome;
+    try {
+      await scanEscrowClaimsNow();
+    } catch {
+      return null;
+    }
+    return readEscrowOutcome(id);
+  };
 
   const snap = await loadStore();
   if (snap) {
