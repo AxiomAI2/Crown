@@ -614,17 +614,9 @@ function TaskCard({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {/* Очередь модерации текста: стример показывает HELD/скрытый текст в ленте (или снова скрывает). §7. */}
-        {isStreamer && !isTextPublic(task) ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={pending}
-            onClick={() => run("setTextState", { taskId: id, state: "SHOWN" }, "Текст показан")}
-          >
-            Показать текст
-          </Button>
-        ) : isStreamer ? (
+        {/* Очередь модерации текста: «Показать» — только пока задание живо (таймер не истёк, не разрешено),
+            иначе публиковать поздно (уходит в возврат донору). «Скрыть» публичного текста — всегда. §7. */}
+        {isStreamer && isTextPublic(task) ? (
           <Button
             size="sm"
             variant="ghost"
@@ -632,6 +624,15 @@ function TaskCard({
             onClick={() => run("setTextState", { taskId: id, state: "HIDDEN" }, "Текст скрыт")}
           >
             Скрыть текст
+          </Button>
+        ) : isStreamer && !due && !final ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={pending}
+            onClick={() => run("setTextState", { taskId: id, state: "SHOWN" }, "Текст показан")}
+          >
+            Показать текст
           </Button>
         ) : null}
         {isStreamer && task.status === "PENDING" && !due ? (

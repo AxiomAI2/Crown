@@ -226,11 +226,12 @@ export const escrowTaskHandlers: GameHandlers = {
       const p = (payload ?? {}) as { state?: unknown };
       const state = p.state === "SHOWN" ? "SHOWN" : "HIDDEN";
       const tasks = loadTasks(ctx);
-      return commit(
-        ctx,
-        tasks,
-        M.setTextState(findTask(tasks, idOf(payload), ctx.channelId), state),
-      );
+      const task = findTask(tasks, idOf(payload), ctx.channelId);
+      // «Показать» можно только пока задание живо: таймер не истёк и оно не разрешено. Истекло → уходит в
+      // возврат донору сам, публиковать текст поздно. «Скрыть» доступно всегда (ретракт).
+      if (state === "SHOWN" && (task.status === "RESOLVED" || M.dueResolution(task, nowMs(ctx))))
+        throw new GameBusError("TEXT_LOCKED", "Срок задания истёк — текст уже нельзя показать.");
+      return commit(ctx, tasks, M.setTextState(task, state));
     },
 
     // Квалифицированный зритель поднимает спор (не стример; репутация ≥ порога).

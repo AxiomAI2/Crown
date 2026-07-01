@@ -9,6 +9,7 @@ import { Pager, usePager } from "@/components/ui/pager";
 import { Select } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import { useEscrowAction, useEscrowTasks } from "@/games/escrow-task/hooks";
+import { dueResolution } from "@/games/escrow-task/machine";
 import {
   useDonations,
   useManagedChannels,
@@ -28,10 +29,14 @@ export default function ModerationQueuePage() {
   const queueQ = useModerationQueue(channelId);
   const donationsQ = useDonations(channelId);
   const setState = useSetMessageState(channelId ?? "");
-  // Задания-донаты с текстом на модерации (HELD) — та же очередь. «Отклонить» = reject (возврат донору).
+  // Задания-донаты с текстом на модерации (HELD) — та же очередь. В очереди ТОЛЬКО те, что ещё можно
+  // опубликовать: таймер не истёк и они не разрешены. Истёкшие уходят в возврат донору сами — текст поздно.
   const tasksQ = useEscrowTasks(channelId);
   const taskAction = useEscrowAction(channelId ?? "");
-  const heldTasks = (tasksQ.data?.tasks ?? []).filter((t) => t.textState === "HELD");
+  const nowMs = Date.now();
+  const heldTasks = (tasksQ.data?.tasks ?? []).filter(
+    (t) => t.textState === "HELD" && t.status !== "RESOLVED" && !dueResolution(t, nowMs),
+  );
 
   // Джойн message → donation, чтобы показать донора и сумму в очереди.
   const byDonation = new Map((donationsQ.data?.items ?? []).map((d) => [d.id, d]));

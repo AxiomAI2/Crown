@@ -320,4 +320,13 @@ describe("очередь модерации текста задания (textSta
     const t = (await h.run("Donor", T0, "create", { amount: AMOUNT, text: "сделай X" })) as EscrowTask;
     expect(t.textState).toBe("SHOWN");
   });
+
+  it("«Показать» после истечения таймера запрещено (TEXT_LOCKED) — публиковать поздно", async () => {
+    const h = harness();
+    const t = (await h.run("Donor", T0, "create", { amount: AMOUNT, text: "сделай X" })) as EscrowTask;
+    // Окно принятия истекло (PENDING → expired, уходит в возврат донору) → текст уже не показать.
+    await expect(
+      h.run(STREAMER, T0 + WINDOWS.accept + 1, "setTextState", { taskId: t.id, state: "SHOWN" }),
+    ).rejects.toMatchObject({ code: "TEXT_LOCKED" });
+  });
 });
