@@ -527,7 +527,9 @@ export class ChainDataProvider implements DataProvider {
         // эскроу был бы профинансирован под задание, которое оффчейн-create потом отклонит.
         const text = typeof p.text === "string" ? p.text.trim() : "";
         if (text) {
-          const { blocked, reason } = await this.api.precheckText(text, req.channelId);
+          // kind: "task" → префлайт судит ТОЙ ЖЕ строгой политикой, что серверный create (ADR 0017): деньги
+          // ончейн необратимы, поэтому нелегальное задание должно отсекаться ДО фандинга, а не после.
+          const { blocked, reason } = await this.api.precheckText(text, req.channelId, "task");
           if (blocked)
             throw new DataError(
               reason === "blocklist" ? "BLOCKED" : "TEXT_BLOCKED",

@@ -974,6 +974,7 @@ export class MockDataProvider implements DataProvider {
   async precheckText(
     text: string,
     channelId?: string,
+    kind: "message" | "task" = "message",
   ): Result<{ blocked: boolean; reason?: "content" | "blocklist" }> {
     await this.gate("precheckText");
     // Блок-лист канала: заблокированному кошельку донат-с-текстом нельзя — ловим ДО подписи (деньги не тратятся).
@@ -993,6 +994,16 @@ export class MockDataProvider implements DataProvider {
       channelId && this.configsByChannel.has(channelId)
         ? this.latestConfig(channelId).messageMaxLen
         : 2000;
+    // ЗАДАНИЕ (escrow-task) оплачивается ончейн ДО записи → префлайт обязан судить ТОЙ ЖЕ строгой политикой,
+    // что серверный create (classifyTaskText: + LLM-легальность), иначе слабый префлайт пропустит нелегальное
+    // задание, эскроу профинансируется, а create отклонит → осиротевший эскроу (деньги заперты, задания нет).
+    // Слишком длинное режем как блок ДО ИИ (не фандим). classifyTaskText мемоизируется по хэшу — тот же вход
+    // → тот же вердикт на серверном create (недетерминизм ИИ не «перевернёт» решение после фандинга).
+    if (kind === "task") {
+      if (t.length > maxLen) return { blocked: true, reason: "content" };
+      const verdict = await classifyTaskText(t);
+      return verdict === "HARD_BLOCK" ? { blocked: true, reason: "content" } : { blocked: false };
+    }
     const hard = (await resolveAutoModerator().classify(t.slice(0, maxLen), "")) === "HARD_BLOCK";
     return hard ? { blocked: true, reason: "content" } : { blocked: false };
   }

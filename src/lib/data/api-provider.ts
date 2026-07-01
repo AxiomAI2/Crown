@@ -107,8 +107,9 @@ export class ApiDataProvider implements DataProvider {
   precheckText(
     text: string,
     channelId?: string,
+    kind: "message" | "task" = "message",
   ): Promise<{ blocked: boolean; reason?: "content" | "blocklist" }> {
-    return this.rpc("precheckText", [text, channelId]);
+    return this.rpc("precheckText", [text, channelId, kind]);
   }
   /** SIWS шаг 1: получить nonce + каноническое сообщение для подписи. Вне DataProvider — для chain. */
   authNonce(address: Address): Promise<{ nonce: string; message: string }> {

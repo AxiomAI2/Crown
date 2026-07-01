@@ -208,19 +208,37 @@ async function llmTaskLegality(apiKey: string, text: string): Promise<"illegal" 
  * Без ключа (mock-клиент / прод без OPENAI_API_KEY) умного судьи нет → CLEAR кроме CSAM: автоблокировки
  * нелегальщины тогда нет (осознанный размен — словарь убран ради отсутствия ложных блоков в игре).
  */
+// Мемо вердикта по хэшу текста: префлайт (ДО фандинга эскроу) и серверный create (ПОСЛЕ) должны получить ОДНО
+// решение. Без кэша недетерминизм ИИ мог бы пропустить задание на префлайте и заблокировать на create — деньги
+// уже в эскроу, задание отклонено (осиротевший эскроу). Кэшируем только окончательные вердикты, не FLAG (сбой
+// внешних слоёв — временный, перепроверяем). TTL с запасом на цикл «префлайт → подпись → create» (секунды).
+const taskVerdictCache = new Map<string, { verdict: ModerationVerdict; at: number }>();
+const TASK_VERDICT_TTL_MS = 10 * 60_000;
+
 export async function classifyTaskText(text: string): Promise<ModerationVerdict> {
   if (isExplicitCsam(text)) return "HARD_BLOCK"; // CSAM — безусловно, контекст игры не оправдывает
   const key = typeof process !== "undefined" ? process.env.OPENAI_API_KEY : undefined;
   if (!key) return "CLEAR"; // без ключа умного судьи нет (mock-клиент / прод без ключа)
 
+  const h = hashContent(text);
+  const cached = taskVerdictCache.get(h);
+  if (cached && Date.now() - cached.at < TASK_VERDICT_TTL_MS) return cached.verdict;
+
   const mod = await fetchOpenAiModeration(key, text);
-  if (mod && TASK_HARD_CATEGORIES.some((c) => mod.cats[c])) return "HARD_BLOCK";
-
-  const legality = await llmTaskLegality(key, text);
-  if (legality === "illegal") return "HARD_BLOCK";
-
-  if (mod === null && legality === null) return "FLAG"; // оба внешних слоя недоступны
-  return "CLEAR";
+  let verdict: ModerationVerdict;
+  if (mod && TASK_HARD_CATEGORIES.some((c) => mod.cats[c])) {
+    verdict = "HARD_BLOCK";
+  } else {
+    const legality = await llmTaskLegality(key, text);
+    verdict =
+      legality === "illegal"
+        ? "HARD_BLOCK"
+        : mod === null && legality === null
+          ? "FLAG" // оба внешних слоя недоступны
+          : "CLEAR";
+  }
+  if (verdict !== "FLAG") taskVerdictCache.set(h, { verdict, at: Date.now() });
+  return verdict;
 }
 
 // Выбор авто-модератора по серверному env (мемоизируется). OPENAI_API_KEY — серверная переменная (НЕ
