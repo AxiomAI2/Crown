@@ -24,6 +24,7 @@ export const qk = {
     ["leaderboard", channelId, period] as const,
   donations: (channelId: string) => ["donations", channelId] as const,
   donorOverview: (address: Address) => ["donorOverview", address] as const,
+  homeFeed: (address: string) => ["homeFeed", address] as const,
   moderationQueue: (channelId: string) => ["moderation", channelId] as const,
   blocklist: (channelId: string) => ["blocklist", channelId] as const,
   operatorQueue: () => ["operatorQueue"] as const,
@@ -94,6 +95,15 @@ export function useDonorOverview(address: Address | null | undefined) {
     queryKey: qk.donorOverview(address ?? ""),
     queryFn: () => data.getDonorOverview(address!),
     enabled: Boolean(address),
+  });
+}
+/** Лента главной (ADR 0018). Личность сервер берёт из сессии; адрес — только для ключа кэша (рефетч при смене). */
+export function useHomeFeed() {
+  const data = useData();
+  const address = useSession().data?.address ?? null;
+  return useQuery({
+    queryKey: qk.homeFeed(address ?? ""),
+    queryFn: () => data.homeFeed(),
   });
 }
 export function useModerationQueue(channelId: string | undefined) {

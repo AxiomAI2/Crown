@@ -312,6 +312,42 @@ export interface DonorOverview {
   pointEvents: DonorPointEvent[]; // журнал очков: за что начислили (+донат) / списали (−void), новые сверху
 }
 
+// — Главная как личная база (ADR 0018) —
+/** Стадия открытого цикла для дашборда главной (эскроу-задание). Порядок семантически = приоритет срочности. */
+export type CycleKind =
+  | "claimable" // деньги ждут тебя сейчас (RESOLVED → возврат донору, ещё не забрано)
+  | "grace" // можно отменить (PENDING в грейс-окне)
+  | "dispute_window" // «Готово» — окно оспаривания открыто (оспорить или подождать)
+  | "voting" // спор идёт, голосование
+  | "awaiting"; // ждём выполнения (PENDING/ACCEPTED вне грейса)
+
+/** Открытый цикл донора для дашборда `/`. `text` — ТВОЁ задание (донор), показываем себе (§4.6 не нарушается). */
+export interface OpenCycle {
+  taskId: string;
+  channelId: string;
+  channelHandle: string;
+  kind: CycleKind;
+  amount: MicroUSDC;
+  text: string;
+  deadline?: Iso; // когда закрывается текущее окно; нет → действие доступно прямо сейчас (claimable)
+  actionable: boolean; // требует твоего действия сейчас vs ждём других
+}
+
+/** Живой канал для полоски «прямо сейчас». Ранг — по РАЗНЫМ участникам, НЕ по сумме (анти-whale, §4.3/ADR 0018). */
+export interface LiveChannel {
+  channelId: string;
+  handle: string;
+  activeCount: number; // живых заданий (не RESOLVED)
+  participants: number; // разных донатеров в живых циклах
+  lockedMicro: MicroUSDC; // заперто в живых циклах (показываем, НЕ ключ ранжирования)
+}
+
+/** Лента главной (ADR 0018): свои открытые циклы (по срочности) + что кипит (по участникам). Личность — из сессии. */
+export interface HomeFeed {
+  cycles: OpenCycle[];
+  live: LiveChannel[];
+}
+
 export type ConfigPatch = Partial<
   Pick<
     ChannelConfig,

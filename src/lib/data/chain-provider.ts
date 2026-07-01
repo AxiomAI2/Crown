@@ -44,6 +44,7 @@ import type {
   DonationResult,
   DonorOverview,
   GameRequest,
+  HomeFeed,
   IncidentLog,
   LeaderboardEntry,
   LeaderboardPeriod,
@@ -430,6 +431,9 @@ export class ChainDataProvider implements DataProvider {
   }
   getDonorOverview(a: Address): Result<DonorOverview> {
     return this.api.getDonorOverview(a);
+  }
+  homeFeed(): Result<HomeFeed> {
+    return this.api.homeFeed();
   }
   listDonations(id: string, o?: ListOpts): Result<Page<Donation>> {
     return this.api.listDonations(id, o);

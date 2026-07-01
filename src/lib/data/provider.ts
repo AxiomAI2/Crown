@@ -11,6 +11,7 @@ import type {
   Donation,
   DonorOverview,
   GameRequest,
+  HomeFeed,
   IncidentLog,
   LeaderboardEntry,
   LeaderboardPeriod,
@@ -61,6 +62,9 @@ export interface DataProvider {
   getLeaderboard(channelId: string, period: LeaderboardPeriod): Result<LeaderboardEntry[]>;
   // Агрегат по донору для публичного профиля /u/[address]: standing по каналам + активность (read-only).
   getDonorOverview(address: Address): Result<DonorOverview>;
+  // Лента главной (ADR 0018): свои открытые циклы + что кипит. Личность — из сессии на сервере (не параметр),
+  // иначе можно было бы прочитать чужой приватный текст задания (§4.6).
+  homeFeed(): Result<HomeFeed>;
 
   // — Донаты —
   createDonation(input: DonationInput): Result<DonationResult>;

@@ -13,6 +13,7 @@ import type {
   DonationResult,
   DonorOverview,
   GameRequest,
+  HomeFeed,
   IncidentLog,
   LeaderboardEntry,
   LeaderboardPeriod,
@@ -162,6 +163,9 @@ export class ApiDataProvider implements DataProvider {
   }
   getDonorOverview(address: Address): Result<DonorOverview> {
     return this.rpc("getDonorOverview", [address]);
+  }
+  homeFeed(): Result<HomeFeed> {
+    return this.rpc("homeFeed", []);
   }
 
   // — Донаты —

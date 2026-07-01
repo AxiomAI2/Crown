@@ -27,19 +27,24 @@ import type {
   DonorChannelStanding,
   DonorOverview,
   DonorPointEvent,
+  HomeFeed,
   IncidentLog,
   LeaderboardEntry,
   LeaderboardPeriod,
   LedgerEvent,
   LightProfile,
   ListOpts,
+  LiveChannel,
   MessageRef,
   ModerationVerdict,
+  OpenCycle,
   OperatorAction,
   Page,
   Session,
   ViewerStanding,
 } from "./types";
+import { WINDOWS } from "../../games/escrow-task/machine";
+import type { EscrowTask } from "../../games/escrow-task/types";
 
 const FAILABLE = new Set([
   "listChannels",
@@ -682,6 +687,106 @@ export class MockDataProvider implements DataProvider {
       donations,
       pointEvents,
     };
+  }
+
+  /**
+   * Лента главной (ADR 0018): мои открытые эскроу-циклы (по срочности) + что кипит (по РАЗНЫМ участникам).
+   * Личность — из СЕССИИ (не параметр): циклы несут ТВОЙ текст задания, читать чужой адрес нельзя (§4.6).
+   * Пока учитывает игру `escrow-task` (единственную) — расширяемо на другие игры.
+   */
+  async homeFeed(): Result<HomeFeed> {
+    await this.gate("homeFeed");
+    const tasks =
+      (this.gameState.get("escrow-task") as { tasks: EscrowTask[] } | undefined)?.tasks ?? [];
+    const now = Date.parse(this.now());
+    const address = this.currentAddress();
+    const cycles: OpenCycle[] = [];
+    if (address) {
+      for (const t of tasks) {
+        if (t.donor !== address) continue;
+        const c = this.cycleOf(t, now);
+        if (c) cycles.push(c);
+      }
+      // Срочность: «действуй сейчас» (claimable → окно закрывается) → «ждём других»; внутри — по дедлайну.
+      const rank = (c: OpenCycle) => (c.kind === "claimable" ? 0 : c.actionable ? 1 : 2);
+      cycles.sort(
+        (a, b) =>
+          rank(a) - rank(b) ||
+          (a.deadline ? Date.parse(a.deadline) : 0) - (b.deadline ? Date.parse(b.deadline) : 0),
+      );
+    }
+    return { cycles, live: this.liveChannels(tasks, now) };
+  }
+
+  /** Открытый цикл донора по задаче (null — цикл закрыт: ушёл стримеру / уже забран). */
+  private cycleOf(t: EscrowTask, now: number): OpenCycle | null {
+    const base = {
+      taskId: t.id,
+      channelId: t.channelId,
+      channelHandle: this.channelsById.get(t.channelId)?.handle ?? t.channelId,
+      amount: BigInt(t.amount),
+      text: t.text,
+    };
+    switch (t.status) {
+      case "RESOLVED": {
+        const r = t.resolution;
+        return r && r.outcome === "to_donor" && !r.claimed
+          ? { ...base, kind: "claimable", actionable: true }
+          : null;
+      }
+      case "DISPUTED":
+        return { ...base, kind: "voting", deadline: t.dispute?.votingEndsAt, actionable: false };
+      case "DONE":
+        return { ...base, kind: "dispute_window", deadline: t.disputeWindowEndsAt, actionable: true };
+      case "PENDING":
+      case "ACCEPTED": {
+        const graceEnd = Date.parse(t.createdAt) + WINDOWS.grace;
+        return t.status === "PENDING" && now <= graceEnd
+          ? { ...base, kind: "grace", deadline: new Date(graceEnd).toISOString(), actionable: true }
+          : { ...base, kind: "awaiting", deadline: t.executionDeadline, actionable: false };
+      }
+      default:
+        return null;
+    }
+  }
+
+  /** Живые каналы для полоски: ранг по РАЗНЫМ участникам → velocity → активности (НЕ по сумме — §4.3/ADR 0018). */
+  private liveChannels(tasks: EscrowTask[], now: number): LiveChannel[] {
+    const RECENT_MS = 24 * 3_600_000;
+    const agg = new Map<
+      string,
+      { handle: string; active: number; donors: Set<Address>; locked: bigint; velocity: number }
+    >();
+    for (const t of tasks) {
+      if (t.status === "RESOLVED") continue; // не живой
+      const ch = this.channelsById.get(t.channelId);
+      if (!ch || ch.status !== "ACTIVE") continue; // только публичные активные
+      const e = agg.get(t.channelId) ?? {
+        handle: ch.handle,
+        active: 0,
+        donors: new Set<Address>(),
+        locked: 0n,
+        velocity: 0,
+      };
+      e.active += 1;
+      e.donors.add(t.donor);
+      e.locked += BigInt(t.amount);
+      if (now - Date.parse(t.createdAt) <= RECENT_MS) e.velocity += 1;
+      agg.set(t.channelId, e);
+    }
+    return [...agg.entries()]
+      .sort(
+        ([, a], [, b]) =>
+          b.donors.size - a.donors.size || b.velocity - a.velocity || b.active - a.active,
+      )
+      .slice(0, 20)
+      .map(([channelId, e]) => ({
+        channelId,
+        handle: e.handle,
+        activeCount: e.active,
+        participants: e.donors.size,
+        lockedMicro: e.locked,
+      }));
   }
 
   // — Донаты —
