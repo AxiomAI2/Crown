@@ -69,19 +69,20 @@ export function GameActionRail({
           ))}
         </div>
       ) : (
-        // «другие игры» — НАД самой карточкой (не внутри, не над репутацией): одна кнопка, слева, для доната
-        // по умолчанию и для любой игры. Клик → список игр. Сама форма рендерится со своей карточкой, как была.
-        <>
+        // «другие игры» — в правом верхнем углу карточки, на строке «Мой standing» (по макету). Абсолютно,
+        // чтобы не трогать форму/StandingHeadline; right/top-4 = совпадает с p-4 карточки; бейдж тира ниже
+        // (на строке очков) — не конфликтует. Клик → список игр.
+        <div className="relative">
+          <current.Form ctx={ctx} />
           <button
             type="button"
             onClick={() => setPicking(true)}
-            className="flex items-center gap-1 self-start text-small text-fg-muted transition-colors hover:text-fg"
+            className="absolute right-4 top-4 z-10 flex items-center gap-1 text-small text-fg-muted transition-colors hover:text-fg"
           >
             другие игры
             <ChevronRightIcon className="h-4 w-4" />
           </button>
-          <current.Form ctx={ctx} />
-        </>
+        </div>
       )}
 
       <Dialog open={!!rulesFor} onOpenChange={(o) => (o ? null : setRulesFor(null))}>
