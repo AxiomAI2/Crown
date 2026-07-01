@@ -51,10 +51,7 @@ export function GameActionRail({
                 className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left"
               >
                 <e.Icon className="h-5 w-5 shrink-0 text-fg-muted" />
-                <span className="min-w-0 truncate text-small">
-                  <span className="text-fg">{e.name}</span>
-                  <span className="text-fg-faint"> — {e.tagline}</span>
-                </span>
+                <span className="min-w-0 truncate text-small text-fg">{e.name}</span>
               </button>
               <button
                 type="button"
