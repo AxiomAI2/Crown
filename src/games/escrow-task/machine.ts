@@ -102,6 +102,13 @@ export function accept(task: EscrowTask, nowMs: number): EscrowTask {
     throw new GameBusError("NOT_PENDING", "Задание уже не ждёт ответа.");
   if (nowMs > ms(task.executionDeadline))
     throw new GameBusError("ACCEPT_EXPIRED", "Срок сдачи истёк — донат вернётся донору.");
+  // Принять можно ТОЛЬКО показанное задание: иначе стример «выполнит» скрытый текст, и в возможном споре
+  // непонятно, что он брал в работу и за что голосуют. Публикация (SHOWN) обязательна ДО взятия в работу.
+  if (!isTextPublic(task))
+    throw new GameBusError(
+      "TEXT_NOT_SHOWN",
+      "Сначала покажи текст задания — иначе непонятно, что берёшь в работу и за что будут голосовать.",
+    );
   // Бесплатная пометка «беру в работу» (UI-гейт). Дедлайн сдачи и грейс отмены заданы при создании — не сбрасываем.
   return { ...task, status: "ACCEPTED" };
 }

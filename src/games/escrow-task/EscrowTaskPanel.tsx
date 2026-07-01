@@ -633,14 +633,19 @@ function TaskCard({
         ) : null}
         {isStreamer && task.status === "PENDING" && !due ? (
           <>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={pending}
-              onClick={() => run("accept", { taskId: id }, "Принято")}
-            >
-              Принять
-            </Button>
+            {/* Принять можно только показанное задание — иначе комьюнити не знает, что берёшь в работу. */}
+            {isTextPublic(task) ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={pending}
+                onClick={() => run("accept", { taskId: id }, "Принято")}
+              >
+                Принять
+              </Button>
+            ) : (
+              <span className="text-small text-fg-faint">Покажи текст, чтобы принять</span>
+            )}
             <Button
               size="sm"
               variant="ghost"
