@@ -23,7 +23,7 @@ import { toast } from "@/components/ui/toast";
 import { ESCROW_RESOLVER, explorerTxUrl } from "@/lib/chain/addresses";
 import { useChannelConfig, useSession, useStanding } from "@/lib/data/hooks";
 import { pointsForAmount } from "@/lib/reputation";
-import { toMicro } from "@/lib/utils";
+import { collapseWhitespace, shortAddress, timeAgo, toMicro } from "@/lib/utils";
 import { useEscrowAction, useEscrowTasks } from "./hooks";
 import { dueResolution, WINDOWS } from "./machine";
 import type { EscrowTask, TaskDispute } from "./types";
@@ -335,7 +335,7 @@ export function EscrowTaskHub({ channelId, ownerAddress, handle }: GameProps) {
         ) : tasks.length === 0 ? (
           <EmptyState title="Пока нет заданий" description="Создай первое — форма справа." />
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col [&>:last-child]:border-b-0">
             {[...tasks].reverse().map((t) => (
               <TaskCard
                 key={t.id}
@@ -419,39 +419,29 @@ function TaskCard({
   const canClaim = !!effective && !final?.claimed && viewer === winner;
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
+    <div className="flex flex-col gap-2 border-b border-border py-4">
+      {/* Тот же ряд-стандарт, что лента донатов (DonationCard variant="row"): донор+бейдж статуса → сумма;
+          текст; мета-строка (время · дедлайн/исход · ссылка на эскроу). Сумма нейтральная (не money-green —
+          деньги в игре ещё не финальны: при no-show возвращаются донору). */}
       <div className="flex items-center justify-between gap-2">
-        <Amount micro={BigInt(task.amount)} variant="money" />
-        <div className="flex items-center gap-2">
-          <span className="text-caption rounded-pill border border-border px-2 py-0.5 text-fg-faint">
+        <div className="flex min-w-0 items-center gap-2">
+          <Link
+            href={`/u/${task.donor}`}
+            className="truncate text-small text-fg transition-colors hover:text-status"
+          >
+            {shortAddress(task.donor)}
+          </Link>
+          <span className="text-caption shrink-0 rounded-pill border border-border px-2 py-0.5 text-fg-faint">
             {final
               ? `Итог: ${outcomeLabel(final.outcome)}${final.claimed ? " · забрано" : ""}`
               : STATUS_LABEL[task.status]}
           </span>
-          {/* Эскроу на цепочке (chain-режим): ссылка на tx фандинга — постоянная запись, переживает claim. */}
-          {task.fundTx ? (
-            <a
-              href={explorerTxUrl(task.fundTx)}
-              target="_blank"
-              rel="noreferrer"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
-              title="Эскроу в блокчейн-эксплорере"
-              aria-label="Эскроу в блокчейн-эксплорере"
-            >
-              <ExternalLinkIcon className="h-4 w-4" />
-            </a>
-          ) : null}
         </div>
+        <Amount micro={BigInt(task.amount)} />
       </div>
-      <p className="text-body break-words text-fg">{task.text}</p>
 
-      {!final && due ? (
-        <p className="text-small text-fg-faint">
-          По времени готово к разрешению: {outcomeLabel(due.outcome)}.
-        </p>
-      ) : !final && deadlineLabel(task, now) ? (
-        <p className="text-small mono text-fg-faint">{deadlineLabel(task, now)}</p>
-      ) : null}
+      <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
+
       {task.dispute ? (
         <>
           <DisputeTally dispute={task.dispute} />
@@ -463,6 +453,28 @@ function TaskCard({
           </Link>
         </>
       ) : null}
+
+      <div className="flex flex-wrap items-center gap-2 text-small text-fg-faint">
+        <span title={task.createdAt}>{timeAgo(task.createdAt)}</span>
+        {!final && due ? (
+          <span>· готово к разрешению: {outcomeLabel(due.outcome)}</span>
+        ) : !final && deadlineLabel(task, now) ? (
+          <span className="mono">· {deadlineLabel(task, now)}</span>
+        ) : null}
+        {/* Эскроу на цепочке: ссылка на tx фандинга — постоянная запись, переживает claim (как txSignature доната). */}
+        {task.fundTx ? (
+          <a
+            href={explorerTxUrl(task.fundTx)}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
+            title="Эскроу в блокчейн-эксплорере"
+            aria-label="Эскроу в блокчейн-эксплорере"
+          >
+            <ExternalLinkIcon className="h-4 w-4" />
+          </a>
+        ) : null}
+      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         {isStreamer && task.status === "PENDING" && !due ? (
