@@ -452,8 +452,6 @@ export function TaskFeedRow({
   const status = final
     ? `Итог: ${outcomeLabel(final.outcome)}${final.claimed ? " · забрано" : ""}`
     : STATUS_LABEL[task.status];
-  // В публичной ленте текст виден только SHOWN; владелец/автор видят всегда.
-  const canSeeText = isTextPublic(task) || !!manageChannelId || viewer === task.donor;
   return (
     <div className="flex flex-col gap-2 border-b border-border py-4">
       <div className="flex items-center justify-between gap-2">
@@ -473,13 +471,11 @@ export function TaskFeedRow({
         </div>
         <Amount micro={BigInt(task.amount)} />
       </div>
-      {canSeeText ? (
+      {/* Текст — только если опубликован (SHOWN). Иначе пустой донат (без текста), как у скрытого обычного
+          доната (§4.6): скрытое/непоказанное в ленте не светим никому. */}
+      {isTextPublic(task) ? (
         <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
-      ) : (
-        <p className="break-words text-body italic text-fg-faint">
-          {task.textState === "HIDDEN" ? "[скрыто по жалобам]" : "[на модерации]"}
-        </p>
-      )}
+      ) : null}
       {/* Был спор → показываем таллю голосов и ссылку на полную страницу деталей спора (та же, что в «Играх»). */}
       {task.dispute ? (
         <>
@@ -570,11 +566,7 @@ function TaskCard({
 
       {canSeeText ? (
         <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
-      ) : (
-        <p className="break-words text-body italic text-fg-faint">
-          {task.textState === "HIDDEN" ? "[скрыто по жалобам]" : "[на модерации]"}
-        </p>
-      )}
+      ) : null}
 
       {task.dispute ? (
         <>

@@ -85,23 +85,24 @@ export function ModerationMenu({
         <MoreIcon className="h-4 w-4" />
       </summary>
       <div className="absolute right-0 top-full z-30 mt-1 w-64 rounded-lg border border-border bg-surface-raised p-1 shadow-lg">
-        {message && allowToggleState ? (
+        {/* Только «Скрыть» показанного (быстрая модерация из ленты). Показать/опубликовать скрытое — не тут,
+            а в очереди модерации (студия): в ленте скрытое не светим и не разворачиваем инлайн. */}
+        {message && allowToggleState && message.state === "SHOWN" ? (
           <button
             type="button"
             className={itemCls}
             onClick={(e) => {
               closeMenu(e.currentTarget);
-              const state = message.state === "SHOWN" ? "HIDDEN" : "SHOWN";
               setState.mutate(
-                { messageId: message.id, state },
+                { messageId: message.id, state: "HIDDEN" },
                 {
-                  onSuccess: () => toast({ title: state === "HIDDEN" ? "Сообщение скрыто" : "Сообщение показано" }),
+                  onSuccess: () => toast({ title: "Сообщение скрыто" }),
                   onError: errToast,
                 },
               );
             }}
           >
-            {message.state === "SHOWN" ? "Скрыть это сообщение" : "Показать это сообщение"}
+            Скрыть это сообщение
           </button>
         ) : null}
 
