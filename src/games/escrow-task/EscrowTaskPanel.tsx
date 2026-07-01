@@ -318,13 +318,16 @@ export function EscrowTaskHub({ channelId, ownerAddress, handle }: GameProps) {
   const viewer = useSession().data?.address ?? null;
   const tasksQ = useEscrowTasks(channelId);
   const { run, pending } = useRun(channelId);
-  const tasks = tasksQ.data?.tasks ?? [];
+  // «Активные» = цикл ещё идёт. Завершённые (RESOLVED + забрано) уезжают в общую ленту «Донаты».
+  const active = (tasksQ.data?.tasks ?? []).filter(
+    (t) => !(t.status === "RESOLVED" && t.resolution?.claimed),
+  );
 
   return (
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-3">
         <div className="text-caption uppercase tracking-wide text-fg-faint">
-          Активные задания · {tasks.length}
+          Активные задания · {active.length}
         </div>
         {tasksQ.isLoading ? (
           <Skeleton className="h-24 w-full rounded-lg" />
@@ -333,11 +336,14 @@ export function EscrowTaskHub({ channelId, ownerAddress, handle }: GameProps) {
             description="Не удалось загрузить задания."
             onRetry={() => tasksQ.refetch()}
           />
-        ) : tasks.length === 0 ? (
-          <EmptyState title="Пока нет заданий" description="Создай первое — форма справа." />
+        ) : active.length === 0 ? (
+          <EmptyState
+            title="Нет активных заданий"
+            description="Создай задание справа. Завершённые — в ленте «Донаты»."
+          />
         ) : (
           <div className="flex flex-col [&>:last-child]:border-b-0">
-            {[...tasks].reverse().map((t) => (
+            {[...active].reverse().map((t) => (
               <TaskCard
                 key={t.id}
                 task={t}
@@ -391,6 +397,51 @@ export function EscrowTaskRules() {
 // ───────────────────────── переиспользуемые части ─────────────────────────
 
 /**
+ * Модерация задания — ЕДИНАЯ для ленты и «Активных» (одинаковое «…» и флажок, как у доната). Обычному зрителю
+ * — флажок «Пожаловаться»; владельцу/модератору — «…» (та же ModerationMenu). Жалоба на задание идёт через
+ * игровой экшен `report` (задание — не сообщение доната). Автору задания и без входа — ничего.
+ */
+function TaskModeration({
+  task,
+  viewer,
+  isManager,
+}: {
+  task: EscrowTask;
+  viewer?: string | null;
+  isManager: boolean;
+}) {
+  const action = useEscrowAction(task.channelId);
+  const reportSubmit = async (reason: string) =>
+    (await action.mutateAsync({ op: "report", payload: { taskId: task.id, reason } })) as {
+      reports?: number;
+      hidden?: boolean;
+    };
+  const title = "Пожаловаться на задание";
+  const description =
+    "Выбери причину — жалоба уйдёт стримеру и оператору. При нескольких жалобах текст задания авто-скрывается.";
+  if (isManager)
+    return (
+      <ModerationMenu
+        channelId={task.channelId}
+        donor={task.donor}
+        reportSubmit={reportSubmit}
+        reportTitle={title}
+        reportDescription={description}
+      />
+    );
+  if (viewer && viewer !== task.donor)
+    return (
+      <ReportDialog
+        channelId={task.channelId}
+        onSubmit={reportSubmit}
+        title={title}
+        description={description}
+      />
+    );
+  return null;
+}
+
+/**
  * Read-only строка задания для ОБЩЕЙ ленты донатов канала (ChannelFeed): историческая запись — донор,
  * метка «Задание» + статус/исход, сумма, текст, время, ссылка на эскроу. Без действий/таймера (управление —
  * во вкладке «Игры»). Тот же ряд-скелет, что DonationCard variant="row" → единый вид с обычными донатами.
@@ -406,13 +457,10 @@ export function TaskFeedRow({
   viewer?: string | null; // текущий зритель — чтобы показать «Пожаловаться» (не своё задание, не менеджеру)
   manageChannelId?: string; // задан (владелец/модератор) → «…» с бан/скрытием донора, как у доната
 }) {
-  const reportAction = useEscrowAction(task.channelId);
   const final = task.resolution ?? null;
   const status = final
     ? `Итог: ${outcomeLabel(final.outcome)}${final.claimed ? " · забрано" : ""}`
     : STATUS_LABEL[task.status];
-  // «Пожаловаться» — как у доната: обычному зрителю (не автору задания; у менеджера вместо этого «…»).
-  const canReport = !!viewer && viewer !== task.donor && !manageChannelId;
   return (
     <div className="flex flex-col gap-2 border-b border-border py-4">
       <div className="flex items-center justify-between gap-2">
@@ -464,22 +512,7 @@ export function TaskFeedRow({
               <ExternalLinkIcon className="h-4 w-4" />
             </a>
           ) : null}
-          {canReport ? (
-            <ReportDialog
-              channelId={task.channelId}
-              title="Пожаловаться на задание"
-              description="Выбери причину — жалоба уйдёт стримеру и оператору. При нескольких жалобах текст задания авто-скрывается."
-              onSubmit={async (reason) =>
-                (await reportAction.mutateAsync({
-                  op: "report",
-                  payload: { taskId: task.id, reason },
-                })) as { reports?: number; hidden?: boolean }
-              }
-            />
-          ) : null}
-          {/* «…» модерации, как у доната. Показ/скрытие и жалоба завязаны на сообщение доната — у задания его
-              нет, поэтому меню задания даёт донор-действия (скрыть все сообщения донора / бан донатов-с-текстом). */}
-          {manageChannelId ? <ModerationMenu channelId={manageChannelId} donor={task.donor} /> : null}
+          <TaskModeration task={task} viewer={viewer} isManager={!!manageChannelId} />
         </div>
       </div>
     </div>
@@ -563,19 +596,22 @@ function TaskCard({
         ) : !final && deadlineLabel(task, now) ? (
           <span className="mono">· {deadlineLabel(task, now)}</span>
         ) : null}
-        {/* Эскроу на цепочке: ссылка на tx фандинга — постоянная запись, переживает claim (как txSignature доната). */}
-        {task.fundTx ? (
-          <a
-            href={explorerTxUrl(task.fundTx)}
-            target="_blank"
-            rel="noreferrer"
-            className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
-            title="Эскроу в блокчейн-эксплорере"
-            aria-label="Эскроу в блокчейн-эксплорере"
-          >
-            <ExternalLinkIcon className="h-4 w-4" />
-          </a>
-        ) : null}
+        <div className="ml-auto flex items-center gap-2">
+          {/* Эскроу-ссылка (переживает claim) + модерация (флажок/«…») — единый вид с лентой. */}
+          {task.fundTx ? (
+            <a
+              href={explorerTxUrl(task.fundTx)}
+              target="_blank"
+              rel="noreferrer"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
+              title="Эскроу в блокчейн-эксплорере"
+              aria-label="Эскроу в блокчейн-эксплорере"
+            >
+              <ExternalLinkIcon className="h-4 w-4" />
+            </a>
+          ) : null}
+          <TaskModeration task={task} viewer={viewer} isManager={isStreamer} />
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

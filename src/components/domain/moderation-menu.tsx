@@ -30,11 +30,19 @@ export function ModerationMenu({
   donor,
   message,
   allowToggleState = true,
+  reportSubmit,
+  reportTitle,
+  reportDescription,
 }: {
   channelId: string;
   donor?: string;
   message?: MessageRef;
   allowToggleState?: boolean; // false → не показывать «Показать/Скрыть это сообщение» (есть отдельные кнопки)
+  // Кастомная жалоба (напр. на текст задания игры — это не сообщение доната). Задан → пункт «Пожаловаться»
+  // шлёт СЮДА (вместо reportMessage(messageId)), чтобы одно и то же «…» работало и на донатах, и на заданиях.
+  reportSubmit?: (fullReason: string) => Promise<{ reports?: number; hidden?: boolean }>;
+  reportTitle?: string;
+  reportDescription?: string;
 }) {
   const setState = useSetMessageState(channelId);
   const hideAll = useHideDonorMessages(channelId);
@@ -43,8 +51,10 @@ export function ModerationMenu({
   const blocklist = useChannelBlocklist(channelId);
   const blocked = donor ? (blocklist.data ?? []).some((b) => b.blockedAddress === donor) : false;
   const [reportOpen, setReportOpen] = useState(false);
-  // Жаловаться можно на показанный текст или на сообщение в очереди (HELD) — как и на сервере.
-  const canReport = !!message && (message.state === "SHOWN" || message.state === "HELD");
+  // Жаловаться можно на показанный текст / сообщение в очереди (HELD) — как на сервере; либо через кастомный
+  // reportSubmit (жалоба на задание игры).
+  const canReport =
+    !!reportSubmit || (!!message && (message.state === "SHOWN" || message.state === "HELD"));
 
   // Нативный <details> сам не закрывается по клику ВНЕ — закрываем вручную (и по Escape).
   const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -161,7 +171,17 @@ export function ModerationMenu({
         ) : null}
       </div>
     </details>
-    {message ? (
+    {reportSubmit ? (
+      <ReportDialog
+        channelId={channelId}
+        onSubmit={reportSubmit}
+        title={reportTitle}
+        description={reportDescription}
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        trigger={null}
+      />
+    ) : message ? (
       <ReportDialog
         messageId={message.id}
         channelId={channelId}
