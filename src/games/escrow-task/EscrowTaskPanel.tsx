@@ -252,10 +252,6 @@ export function EscrowTaskRail({ channelId }: GameProps) {
                 <option value="d">дней</option>
               </Select>
             </div>
-            <p className="text-caption text-fg-faint">
-              Сколько у стримера времени после принятия (до 3 месяцев). Не успел — донат вернётся
-              тебе.
-            </p>
           </div>
 
           <Button
@@ -266,11 +262,6 @@ export function EscrowTaskRail({ channelId }: GameProps) {
           >
             Создать задание
           </Button>
-
-          <p className="text-small text-fg-faint">
-            Деньги блокируются в ончейн-эскроу: выполнит — уйдут стримеру (97%), не успеет — вернутся
-            тебе полностью.
-          </p>
 
           {/* Подтверждение с разбивкой — как у обычного доната (donate.tsx), но копирайт честный для
               эскроу: деньги НЕ финальны стримеру сразу, при no-show возвращаются донору без комиссии (§6). */}
