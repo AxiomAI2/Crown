@@ -471,11 +471,12 @@ export function TaskFeedRow({
         </div>
         <Amount micro={BigInt(task.amount)} />
       </div>
-      {/* Текст — только если опубликован (SHOWN). Иначе пустой донат (без текста), как у скрытого обычного
-          доната (§4.6): скрытое/непоказанное в ленте не светим никому. */}
+      {/* Текст — только если опубликован (SHOWN). Иначе «[не показано]» (не светим приватный текст, §4.6). */}
       {isTextPublic(task) ? (
         <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
-      ) : null}
+      ) : (
+        <p className="text-body italic text-fg-faint">[не показано]</p>
+      )}
       {/* Был спор → показываем таллю голосов и ссылку на полную страницу деталей спора (та же, что в «Играх»). */}
       {task.dispute ? (
         <>
@@ -566,7 +567,9 @@ function TaskCard({
 
       {canSeeText ? (
         <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
-      ) : null}
+      ) : (
+        <p className="text-body italic text-fg-faint">[не показано]</p>
+      )}
 
       {task.dispute ? (
         <>

@@ -50,6 +50,9 @@ export function DonationCard({
       </div>
       {shown && donation.message ? (
         <p className="break-words text-body text-fg">{collapseWhitespace(donation.message.text)}</p>
+      ) : donation.message ? (
+        // Сообщение есть, но не показано (HELD/HIDDEN) — помечаем явно, а не пустой строкой.
+        <p className="text-body italic text-fg-faint">[не показано]</p>
       ) : null}
       <div className="flex flex-wrap items-center gap-2 text-small text-fg-faint">
         <span title={donation.ts}>{timeAgo(donation.ts)}</span>
