@@ -393,7 +393,7 @@ function EscrowTaskRules() {
  * метка «Задание» + статус/исход, сумма, текст, время, ссылка на эскроу. Без действий/таймера (управление —
  * во вкладке «Игры»). Тот же ряд-скелет, что DonationCard variant="row" → единый вид с обычными донатами.
  */
-export function TaskFeedRow({ task }: { task: EscrowTask }) {
+export function TaskFeedRow({ task, handle }: { task: EscrowTask; handle: string }) {
   const final = task.resolution ?? null;
   const status = final
     ? `Итог: ${outcomeLabel(final.outcome)}${final.claimed ? " · забрано" : ""}`
@@ -418,6 +418,18 @@ export function TaskFeedRow({ task }: { task: EscrowTask }) {
         <Amount micro={BigInt(task.amount)} />
       </div>
       <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
+      {/* Был спор → показываем таллю голосов и ссылку на полную страницу деталей спора (та же, что в «Играх»). */}
+      {task.dispute ? (
+        <>
+          <DisputeTally dispute={task.dispute} />
+          <Link
+            href={`/c/${handle}/dispute/${encodeURIComponent(task.id)}`}
+            className="text-small self-start text-info hover:underline"
+          >
+            Участники и голоса ({task.dispute.votes.length}) →
+          </Link>
+        </>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2 text-small text-fg-faint">
         <span title={task.createdAt}>{timeAgo(task.createdAt)}</span>
         {task.fundTx ? (

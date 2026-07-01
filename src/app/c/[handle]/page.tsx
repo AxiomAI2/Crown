@@ -147,6 +147,7 @@ export default function ChannelPage() {
                     <ChannelFeed
                       donations={donationsQ.data?.items ?? []}
                       tasks={escrowTasks}
+                      handle={handle}
                       reportable
                       manageChannelId={canManage ? channel.id : undefined}
                     />

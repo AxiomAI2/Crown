@@ -36,11 +36,13 @@ const taskHay = (t: EscrowTask): string =>
 export function ChannelFeed({
   donations,
   tasks,
+  handle,
   reportable = false,
   manageChannelId,
 }: {
   donations: Donation[];
   tasks: EscrowTask[];
+  handle: string; // для ссылки на детали спора задания (/c/<handle>/dispute/<taskId>)
   reportable?: boolean; // «Пожаловаться» на показанных сообщениях (бывшая «Лента»)
   manageChannelId?: string; // задан → «Забанить» донора (владелец/модератор)
 }) {
@@ -126,7 +128,7 @@ export function ChannelFeed({
                   manageChannelId={manageChannelId}
                 />
               ) : (
-                <TaskFeedRow key={it.key} task={it.t} />
+                <TaskFeedRow key={it.key} task={it.t} handle={handle} />
               ),
             )}
           </div>
