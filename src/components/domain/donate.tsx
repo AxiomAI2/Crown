@@ -97,8 +97,17 @@ export function DonateWidget({
   // Хватает ли USDC на кошельке (только chain — где balance известен). amountNum и balance оба в USDC.
   const balance = session.address ? balanceQ.data : undefined;
   const insufficient = balance != null && amountValid && amountNum > balance;
+  // Канальный блок бьёт только по тексту: донат без текста разрешён, с текстом — сервер откажет
+  // (BLOCKED), поэтому и кнопку честно гасим (плашка выше объясняет причину).
+  const blockedWithText = withText && Boolean(myBlock);
   const canDonate =
-    connected && amountValid && meetsMin && textOk && !(withText && isBasic) && !insufficient;
+    connected &&
+    amountValid &&
+    meetsMin &&
+    textOk &&
+    !(withText && isBasic) &&
+    !blockedWithText &&
+    !insufficient;
   const softWarn = withText && SOFT_WORDS.some((w) => text.toLowerCase().includes(w));
   const amountError = overMax
     ? `Максимум ${formatPoints(MAX_DONATION_USDC)} USDC за раз`

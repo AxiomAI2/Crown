@@ -4,6 +4,7 @@ import { ESCROW_PROGRAM_ID } from "@/lib/chain/addresses";
 import { DEVNET_RPC, mintPubkey, treasuryPubkey } from "@/lib/chain/config";
 import { decodeEscrowClaims } from "@/lib/chain/escrow-tx";
 import { fetchNewProgramSignatures, fetchNewTreasurySignatures } from "@/lib/chain/indexer";
+import { DataError } from "@/lib/data/provider";
 import type { MockDataProvider } from "@/lib/data/mock-provider";
 import { maybeAnchor } from "@/server/anchor";
 import { ESCROW_OUTCOME_META_PREFIX } from "@/server/escrow-verify";
@@ -128,8 +129,12 @@ async function runLoop(store: MockDataProvider, persist: () => void): Promise<vo
             op: "settleDue",
           })) as { settled: number };
           if (r.settled > 0) settledAny = true;
-        } catch {
-          /* игра не включена на канале / прочее — пропускаем */
+        } catch (e) {
+          // Штатные пропуски (игра не включена) — молча; всё остальное (RPC, баг банковки) ОБЯЗАНО
+          // попасть в лог — иначе «репутация не начислилась» неотличимо от «нечего начислять».
+          const code = e instanceof DataError ? e.code : null;
+          if (code !== "GAME_NOT_ENABLED")
+            console.error(`[settler] канал ${c.channelId}:`, e instanceof Error ? e.message : e);
         }
       }
       if (settledAny) persist();

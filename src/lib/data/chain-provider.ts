@@ -564,6 +564,16 @@ export class ChainDataProvider implements DataProvider {
           throw new DataError("BELOW_MIN", "Сумма ниже минимума канала для заданий.");
         if (text.length > cfg.messageMaxLen)
           throw new DataError("TOO_LONG", "Текст задания превышает лимит канала.");
+        // §10-порог ДО подписи (паритет с серверным create): эскроу необратим — отказ LOW_REP ПОСЛЕ
+        // fund заморозил бы деньги донора до таймаута возврата (yellow-paper §18.3-5, закрыто).
+        if (cfg.minReputationToTask > 0) {
+          const st = await this.api.getStanding(req.channelId, w.publicKey.toBase58());
+          if ((st?.points ?? 0) < cfg.minReputationToTask)
+            throw new DataError(
+              "LOW_REP",
+              `Задания на этом канале доступны с ${cfg.minReputationToTask} очков репутации — набери их обычными донатами.`,
+            );
+        }
         // Модерация ДО подписи/отправки: деньги ончейн необратимы — запрещёнку ловим заранее, иначе
         // эскроу был бы профинансирован под задание, которое оффчейн-create потом отклонит.
         if (text) {

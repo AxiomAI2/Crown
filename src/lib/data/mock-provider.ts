@@ -1002,7 +1002,12 @@ export class MockDataProvider implements DataProvider {
     );
     const pointsDelta = pointsForAmount(p.amount); // фиксировано: 1 USDC = 1 очко
     const ts = this.now();
-    const tierBefore = this.standingFor(p.channelId, p.donor)?.tier?.name;
+    // База «до» для нового донора — тир нулевых очков (обычно «Новичок»): первый донат, сразу дающий
+    // тир выше, честно триггерит tier-up (раньше tierChanged на первом донате был всегда false).
+    const tierBefore = (
+      this.standingFor(p.channelId, p.donor)?.tier ??
+      resolveTier(0, this.latestConfig(p.channelId).tiers).tier
+    )?.name;
     const donationId = this.nextId("d");
     const donation: Donation = {
       id: donationId,
@@ -1029,7 +1034,7 @@ export class MockDataProvider implements DataProvider {
     if (p.text && !blocked) await this.buildMessage(donation, p.text, ts);
     this.donations.push(donation);
     const standing = this.standingFor(p.channelId, p.donor)!;
-    const tierChanged = tierBefore !== undefined && tierBefore !== standing.tier?.name;
+    const tierChanged = tierBefore !== standing.tier?.name;
     return { donation, standing, tierChanged };
   }
 

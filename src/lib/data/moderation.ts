@@ -214,6 +214,8 @@ async function llmTaskLegality(apiKey: string, text: string): Promise<"illegal" 
 // внешних слоёв — временный, перепроверяем). TTL с запасом на цикл «префлайт → подпись → create» (секунды).
 const taskVerdictCache = new Map<string, { verdict: ModerationVerdict; at: number }>();
 const TASK_VERDICT_TTL_MS = 10 * 60_000;
+// R6-паттерн: TTL проверяется на чтении и память НЕ освобождает — без капа Map рос бы бесконечно.
+const TASK_VERDICT_CACHE_CAP = 5000;
 
 export async function classifyTaskText(text: string): Promise<ModerationVerdict> {
   if (isExplicitCsam(text)) return "HARD_BLOCK"; // CSAM — безусловно, контекст игры не оправдывает
@@ -237,7 +239,14 @@ export async function classifyTaskText(text: string): Promise<ModerationVerdict>
           ? "FLAG" // оба внешних слоя недоступны
           : "CLEAR";
   }
-  if (verdict !== "FLAG") taskVerdictCache.set(h, { verdict, at: Date.now() });
+  if (verdict !== "FLAG") {
+    taskVerdictCache.set(h, { verdict, at: Date.now() });
+    while (taskVerdictCache.size > TASK_VERDICT_CACHE_CAP) {
+      const oldest = taskVerdictCache.keys().next().value;
+      if (oldest === undefined) break;
+      taskVerdictCache.delete(oldest); // старейшие по порядку вставки (как MOD_CACHE_CAP)
+    }
+  }
   return verdict;
 }
 

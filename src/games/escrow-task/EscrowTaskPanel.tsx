@@ -25,7 +25,7 @@ import { toast } from "@/components/ui/toast";
 import { ESCROW_RESOLVER, explorerTxUrl } from "@/lib/chain/addresses";
 import { useChannelConfig, useSession, useStanding } from "@/lib/data/hooks";
 import { pointsForAmount } from "@/lib/reputation";
-import { collapseWhitespace, shortAddress, timeAgo, toMicro } from "@/lib/utils";
+import { collapseWhitespace, formatPoints, shortAddress, timeAgo, toMicro } from "@/lib/utils";
 import { useEscrowAction, useEscrowTasks } from "./hooks";
 import { dueResolution, isTextPublic, WINDOWS } from "./machine";
 import type { EscrowTask, TaskDispute } from "./types";
@@ -154,6 +154,11 @@ export function EscrowTaskRail({ channelId }: GameProps) {
     ? `Минимум канала для заданий — ${Number(minTaskMicro) / 1_000_000} USDC`
     : undefined;
 
+  // §10-порог: право прислать задание. Гейтим форму заранее — иначе донор узнаёт об отказе только
+  // после набора текста (сервер и chain-префлайт всё равно отсекут — тут честный ранний сигнал).
+  const minRep = config?.minReputationToTask ?? 0;
+  const lowRep = minRep > 0 && (standingQ.data?.points ?? 0) < minRep;
+
   const dlNum = Number(dlValue);
   const deadlineMs = dlNum * UNIT_MS[dlUnit];
   const deadlineValid =
@@ -170,7 +175,7 @@ export function EscrowTaskRail({ channelId }: GameProps) {
   // Долгий срок = долгая заморозка: при игноре стримера возврат приходит только по ИСТЕЧЕНИИ срока сдачи
   // (эскроу, no-show/expired) — отдельного 72ч-окна принятия ончейн нет. Предупреждаем от 7 дней (коридор v1.1).
   const longDeadline = deadlineValid && deadlineMs > 7 * DAY;
-  const valid = amountValid && !belowMin && text.trim().length > 0 && deadlineValid;
+  const valid = amountValid && !belowMin && text.trim().length > 0 && deadlineValid && !lowRep;
 
   function confirmCreate() {
     if (!valid) return;
@@ -237,12 +242,18 @@ export function EscrowTaskRail({ channelId }: GameProps) {
           <Textarea
             label="Задание"
             placeholder="Что сделать стримеру…"
-            maxLength={280}
+            maxLength={config?.messageMaxLen ?? 280}
             showCount
             value={text}
             onChange={(e) => setText(e.target.value)}
             className="bg-[var(--bg)]"
           />
+          {lowRep ? (
+            <p className="text-small text-fg-muted">
+              Задания на этом канале — с {formatPoints(minRep)} очков репутации (у тебя{" "}
+              {formatPoints(standingQ.data?.points ?? 0)}). Репутация набирается обычными донатами.
+            </p>
+          ) : null}
 
           <div className="flex flex-col gap-1">
             <span className="text-small text-fg-muted">Срок на выполнение</span>
