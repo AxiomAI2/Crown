@@ -26,7 +26,7 @@ export function getDb(): Promise<PGlite> {
 
 /**
  * Схема под АКТУАЛЬНЫЕ типы (docs/data-model.md, обновлено ADR 0007: без reputation/overlay/profanity_policy).
- * Деньги — numeric(20,0) (micro-USDC), очки — bigint. Источник истины репутации — ledger_events (append-only).
+ * Деньги — numeric(20,0) (micro-USDC), очки — numeric (дробные, 1 USDC = 1 очко с копейками).
  * Идемпотентно (IF NOT EXISTS) — безопасно вызывать при каждом старте.
  */
 async function ensureSchema(db: PGlite): Promise<void> {
@@ -85,7 +85,7 @@ async function ensureSchema(db: PGlite): Promise<void> {
       creator        text NOT NULL,
       type           text NOT NULL,
       amount         numeric(20,0) NOT NULL DEFAULT 0,
-      points_delta   bigint NOT NULL,
+      points_delta   numeric NOT NULL,
       config_version integer NOT NULL,
       tx_signature   text,
       ts             timestamptz NOT NULL DEFAULT now()
@@ -176,4 +176,15 @@ async function ensureSchema(db: PGlite): Promise<void> {
       state   jsonb NOT NULL
     );
   `);
+
+  // Миграция дробных очков: очки стали 1:1 к USDC с копейками (2.5 USDC → 2.5 очка). Старые БД имеют
+  // points_delta bigint (целое) → расширяем до numeric (bigint→numeric — без потерь). CREATE TABLE выше уже
+  // задаёт numeric для новых БД; тут чиним существующие. Условно, чтобы не переписывать таблицу каждый старт.
+  const col = await db.query<{ data_type: string }>(
+    `SELECT data_type FROM information_schema.columns
+     WHERE table_name = 'ledger_events' AND column_name = 'points_delta'`,
+  );
+  if (col.rows[0]?.data_type === "bigint") {
+    await db.exec(`ALTER TABLE ledger_events ALTER COLUMN points_delta TYPE numeric;`);
+  }
 }

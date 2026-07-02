@@ -7,7 +7,7 @@
 // — Базовые типы —
 export type Address = string; // Solana base58, напр. "7xKp...3fQa"
 export type MicroUSDC = bigint; // 1 USDC = 1_000_000n
-export type Points = number; // целые очки репутации
+export type Points = number; // очки репутации (дробные, 1:1 к USDC с копейками; micro-точность)
 export type Iso = string; // ISO-8601 timestamp
 export type TxSignature = string; // подпись транзакции Solana (Фаза 3)
 

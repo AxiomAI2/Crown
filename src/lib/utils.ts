@@ -36,17 +36,16 @@ export function formatUSDC(micro: bigint): string {
   return formatUSDCNumber(fromMicro(micro));
 }
 
-/** Очки репутации → "5,000". */
+/** Очки репутации (дробные, 1:1 к USDC) → "5,000", "2.5", "2.53". До 2 знаков, хвостовые нули отброшены. */
 export function formatPoints(points: number): string {
-  return Math.round(points).toLocaleString("en-US");
+  return points.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
 /** Очки → полный формат до миллиона, дальше компактно ("1.2M") — чтобы крупные числа не вылезали за рамки. */
 export function formatPointsCompact(points: number): string {
-  const n = Math.round(points);
-  return Math.abs(n) >= 1_000_000
-    ? n.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 })
-    : n.toLocaleString("en-US");
+  return Math.abs(points) >= 1_000_000
+    ? points.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 })
+    : points.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
 /**

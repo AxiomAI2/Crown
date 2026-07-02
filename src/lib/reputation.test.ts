@@ -11,9 +11,9 @@ import {
 /**
  * Тесты движка репутации — страховка инвариантов перед тем, как поверх него сядут мини-игры
  * (они начнут писать в журнал новые +/− события: GAME / DISPUTE_*). Фиксируем:
- *  §4.4 детерминизм и целочисленность (одинаковый журнал → одинаковая цифра, без потери точности);
+ *  §4.4 детерминизм дробной свёртки (одинаковый журнал → одинаковая цифра; снап к micro убирает float-дрейф);
  *  §4.5 «только растёт» + единственный пол — кламп к 0;
- *  фиксированный курс 1 USDC = 1 очко (ADR 0007).
+ *  фиксированный курс 1 USDC = 1 очко, дробно с копейками (ADR 0007).
  */
 
 const USDC = 1_000_000n; // 1 USDC в micro
@@ -50,32 +50,24 @@ describe("pointsForAmount — курс 1 USDC = 1 очко (ADR 0007)", () => {
     expect(pointsForAmount(-5n)).toBe(0);
   });
 
-  it("округляет ВНИЗ (floor) — дробная часть очков не даёт", () => {
-    expect(pointsForAmount(400_000n)).toBe(0); // 0.4 → 0
-    expect(pointsForAmount(500_000n)).toBe(0); // 0.5 → 0 (floor, не «к ближайшему»)
-    expect(pointsForAmount(999_999n)).toBe(0); // 0.999999 → 0
-    expect(pointsForAmount(1_500_000n)).toBe(1); // 1.5 → 1
-    expect(pointsForAmount(1_999_999n)).toBe(1); // 1.999999 → 1
-    expect(pointsForAmount(2_000_000n)).toBe(2); // 2.0 → 2
+  it("дробные очки 1:1 с копейками (2.5 USDC → 2.5 очка) — без округления", () => {
+    expect(pointsForAmount(2_500_000n)).toBe(2.5); // 2.5 USDC → 2.5
+    expect(pointsForAmount(500_000n)).toBe(0.5); // 0.5 → 0.5 (не теряется)
+    expect(pointsForAmount(100_000n)).toBe(0.1); // 0.1 → 0.1
+    expect(pointsForAmount(2_530_000n)).toBe(2.53); // 2.53 → 2.53
+    expect(pointsForAmount(1_234_567n)).toBe(1.234567); // до micro-точности
   });
 
-  it("дробление доната НЕ инфлирует репутацию (floor субаддитивен)", () => {
-    // Было (round-half-up): 0.5+0.5 = 2 очка > round(1.0)=1 → 2× за те же деньги. Теперь floor:
-    const split = pointsForAmount(500_000n) + pointsForAmount(500_000n); // 0 + 0
-    expect(split).toBe(0);
-    expect(split).toBeLessThanOrEqual(pointsForAmount(1_000_000n)); // ≤ floor(1.0)=1
-    // Любое дробление 1.5 USDC не превышает целого доната:
-    const parts = pointsForAmount(700_000n) + pointsForAmount(800_000n); // 0 + 0
-    expect(parts).toBeLessThanOrEqual(pointsForAmount(1_500_000n)); // ≤ 1
+  it("дробление доната НЕЙТРАЛЬНО (точное 1:1: сумма кусков = целому)", () => {
+    // Ни накрутки (был round-half-up: 0.5·2=2>1), ни потери (был floor: 0.5→0). Теперь ровно:
+    expect(pointsForAmount(500_000n) + pointsForAmount(500_000n)).toBe(pointsForAmount(1_000_000n));
+    expect(pointsForAmount(700_000n) + pointsForAmount(800_000n)).toBe(pointsForAmount(1_500_000n));
   });
 
-  it("детерминизм и точность на больших суммах (bigint, без float-дрейфа)", () => {
-    // 1e9 USDC — за пределами безопасной целочисленной арифметики во float через micro (1e15),
-    // но целочисленный bigint-путь даёт точную цифру.
-    const huge = 1_000_000_000n * USDC; // 1e9 USDC
+  it("точность на больших суммах (Number(micro)/1e6 точен до ~9e9 USDC)", () => {
+    const huge = 1_000_000_000n * USDC; // 1e9 USDC = 1e15 micro < 2^53
     expect(pointsForAmount(huge)).toBe(1_000_000_000);
-    // повторный вызов — тот же результат (чистая функция)
-    expect(pointsForAmount(huge)).toBe(pointsForAmount(huge));
+    expect(pointsForAmount(huge)).toBe(pointsForAmount(huge)); // чистая функция
   });
 });
 
@@ -102,6 +94,13 @@ describe("computePoints — свёртка журнала", () => {
     const forward = [ev("DONATION", 100), ev("ADMIN_VOID", -30), ev("DONATION", 5)];
     const shuffled = [forward[2]!, forward[0]!, forward[1]!];
     expect(computePoints(shuffled)).toBe(computePoints(forward));
+  });
+
+  it("дробные дельты суммируются ТОЧНО (снап к micro убирает float-дрейф 0.1+0.2)", () => {
+    // Наивное 0.1+0.2 во float = 0.30000000000000004; свёртка в целых micro-очках даёт ровно 0.3.
+    expect(computePoints([ev("DONATION", 0.1), ev("DONATION", 0.2)])).toBe(0.3);
+    // 2.5 + 2.53 = 5.03 ровно
+    expect(computePoints([ev("DONATION", 2.5), ev("DONATION", 2.53)])).toBe(5.03);
   });
 
   describe("задел под игры — не-донатные типы событий складываются так же", () => {
