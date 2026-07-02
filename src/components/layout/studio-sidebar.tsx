@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 const MANAGE_ITEMS = [
   { href: "/studio", label: "Обзор" },
   { href: "/studio/queue", label: "Очередь модерации" },
-  { href: "/studio/games", label: "Мини-игры" },
+  { href: "/studio/games", label: "Настройки мини-игр" },
   { href: "/studio/settings", label: "Настройки канала" },
   { href: "/studio/blocklist", label: "Блок-лист" },
 ];
