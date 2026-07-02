@@ -256,6 +256,13 @@ describe("report (жалоба зрителя на текст задания)", 
     expect(t.textState).toBe("HIDDEN");
     expect(t.status).toBe("PENDING"); // жалоба на текст не двигает стадию/деньги
   });
+
+  it("ESC-19: после accept жалобы НЕ гасят текст (деньги ⟹ текст на виду) — только копятся", () => {
+    let t = accept(newTask(), T0); // ACCEPTED + SHOWN (деньги могут уйти стримеру)
+    for (let i = 0; i < REPORT_HIDE_THRESHOLD + 1; i++) t = report(t, `V${i}`, undefined, T0);
+    expect(t.reports).toHaveLength(REPORT_HIDE_THRESHOLD + 1); // жалобы фиксируются (сигнал оператору)
+    expect(t.textState).toBe("SHOWN"); // но текст оплаченного задания не гаснет
+  });
 });
 
 describe("hide (отказ стримера — скрыть без резолва/ончейна)", () => {
@@ -268,5 +275,8 @@ describe("hide (отказ стримера — скрыть без резолв
   it("на завершённом задании нельзя", () => {
     const resolved = reject(newTask(), T0 + 1); // RESOLVED to_donor
     expect(throwsCode(() => hide(resolved))).toBe("NOT_OPEN");
+  });
+  it("ESC-19: на ПРИНЯТОМ задании отклонить нельзя (деньги ⟹ задание на виду)", () => {
+    expect(throwsCode(() => hide(accept(newTask(), T0)))).toBe("NOT_OPEN");
   });
 });

@@ -103,21 +103,26 @@ async function settle(ctx: GameContext, task: EscrowTask): Promise<EscrowTask> {
  * заданий; state≥Accepted (или уже ушло стримеру) → SHOWN. Деньги/резолв не трогаем.
  */
 async function revealFromChain(ctx: GameContext, task: EscrowTask): Promise<EscrowTask> {
-  if ((task.textState ?? "SHOWN") === "SHOWN" || !task.escrowTaskId) return task;
+  // Уже ПОЛНОСТЬЮ на виду (текст показан И не спрятан из ленты) → чинить нечего. Иначе — сверяемся с цепочкой:
+  // «hidden» (Отклонить) или HIDDEN-текст на ПРИНЯТОМ ончейн задании надо снять, деньги ⟹ задание видно.
+  const fullyVisible = (task.textState ?? "SHOWN") === "SHOWN" && !task.hidden;
+  if (fullyVisible || !task.escrowTaskId) return task;
   if (ctx.escrowState) {
     const st = await ctx.escrowState(task.escrowTaskId);
-    // Accepted(1)/Done(2)/Disputed(4) ⟹ accept ончейн был (mark_done требует Accepted) → раскрываем текст.
+    // Accepted(1)/Done(2)/Disputed(4) ⟹ accept ончейн был (mark_done требует Accepted) → задание на виду:
+    // раскрываем текст И возвращаем в ленту (снимаем hidden), чтобы комьюнити успело увидеть и оспорить.
     if (st === 1 || st === 2 || st === 4)
       return {
         ...task,
         textState: "SHOWN",
+        hidden: false,
         status: task.status === "PENDING" ? "ACCEPTED" : task.status,
       };
   }
   // Эскроу закрыт claim'ом стримеру ⟹ прошёл через Done ⟹ accept был → раскрываем ретроспективно (страховка
   // на случай, если индексер не успел до закрытия аккаунта).
   if (ctx.escrowOutcome && (await ctx.escrowOutcome(task.escrowTaskId)) === "to_streamer")
-    return { ...task, textState: "SHOWN" };
+    return { ...task, textState: "SHOWN", hidden: false };
   return task;
 }
 

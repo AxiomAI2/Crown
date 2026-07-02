@@ -301,11 +301,16 @@ export function report(
     ...reports,
     { reporter, reason: reason?.slice(0, REASON_MAX), ts: iso(nowMs) },
   ];
+  // Порог жалоб → авто-скрытие текста, НО только ДО принятия (PENDING): пока к стримеру не может уйти ни
+  // рубля, гасить спорный текст безопасно (эскроу вернётся донору). После accept деньги МОГУТ уйти стримеру,
+  // поэтому текст обязан оставаться на виду (ESC-19) — иначе жулик самоделными жалобами (сокпаппеты) прячет
+  // задание и молча забирает. Пост-accept жалобы всё равно копятся (сигнал стримеру/оператору), но не гасят
+  // текст; крайняя мера для нелегальщины на оплаченном задании — оператор (ADMIN_VOID), не тихое скрытие.
+  const autoHide = task.status === "PENDING" && next.length >= REPORT_HIDE_THRESHOLD;
   return {
     ...task,
     reports: next,
-    // Порог жалоб → авто-скрытие текста (HIDDEN). Ниже порога состояние не трогаем.
-    textState: next.length >= REPORT_HIDE_THRESHOLD ? "HIDDEN" : task.textState,
+    textState: autoHide ? "HIDDEN" : task.textState,
   };
 }
 
@@ -319,7 +324,11 @@ export function setTextState(task: EscrowTask, state: "SHOWN" | "HIDDEN"): Escro
  * и вернётся донору сам по таймеру (no-show/expired). Деньги/статус не трогаем; только для незавершённого.
  */
 export function hide(task: EscrowTask): EscrowTask {
-  if (task.status === "RESOLVED") throw new GameBusError("NOT_OPEN", "Задание уже завершено.");
+  // «Отклонить» законно только ДО принятия: пока к стримеру не может уйти ни рубля, убрать задание из ленты
+  // безопасно (эскроу вернётся донору по таймеру). После accept деньги МОГУТ уйти стримеру — прятать задание
+  // из ленты нельзя, иначе комьюнити не увидит его и не оспорит (ESC-19: деньги ⟹ задание на виду).
+  if (task.status !== "PENDING")
+    throw new GameBusError("NOT_OPEN", "Задание уже принято — отклонить нельзя (исход решают таймер или спор).");
   return { ...task, hidden: true };
 }
 

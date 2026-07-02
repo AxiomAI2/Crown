@@ -371,6 +371,24 @@ describe("очередь модерации текста задания (textSta
     const after = (await h.query("get", { taskId: t.id })) as EscrowTask;
     expect(after.textState).toBe("SHOWN"); // индексер увидел ончейн-accept и раскрыл текст
   });
+
+  it("ESC-19: «Отклонить» (hidden) + ончейн-accept МИМО UI → settleDue возвращает задание в ленту", async () => {
+    const h = harness({}, "Payout1", undefined, "auto_if_clean", async () => 1); // 1 = Accepted на цепочке
+    const t = (await h.run("Donor", T0, "create", {
+      amount: AMOUNT,
+      text: "сделай X",
+      escrowTaskId: "abc123",
+    })) as EscrowTask;
+    // Стример «отклонил» (спрятал из ленты), рассчитывая на возврат по таймеру…
+    const hidden = (await h.run(STREAMER, T0, "hide", { taskId: t.id })) as EscrowTask;
+    expect(hidden.hidden).toBe(true);
+    // …но затем принял эскроу НАПРЯМУЮ ончейн (мимо сайта) и целится забрать деньги.
+    await h.run(null, T0 + 1, "settleDue"); // индексер видит accept на цепочке
+    const after = (await h.query("get", { taskId: t.id })) as EscrowTask;
+    expect(after.hidden).toBe(false); // задание вернулось в ленту — комьюнити увидит и сможет оспорить
+    expect(after.textState).toBe("SHOWN");
+    expect(after.status).toBe("ACCEPTED");
+  });
 });
 
 describe("hide («Отклонить» = скрыть без ончейна/резолва; возврат по таймеру)", () => {
