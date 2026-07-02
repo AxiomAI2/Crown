@@ -60,7 +60,8 @@ export interface EscrowTask {
   status: TaskStatus;
 
   // Ончейн-эскроу (chain-режим, G3a; ADR 0017). В mock/api пусто — деньги мок.
-  escrowTaskId?: string; // hex 32-байтового seed эскроу-PDA (клиент генерит при создании)
+  escrowTaskId?: string; // hex 32-байтового seed эскроу-PDA = коммитмент SHA-256(nonce ‖ text) (CR-4)
+  textNonce?: string; // CR-4: соль коммитмента текста (публична; нужна для пересчёта/сверки третьей стороной)
   fundTx?: string; // подпись tx фандинга эскроу
 
   // ACCEPTED:

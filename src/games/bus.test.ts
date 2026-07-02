@@ -30,6 +30,7 @@ function makeCtx(overrides: Partial<GameContext> = {}): GameContext {
     bankLedger: () => {},
     moderate: async () => "CLEAR",
     verifyEscrow: async () => true,
+    verifyTextCommitment: async () => true,
     ...overrides,
   };
 }

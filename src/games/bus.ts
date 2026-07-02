@@ -50,7 +50,8 @@ export interface GameContext {
   newId: () => string;
   /** Состояние этой игры (непрозрачный для ядра слайс). */
   state: GameStateSlice;
-  /** Вес = очки репутации адреса в этом канале на момент `asOf` (снэпшот; computePointsAsOf). */
+  /** Вес = заработанные очки адреса в этом канале на момент `asOf` (снэпшот; computeVoteWeightAsOf —
+   *  БЕЗ операторских ADMIN_VOID, CR-1: модерация не стирает голос присяжного). */
   reputationAsOf: (address: string, asOf: string) => number;
   /** Забанковать эффекты на репутацию в журнал канала (ADR 0015). */
   bankLedger: (entries: GameLedgerEntry[]) => void;
@@ -67,6 +68,14 @@ export interface GameContext {
     escrowTaskId: string,
     expect: { donor: string; amount: string; streamer?: string },
   ) => Promise<boolean>;
+  /**
+   * Сверка ончейн-коммитмента текста задания (CR-4): `escrowTaskId` (seed эскроу-PDA) обязан равняться
+   * `SHA-256(nonce ‖ text)`. Гарантирует, что зеркало несёт РОВНО тот текст, что вшит в ончейн-адрес — клиент
+   * не сможет профандить один текст и записать другой, а оператор потом не подменит текст незаметно. Чистая
+   * крипта (браузер+сервер), не читает цепочку. Зовётся только для chain-задания (есть `escrowTaskId`); без
+   * `nonce` → false (fail-closed).
+   */
+  verifyTextCommitment: (escrowTaskId: string, text: string, nonce?: string) => Promise<boolean>;
   /**
    * Реконсайл репутации против ЦЕПОЧКИ (ESC-12/M3, chain-режим): ончейн-исход эскроу (деньги = истина).
    * `"to_streamer"|"to_donor"` — исход подтверждён (живая `resolution` или индексированный claim);

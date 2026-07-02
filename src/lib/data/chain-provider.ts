@@ -30,7 +30,7 @@ import { WINDOWS } from "@/games/escrow-task/machine";
 import { resolveTier } from "../reputation";
 import { toMicro } from "../utils";
 import { ApiDataProvider } from "./api-provider";
-import { hashContent } from "./moderation";
+import { hashContent, taskTextCommitment } from "./moderation";
 import { DataError, type DataProvider, type Result } from "./provider";
 import type {
   Address,
@@ -559,7 +559,12 @@ export class ChainDataProvider implements DataProvider {
         // — иначе fund ревертит на ончейн require, а офчейн-дедлайн разошёлся бы с ончейн done_deadline. То же
         // значение уходит в офчейн-create → ончейн и зеркало согласованы.
         const executionMs = Math.max(rawMs, WINDOWS.executionMin);
-        const taskId = randomTaskId();
+        // CR-4: task_id = SHA-256(nonce ‖ text) — ончейн-seed эскроу СТАНОВИТСЯ коммитментом к тексту задания
+        // (как memo.m у донатов). Оператор не сможет ни подменить, ни скрыть незаметно текст, который судит
+        // жюри: любой пересчитает коммитмент по (text, nonce) и сверит с ончейн-адресом. nonce хранится офчейн.
+        const textNonce = toHex(randomTaskId()).slice(0, 32); // 16 байт соли (гасит брутфорс низкоэнтропийных)
+        const taskIdHex = await taskTextCommitment(text, textNonce);
+        const taskId = fromHex(taskIdHex);
         const ix = await buildFundIx({
           programId,
           donor: w.publicKey,
@@ -572,7 +577,7 @@ export class ChainDataProvider implements DataProvider {
         const fundTx = await this.sendTx([ix]);
         return this.api.gameAction({
           ...req,
-          payload: { ...p, executionMs, escrowTaskId: toHex(taskId), fundTx },
+          payload: { ...p, executionMs, escrowTaskId: taskIdHex, fundTx, textNonce },
         });
       }
 

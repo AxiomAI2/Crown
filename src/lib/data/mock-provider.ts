@@ -1,10 +1,10 @@
 import { OPERATOR_ADDRESS, splitAmount } from "../chain/addresses";
 import { CHANNEL_DESC_MAX, sanitizeChannelLinks } from "../channel-links";
-import { computePoints, computePointsAsOf, pointsForAmount, resolveTier } from "../reputation";
+import { computePoints, computeVoteWeightAsOf, pointsForAmount, resolveTier } from "../reputation";
 import { isLikelyBase58Address, toMicro } from "../utils";
 import { dispatchGame, GAME_HANDLERS, GameBusError, type GameContext } from "../../games";
 import { defaultChannelConfig, MAX_TIERS, TIER_DESC_MAX } from "./fixtures";
-import { classifyTaskText, resolveAutoModerator, runPipeline } from "./moderation";
+import { classifyTaskText, resolveAutoModerator, runPipeline, taskTextCommitment } from "./moderation";
 import {
   DataError,
   ErrChannelAlreadyExists,
@@ -1435,14 +1435,19 @@ export class MockDataProvider implements DataProvider {
         },
         // Мостики в ядро (ADR 0015): вес = очки на момент; банковка эффектов игры в журнал канала;
         // модерация UGC игры тем же ядровым пайплайном (для заданий — строгая политика, classifyTaskText).
+        // Вес голоса/кворум = заработанные очки на снэпшоте БЕЗ операторских ADMIN_VOID (CR-1): модерация
+        // не должна стирать голос присяжного. Наказания — в статусе (computePoints) и полном бане.
         reputationAsOf: (address, asOf) =>
-          computePointsAsOf(this.eventsFor(address, req.channelId), asOf),
+          computeVoteWeightAsOf(this.eventsFor(address, req.channelId), asOf),
         moderate: (text) => classifyTaskText(text),
         textShowMode: cfg.textShowMode, // та же политика публикации, что у донат-сообщений (очередь/авто)
         // Серверные хуки сверки эскроу (ADR 0017/ESC-12) ИНЖЕКТЯТСЯ из store.ts (сервер) — так серверный DB/
         // web3.js-граф (`@/server/escrow-verify` → store-db → PGlite/node:path) НЕ попадает в клиентский бандл
         // mock-провайдера. В браузере/mock хуки не заданы → verifyEscrow=true, escrowOutcome отсутствует (эскроу нет).
         verifyEscrow: this.verifyEscrowHook ?? (async () => true),
+        // CR-4: чистая крипто-сверка коммитмента (не зависит от режима/сервера) — task_id == SHA-256(nonce ‖ text).
+        verifyTextCommitment: async (escrowTaskId, text, nonce) =>
+          !!nonce && (await taskTextCommitment(text, nonce)) === escrowTaskId,
         escrowOutcome: this.escrowOutcomeHook,
         escrowState: this.escrowStateHook,
         isContentBlocked: (id) => this.operatorBlockedContent.has(id), // операторский тейкдаун (модерация)

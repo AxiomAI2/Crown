@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { taskTextCommitment } from "@/lib/data/moderation";
 import { dispatchGame, type GameContext, type GameLedgerEntry } from "../bus";
 import { escrowTaskHandlers } from "./handlers";
 import { WINDOWS } from "./machine";
@@ -25,6 +26,8 @@ function harness(
   escrowState?: GameContext["escrowState"], // ESC-19: сырое ончейн-состояние (для теста раскрытия по accept)
   isContentBlocked?: GameContext["isContentBlocked"], // операторский тейкдаун (модерация платформы)
   minTaskAmountMicro = "0", // минимум канала для заданий (рычаг §10; тест BELOW_MIN передаёт свой)
+  // CR-4: по умолчанию сверка коммитмента отключена (все прочие тесты); тест коммитмента ставит реальную.
+  verifyTextCommitment: GameContext["verifyTextCommitment"] = async () => true,
 ) {
   let slice: unknown;
   let counter = 0;
@@ -50,6 +53,7 @@ function harness(
     bankLedger: (entries) => ledger.push(...entries),
     moderate: async (text) => (/убей|укради/i.test(text) ? "HARD_BLOCK" : "CLEAR"),
     verifyEscrow: async () => true,
+    verifyTextCommitment, // CR-4: по умолчанию true; тест коммитмента передаёт реальную сверку
     textShowMode,
     escrowState,
     isContentBlocked,
@@ -486,5 +490,48 @@ describe("серверная редакция приватного текста 
     expect(manager.text).toBe(""); // снятое оператором не видит даже менеджер
     const donor = (await h.queryAs("Donor", "get", { taskId: t.id })) as EscrowTask;
     expect(donor.text).toBe("");
+  });
+});
+
+describe("CR-4: ончейн-коммитмент текста задания (task_id = SHA-256(nonce ‖ text))", () => {
+  // Реальная крипто-сверка (как в mock-provider): task_id обязан совпасть с коммитментом к тексту.
+  const realVerify: GameContext["verifyTextCommitment"] = async (id, text, nonce) =>
+    !!nonce && (await taskTextCommitment(text, nonce)) === id;
+
+  it("совпавший коммитмент → задание создаётся", async () => {
+    const h = harness({}, "Payout1", undefined, "auto_if_clean", undefined, undefined, "0", realVerify);
+    const nonce = "0123456789abcdef0123456789abcdef";
+    const text = "спой песню на стриме";
+    const escrowTaskId = await taskTextCommitment(text, nonce);
+    const t = (await h.run("Donor", T0, "create", {
+      amount: AMOUNT,
+      text,
+      escrowTaskId,
+      textNonce: nonce,
+    })) as EscrowTask;
+    expect(t.escrowTaskId).toBe(escrowTaskId);
+    expect(t.textNonce).toBe(nonce);
+  });
+
+  it("подменённый текст под тем же эскроу → ESCROW_TEXT_MISMATCH (оператор/клиент не подсунет другой текст)", async () => {
+    const h = harness({}, "Payout1", undefined, "auto_if_clean", undefined, undefined, "0", realVerify);
+    const nonce = "0123456789abcdef0123456789abcdef";
+    const escrowTaskId = await taskTextCommitment("честное задание", nonce);
+    await expect(
+      h.run("Donor", T0, "create", {
+        amount: AMOUNT,
+        text: "совсем другое задание", // не тот текст, что вшит в task_id
+        escrowTaskId,
+        textNonce: nonce,
+      }),
+    ).rejects.toMatchObject({ code: "ESCROW_TEXT_MISMATCH" });
+  });
+
+  it("нет nonce у chain-задания → fail-closed (ESCROW_TEXT_MISMATCH)", async () => {
+    const h = harness({}, "Payout1", undefined, "auto_if_clean", undefined, undefined, "0", realVerify);
+    const escrowTaskId = await taskTextCommitment("задание", "0123456789abcdef0123456789abcdef");
+    await expect(
+      h.run("Donor", T0, "create", { amount: AMOUNT, text: "задание", escrowTaskId }),
+    ).rejects.toMatchObject({ code: "ESCROW_TEXT_MISMATCH" });
   });
 });

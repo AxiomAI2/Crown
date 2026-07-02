@@ -45,6 +45,22 @@ export function computePointsAsOf(events: LedgerEvent[], asOf: string): Points {
   return computePoints(events.filter((e) => Date.parse(e.ts) <= cut));
 }
 
+/**
+ * Вес голоса в споре на МОМЕНТ снэпшота (CR-1). Как `computePointsAsOf`, но ИСКЛЮЧАЕТ операторские
+ * `ADMIN_VOID`: вес присяжного — это заработанные донатами/спорами очки, и оператор не должен уметь
+ * стереть его голос модерацией текста (иначе «модерация» становится рычагом над ИСХОДОМ спора, аудит CR-1).
+ * Наказания сохраняются в правильных инструментах: `ADMIN_VOID` по-прежнему обнуляет СТАТУС (тир/перки —
+ * см. `computePoints`), `DISPUTE_LOST` (протокольное списание за ложный спор) остаётся в весе, а чтобы
+ * вырезать нарушителя из голосования есть полный бан кошелька (`requireNotBanned`). Детерминизм §4.4
+ * держится: та же чистая свёртка, просто без неаутентифицированных операторских воидов.
+ */
+export function computeVoteWeightAsOf(events: LedgerEvent[], asOf: string): Points {
+  const cut = Date.parse(asOf);
+  return computePoints(
+    events.filter((e) => e.type !== "ADMIN_VOID" && Date.parse(e.ts) <= cut),
+  );
+}
+
 export interface TierResolution {
   tier?: Tier; // undefined → очков меньше порога ПЕРВОГО тира («без тира»)
   nextTier?: Tier; // следующий рубеж; для «без тира» это первый тир

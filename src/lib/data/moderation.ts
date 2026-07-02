@@ -271,6 +271,21 @@ export async function hashContent(text: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * Ончейн-коммитмент ТЕКСТА ЗАДАНИЯ (CR-4): `SHA-256(nonceHex ‖ text)` — 32 байта, hex. `nonceHex` фикс-длины
+ * (16 байт = 32 hex-символа), поэтому конкатенация без разделителя однозначна. Это значение
+ * КЛИЕНТ кладёт как `task_id` (seed эскроу-PDA) при фандинге, поэтому сам ончейн-адрес эскроу становится
+ * коммитментом к тексту — без изменения программы/редеплоя. Отличия от `hashContent`: (1) НЕ нормализуем —
+ * коммитим точный текст, который читает жюри; (2) соль `nonce` (хранится офчейн с текстом) гасит брутфорс
+ * низкоэнтропийных заданий по публичному хэшу. Проверка: любой с парой (text, nonce) пересчитывает и
+ * сверяет с ончейн-`task_id` → оператор не может ни подменить, ни подсунуть чужой текст незаметно.
+ */
+export async function taskTextCommitment(text: string, nonceHex: string): Promise<string> {
+  const payload = new TextEncoder().encode(`${nonceHex}${text}`);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", payload);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export interface ModerationOutcome {
   verdict: ModerationVerdict;
   lang: string;

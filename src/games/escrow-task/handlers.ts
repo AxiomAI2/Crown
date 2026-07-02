@@ -157,6 +157,7 @@ export const escrowTaskHandlers: GameHandlers = {
         executionMs?: unknown;
         escrowTaskId?: unknown; // chain-режим: ссылка на ончейн-эскроу (ADR 0017)
         fundTx?: unknown;
+        textNonce?: unknown; // CR-4: соль коммитмента текста (task_id = SHA-256(nonce ‖ text))
       };
       const amount = String(p.amount ?? "");
       if (!/^\d+$/.test(amount) || BigInt(amount) <= 0n)
@@ -198,6 +199,15 @@ export const escrowTaskHandlers: GameHandlers = {
           "Ончейн-эскроу не найден или не совпадает (донор/сумма/mint/канал).",
         );
       }
+      // CR-4: task_id обязан быть коммитментом к ЭТОМУ тексту (SHA-256(nonce ‖ text)). Иначе клиент мог бы
+      // профандить эскроу под один текст, а записать другой → жюри судило бы не то, что вшито в цепочку.
+      const textNonce = typeof p.textNonce === "string" ? p.textNonce : undefined;
+      if (escrowTaskId && !(await ctx.verifyTextCommitment(escrowTaskId, text, textNonce))) {
+        throw new GameBusError(
+          "ESCROW_TEXT_MISMATCH",
+          "Ончейн-эскроу не привязан к этому тексту задания (коммитмент не совпал).",
+        );
+      }
       const task = M.createTask(
         {
           // id используется в URL страницы спора → делаем URL-безопасным (id стора несёт ISO с «:»/«.»).
@@ -216,6 +226,7 @@ export const escrowTaskHandlers: GameHandlers = {
         ...task,
         ...(escrowTaskId ? { escrowTaskId } : {}),
         ...(typeof p.fundTx === "string" ? { fundTx: p.fundTx } : {}),
+        ...(textNonce ? { textNonce } : {}), // CR-4: соль для пересчёта коммитмента текста третьей стороной
       };
       saveTasks(ctx, [...loadTasks(ctx), stored]);
       return stored;

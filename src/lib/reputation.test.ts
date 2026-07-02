@@ -3,6 +3,7 @@ import type { LedgerEvent, LedgerType, Tier } from "./data/types";
 import {
   computePoints,
   computePointsAsOf,
+  computeVoteWeightAsOf,
   pointsForAmount,
   POINTS_PER_USDC,
   resolveTier,
@@ -155,6 +156,48 @@ describe("computePointsAsOf — снэпшот веса на момент (дл�
       { ...ev("ADMIN_VOID", -50), ts: "2026-01-02T00:00:00.000Z" },
     ];
     expect(computePointsAsOf(withVoid, "2026-01-03T00:00:00.000Z")).toBe(0);
+  });
+});
+
+describe("computeVoteWeightAsOf — вес голоса БЕЗ операторских ADMIN_VOID (CR-1)", () => {
+  const at = (type: LedgerType, pointsDelta: number, ts: string): LedgerEvent => ({
+    ...ev(type, pointsDelta),
+    ts,
+  });
+
+  it("ADMIN_VOID НЕ стирает вес голоса (модерация ≠ рычаг над исходом спора)", () => {
+    const log = [
+      at("DONATION", 100, "2026-01-01T00:00:00.000Z"),
+      at("ADMIN_VOID", -100, "2026-01-02T00:00:00.000Z"), // оператор занулил СТАТУС
+    ];
+    // Статус (дисплей) — обнулён; вес голоса — сохранён (заработан реальными донатами).
+    expect(computePoints(log)).toBe(0);
+    expect(computeVoteWeightAsOf(log, "2026-01-03T00:00:00.000Z")).toBe(100);
+  });
+
+  it("DISPUTE_LOST (протокольное списание за ложный спор) в весе ОСТАётся", () => {
+    const log = [
+      at("DONATION", 100, "2026-01-01T00:00:00.000Z"),
+      at("DISPUTE_LOST", -50, "2026-01-02T00:00:00.000Z"),
+    ];
+    expect(computeVoteWeightAsOf(log, "2026-01-03T00:00:00.000Z")).toBe(50);
+  });
+
+  it("снэпшот по ts работает как раньше (нельзя нафармить «под спор»)", () => {
+    const log = [
+      at("DONATION", 100, "2026-01-01T00:00:00.000Z"),
+      at("DONATION", 50, "2026-03-01T00:00:00.000Z"),
+    ];
+    expect(computeVoteWeightAsOf(log, "2026-02-01T00:00:00.000Z")).toBe(100);
+  });
+
+  it("void ПОСЛЕ снэпшота не влияет (двойная страховка со снэпшотом)", () => {
+    const log = [
+      at("DONATION", 100, "2026-01-01T00:00:00.000Z"),
+      at("ADMIN_VOID", -100, "2026-01-02T00:00:00.000Z"),
+    ];
+    // и по ts-отсечке (void после openedAt), и по типу — вес держится.
+    expect(computeVoteWeightAsOf(log, "2026-01-01T12:00:00.000Z")).toBe(100);
   });
 });
 
