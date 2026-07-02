@@ -332,7 +332,8 @@ export function hide(task: EscrowTask): EscrowTask {
   return { ...task, hidden: true };
 }
 
-/** Виден ли текст задания в ПУБЛИЧНОЙ ленте (без учёта роли смотрящего). Пусто = SHOWN (совместимость). */
+/** Виден ли текст задания в ПУБЛИЧНОЙ ленте (без учёта роли смотрящего). Пусто = SHOWN (совместимость).
+ * Операторский тейкдаун (operatorBlocked) перебивает всё — снятый оператором текст не публичен никогда. */
 export function isTextPublic(task: EscrowTask): boolean {
-  return (task.textState ?? "SHOWN") === "SHOWN";
+  return !task.operatorBlocked && (task.textState ?? "SHOWN") === "SHOWN";
 }

@@ -102,7 +102,16 @@ async function settle(ctx: GameContext, task: EscrowTask): Promise<EscrowTask> {
  * раскрываем текст комьюнити. Так «спрятал текст, но забрал деньги» исключено. Только для chain-backed
  * заданий; state≥Accepted (или уже ушло стримеру) → SHOWN. Деньги/резолв не трогаем.
  */
+/** Помечает задание operatorBlocked из операторского override-набора (модерация платформы). Вычисляемо в
+ * запросах — сам слайс не хранит флаг; так тейкдаун/снятие через операторский журнал всегда актуальны. */
+function withOperatorBlock(ctx: GameContext, task: EscrowTask): EscrowTask {
+  return ctx.isContentBlocked?.(task.id) ? { ...task, operatorBlocked: true } : task;
+}
+
 async function revealFromChain(ctx: GameContext, task: EscrowTask): Promise<EscrowTask> {
+  // Операторский тейкдаун перебивает авто-раскрытие: снятое оператором задание индексер НЕ возвращает на свет
+  // (нелегальщина остаётся снятой, даже если эскроу принят/оплачен ончейн). Оператор > цепочка > модерация.
+  if (ctx.isContentBlocked?.(task.id)) return task;
   // Уже ПОЛНОСТЬЮ на виду (текст показан И не спрятан из ленты) → чинить нечего. Иначе — сверяемся с цепочкой:
   // «hidden» (Отклонить) или HIDDEN-текст на ПРИНЯТОМ ончейн задании надо снять, деньги ⟹ задание видно.
   const fullyVisible = (task.textState ?? "SHOWN") === "SHOWN" && !task.hidden;
@@ -352,11 +361,17 @@ export const escrowTaskHandlers: GameHandlers = {
   },
 
   queries: {
-    // Задания этого канала (сырые; «ожидаемый исход» по времени UI считает машиной сам).
-    list: (ctx) => ({ tasks: loadTasks(ctx).filter((t) => t.channelId === ctx.channelId) }),
+    // Задания этого канала (сырые; «ожидаемый исход» по времени UI считает машиной сам). Аннотируем
+    // operatorBlocked из операторского override-набора — единый источник истины про тейкдаун (не в слайсе).
+    list: (ctx) => ({
+      tasks: loadTasks(ctx)
+        .filter((t) => t.channelId === ctx.channelId)
+        .map((t) => withOperatorBlock(ctx, t)),
+    }),
     get: (ctx, payload) => {
       const id = idOf(payload);
-      return loadTasks(ctx).find((t) => t.id === id && t.channelId === ctx.channelId) ?? null;
+      const t = loadTasks(ctx).find((t) => t.id === id && t.channelId === ctx.channelId);
+      return t ? withOperatorBlock(ctx, t) : null;
     },
     // Голоса спора — ПОСТРАНИЧНО + фильтр по стороне + поиск по адресу + сортировка. Так страница спора
     // масштабируется на тысячи голосующих (не грузим всё разом). Агрегат (tally) считается по ВСЕМ голосам.

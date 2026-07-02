@@ -73,6 +73,13 @@ export interface GameContext {
    * (state≥Accepted) НЕЗАВИСИМО от UI — стример не может забрать деньги, не приняв, а accept обнажает текст.
    */
   escrowState?: (escrowTaskId: string) => Promise<number | null>;
+  /**
+   * Операторский тейкдаун контента (модерация платформы): снят ли этот id (задания/сообщения) с публикации.
+   * Источник истины — override-набор провайдера (журнал операторских действий), НЕ игровой слайс. Перебивает
+   * всё: стример не покажет, авто-раскрытие по цепочке (ESC-19) не вернёт. Отсутствует (нет операторских
+   * действий) → ничего не снято. Деньги ончейн это не трогает — только видимость (§4.1/§4.2).
+   */
+  isContentBlocked?: (contentId: string) => boolean;
 }
 
 export type GameHandler = (ctx: GameContext, payload: unknown) => unknown | Promise<unknown>;

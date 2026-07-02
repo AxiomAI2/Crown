@@ -472,9 +472,12 @@ export function TaskFeedRow({
         </div>
         <Amount micro={BigInt(task.amount)} />
       </div>
-      {/* Текст — только если опубликован (SHOWN). Иначе «[не показано]» (не светим приватный текст, §4.6). */}
+      {/* Текст — только если опубликован (SHOWN). Иначе «[не показано]» (не светим приватный текст, §4.6);
+          снятое оператором — «[снято оператором платформы]» (тейкдаун модерации перебивает публикацию). */}
       {isTextPublic(task) ? (
         <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
+      ) : task.operatorBlocked ? (
+        <p className="text-body italic text-fg-faint">[снято оператором платформы]</p>
       ) : (
         <p className="text-body italic text-fg-faint">[не показано]</p>
       )}
@@ -542,7 +545,8 @@ function TaskCard({
   const winner = effective?.outcome === "to_streamer" ? ownerAddress : task.donor;
   const canClaim = !!effective && !final?.claimed && viewer === winner;
   // Стример/автор видят текст всегда; остальным — только SHOWN (иначе плашка «на модерации»/«скрыто»).
-  const canSeeText = isTextPublic(task) || isStreamer || isDonor;
+  // Операторский тейкдаун перебивает роль: снятый оператором текст не виден НИКОМУ (даже стримеру/автору).
+  const canSeeText = !task.operatorBlocked && (isTextPublic(task) || isStreamer || isDonor);
 
   return (
     <div className="flex flex-col gap-2 border-b border-border py-4">
@@ -568,6 +572,8 @@ function TaskCard({
 
       {canSeeText ? (
         <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
+      ) : task.operatorBlocked ? (
+        <p className="text-body italic text-fg-faint">[снято оператором платформы]</p>
       ) : (
         <p className="text-body italic text-fg-faint">[не показано]</p>
       )}
@@ -622,7 +628,7 @@ function TaskCard({
           >
             Скрыть текст
           </Button>
-        ) : isStreamer && !isTextPublic(task) && !due && !final ? (
+        ) : isStreamer && !isTextPublic(task) && !task.operatorBlocked && !due && !final ? (
           <Button
             size="sm"
             variant="secondary"

@@ -55,15 +55,16 @@ const ACTIONS: { value: PenaltyAction; label: string }[] = [
   { value: "REINSTATE_CHANNEL", label: "Восстановить канал (снять саспенд/бан)" },
 ];
 
-// Какие цели нужны действию: канал и/или адрес кошелька. Под выбранное действие показываем нужные поля.
-const REQUIRES: Record<PenaltyAction, { channel: boolean; address: boolean }> = {
-  HIDE_MESSAGE: { channel: true, address: false },
-  CHANNEL_BLOCK: { channel: true, address: true },
-  SUSPEND_CHANNEL: { channel: true, address: false },
-  BAN_CREATOR_ROLE: { channel: true, address: false },
-  BAN_WALLET_FULL: { channel: false, address: true },
-  ADMIN_VOID: { channel: true, address: true },
-  REINSTATE_CHANNEL: { channel: true, address: false },
+// Какие цели нужны действию: канал / адрес кошелька / id контента. Под выбранное действие показываем поля.
+const REQUIRES: Record<PenaltyAction, { channel: boolean; address: boolean; content: boolean }> = {
+  HIDE_MESSAGE: { channel: false, address: false, content: true }, // тейкдаун: id задания/донат-сообщения
+  CHANNEL_BLOCK: { channel: true, address: true, content: false },
+  SUSPEND_CHANNEL: { channel: true, address: false, content: false },
+  BAN_CREATOR_ROLE: { channel: true, address: false, content: false },
+  BAN_WALLET_FULL: { channel: false, address: true, content: false },
+  ADMIN_VOID: { channel: true, address: true, content: false },
+  // Восстановление снимает санкцию с любой цели — поля канал/адрес/контент показываем опционально (нужен ≥1).
+  REINSTATE_CHANNEL: { channel: false, address: false, content: false },
 };
 
 export default function OpsConsolePage() {
@@ -75,6 +76,7 @@ export default function OpsConsolePage() {
   const [action, setAction] = useState<PenaltyAction>("SUSPEND_CHANNEL");
   const [channelId, setChannelId] = useState("");
   const [address, setAddress] = useState("");
+  const [contentId, setContentId] = useState("");
   const [reason, setReason] = useState("");
   const [preservation, setPreservation] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -82,8 +84,12 @@ export default function OpsConsolePage() {
   const incPg = usePager(queueQ.data ?? [], 10); // лог постранично, чтобы не уходил в бесконечность
 
   const req = REQUIRES[action];
-  const canApply =
-    (!req.channel || channelId.trim() !== "") && (!req.address || address.trim() !== "");
+  const isReinstate = action === "REINSTATE_CHANNEL"; // восстановление: любая из целей, поля опциональны
+  const canApply = isReinstate
+    ? channelId.trim() !== "" || address.trim() !== "" || contentId.trim() !== ""
+    : (!req.channel || channelId.trim() !== "") &&
+      (!req.address || address.trim() !== "") &&
+      (!req.content || contentId.trim() !== "");
 
   // channelId → @handle (читаемо).
   const handleFor = (id: string): string => {
@@ -106,6 +112,7 @@ export default function OpsConsolePage() {
         action,
         targetChannelId: channelId.trim() || undefined,
         targetAddress: address.trim() || undefined,
+        targetContentId: contentId.trim() || undefined,
         reason: reason.trim() || action,
         preservation: preservation || undefined,
         reported: preservation || undefined,
@@ -165,7 +172,7 @@ export default function OpsConsolePage() {
             ))}
           </Select>
           <Input label="Причина" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="CSAM / flood / sanctions" />
-          {req.channel ? (
+          {req.channel || isReinstate ? (
             <Select label="Канал" value={channelId} onChange={(e) => setChannelId(e.target.value)}>
               <option value="">— выбери канал —</option>
               {(channelsQ.data ?? []).map((c) => (
@@ -175,13 +182,22 @@ export default function OpsConsolePage() {
               ))}
             </Select>
           ) : null}
-          {req.address ? (
+          {req.address || isReinstate ? (
             <Input
               label="Адрес кошелька"
               mono
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="вставь base58-адрес"
+            />
+          ) : null}
+          {req.content || isReinstate ? (
+            <Input
+              label="ID контента (задание / донат-сообщение)"
+              mono
+              value={contentId}
+              onChange={(e) => setContentId(e.target.value)}
+              placeholder="снять с публикации: id задания или сообщения"
             />
           ) : null}
           <Switch checked={preservation} onCheckedChange={setPreservation} label="Preservation + репорт (NCMEC)" />
@@ -192,7 +208,9 @@ export default function OpsConsolePage() {
           </Button>
           {!canApply ? (
             <span className="text-small text-fg-faint">
-              Укажи цель: {[req.channel && "канал", req.address && "адрес кошелька"].filter(Boolean).join(" + ")}
+              {isReinstate
+                ? "Укажи цель восстановления: канал, адрес кошелька или id контента"
+                : `Укажи цель: ${[req.channel && "канал", req.address && "адрес кошелька", req.content && "id контента"].filter(Boolean).join(" + ")}`}
             </span>
           ) : null}
         </div>

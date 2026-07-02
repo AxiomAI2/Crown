@@ -185,6 +185,7 @@ export interface OperatorAction {
   action: PenaltyAction;
   targetChannelId?: string;
   targetAddress?: Address;
+  targetContentId?: string; // HIDE_MESSAGE: id снимаемого с публикации задания ИЛИ донат-сообщения (тейкдаун)
   reason: string; // CSAM / flood / sanctions / repeat_tos
   byOperator: Address;
   preservation?: boolean;

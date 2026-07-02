@@ -8,6 +8,7 @@ import {
   createTask,
   dueResolution,
   hide,
+  isTextPublic,
   DISPUTE_LOSS_PENALTY,
   DISPUTE_WIN_BONUS,
   markDone,
@@ -278,5 +279,13 @@ describe("hide (отказ стримера — скрыть без резолв
   });
   it("ESC-19: на ПРИНЯТОМ задании отклонить нельзя (деньги ⟹ задание на виду)", () => {
     expect(throwsCode(() => hide(accept(newTask(), T0)))).toBe("NOT_OPEN");
+  });
+});
+
+describe("операторский тейкдаун (operatorBlocked) — перебивает публикацию", () => {
+  it("isTextPublic=false даже если текст SHOWN (снято оператором платформы)", () => {
+    const shown = { ...accept(newTask(), T0), textState: "SHOWN" as const };
+    expect(isTextPublic(shown)).toBe(true);
+    expect(isTextPublic({ ...shown, operatorBlocked: true })).toBe(false);
   });
 });

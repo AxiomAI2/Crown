@@ -23,6 +23,7 @@ function harness(
   // Модерационные тесты передают "manual" (тогда HELD).
   textShowMode: GameContext["textShowMode"] = "auto_if_clean",
   escrowState?: GameContext["escrowState"], // ESC-19: сырое ончейн-состояние (для теста раскрытия по accept)
+  isContentBlocked?: GameContext["isContentBlocked"], // операторский тейкдаун (модерация платформы)
 ) {
   let slice: unknown;
   let counter = 0;
@@ -47,6 +48,7 @@ function harness(
     verifyEscrow: async () => true,
     textShowMode,
     escrowState,
+    isContentBlocked,
   });
   const run = (identity: string | null, t: number, op: string, payload?: unknown) =>
     dispatchGame(
@@ -388,6 +390,22 @@ describe("очередь модерации текста задания (textSta
     expect(after.hidden).toBe(false); // задание вернулось в ленту — комьюнити увидит и сможет оспорить
     expect(after.textState).toBe("SHOWN");
     expect(after.status).toBe("ACCEPTED");
+  });
+
+  it("операторский тейкдаун ПЕРЕБИВАЕТ авто-раскрытие: settleDue не раскрывает, list помечает operatorBlocked", async () => {
+    const blocked = new Set<string>();
+    // escrowState=1 (Accepted) — обычно индексер раскрыл бы текст; но оператор снял задание.
+    const h = harness({}, "Payout1", undefined, "manual", async () => 1, (id) => blocked.has(id));
+    const t = (await h.run("Donor", T0, "create", {
+      amount: AMOUNT,
+      text: "сделай X",
+      escrowTaskId: "abc123",
+    })) as EscrowTask;
+    blocked.add(t.id); // оператор снял контент с публикации
+    await h.run(null, T0 + 1, "settleDue"); // индексер видит ончейн-accept…
+    const after = (await h.query("get", { taskId: t.id })) as EscrowTask;
+    expect(after.textState).toBe("HELD"); // …но текст НЕ раскрыт — тейкдаун перебивает раскрытие
+    expect(after.operatorBlocked).toBe(true); // запрос помечает снятое (isTextPublic → false в UI)
   });
 });
 

@@ -123,6 +123,12 @@ export class MockDataProvider implements DataProvider {
   private incidents: IncidentLog[] = [];
   private operatorActions: OperatorAction[] = [];
   private reports: ReportRecord[] = [];
+  // Операторские override-наборы (модерация платформы). Не персистятся напрямую — ВЫЧИСЛЯЮТСЯ из
+  // operatorActions (журнал = источник истины, он в снапшоте) через rebuildOperatorOverrides() в __restore.
+  // Тейкдаун контента (задание/сообщение) и полный бан кошелька перебивают офчейн-логику; деньги ончейн это
+  // не трогает (§4.1/§4.2 некастодиальность) — только видимость и офчейн-действия платформы.
+  private operatorBlockedContent = new Set<string>();
+  private bannedWallets = new Set<Address>();
 
   private sessionAddress: Address | null = null;
   // H3: на сервере личность инжектится резолвером (per-request AsyncLocalStorage, см. server/store.ts);
@@ -231,7 +237,12 @@ export class MockDataProvider implements DataProvider {
   /** Приватный текст (HELD/HIDDEN/QUARANTINED) виден только менеджерам канала; иначе вырезаем (§4.6). */
   private redactDonation(d: Donation, isManager: boolean): Donation {
     const m = d.message;
-    if (!m || isManager || m.state === "SHOWN") return d;
+    if (!m) return d;
+    // Операторский тейкдаун сообщения — снято с публикации для ВСЕХ, даже для менеджера канала (перебивает
+    // роль). Иначе стример по-прежнему видел бы снятую оператором нелегальщину.
+    if (this.operatorBlockedContent.has(m.id))
+      return { ...d, message: { ...m, text: "", state: "HIDDEN" } };
+    if (isManager || m.state === "SHOWN") return d;
     return { ...d, message: { ...m, text: "" } };
   }
   private standingFor(channelId: string, donor: Address): ViewerStanding | null {
@@ -295,6 +306,8 @@ export class MockDataProvider implements DataProvider {
     this.incidents = [];
     this.operatorActions = [];
     this.reports = [];
+    this.operatorBlockedContent.clear();
+    this.bannedWallets.clear();
   }
 
   // — Персистентность (ADR 0013): снимок/восстановление для файлового хранилища (server/persist.ts) —
@@ -331,6 +344,30 @@ export class MockDataProvider implements DataProvider {
     this.reports = s.reports ?? [];
     this.gameState = new Map(s.gameState ?? []);
     this.seq = s.seq ?? 0;
+    this.rebuildOperatorOverrides(); // тейкдаун/баны — из восстановленного журнала операторских действий
+  }
+  /** Пересобирает override-наборы (тейкдаун контента, полный бан кошелька) из журнала операторских действий —
+   * единый источник истины (персистится), «последнее действие по цели побеждает». Канальные блоки живут в
+   * this.blocks (персистятся отдельно) — тут их не трогаем. */
+  private rebuildOperatorOverrides(): void {
+    this.operatorBlockedContent.clear();
+    this.bannedWallets.clear();
+    for (const a of this.operatorActions) {
+      if (a.action === "HIDE_MESSAGE" && a.targetContentId)
+        this.operatorBlockedContent.add(a.targetContentId);
+      else if (a.action === "BAN_WALLET_FULL" && a.targetAddress)
+        this.bannedWallets.add(a.targetAddress);
+      else if (a.action === "REINSTATE_CHANNEL") {
+        if (a.targetContentId) this.operatorBlockedContent.delete(a.targetContentId);
+        if (a.targetAddress && !a.targetChannelId) this.bannedWallets.delete(a.targetAddress);
+      }
+    }
+  }
+  /** Полный бан кошелька оператором: заблокированный не создаёт каналы, не донатит офчейн и не играет.
+   * Деньги ончейн так не остановить (некастодиально) — гейт закрывает офчейн-действия платформы. */
+  private requireNotBanned(addr: Address | null): void {
+    if (addr && this.bannedWallets.has(addr))
+      throw new DataError("WALLET_BANNED", "Кошелёк заблокирован оператором платформы.");
   }
 
   // — Сессия / идентичность —
@@ -446,6 +483,7 @@ export class MockDataProvider implements DataProvider {
   async createChannel(input: CreateChannelInput): Result<Channel> {
     await this.gate("createChannel");
     const addr = this.requireSession();
+    this.requireNotBanned(addr); // забаненный оператором кошелёк не заводит каналы
     // Валидация входов на денежном пути: кривой payout уронил бы сборку tx; handle нормализуем и
     // проверяем по строгому шаблону, уникальность — БЕЗ учёта регистра (анти-имперсонация @Foo/@foo).
     const handle = (input.handle ?? "").trim().toLowerCase();
@@ -795,6 +833,7 @@ export class MockDataProvider implements DataProvider {
     await this.gate("createDonation");
     const donor = this.session().address;
     if (!donor) throw new DataError("NO_SESSION", "Сначала подключи кошелёк, чтобы задонатить.");
+    this.requireNotBanned(donor); // забаненный оператором кошелёк не донатит (офчейн-путь)
     const ch = this.channelsById.get(input.channelId);
     if (!ch) throw new DataError("NO_CHANNEL", "Канал не найден.");
     const cfg = this.latestConfig(input.channelId);
@@ -1047,6 +1086,9 @@ export class MockDataProvider implements DataProvider {
     const msg = this.messages.get(messageId);
     if (!msg) throw new DataError("NO_MESSAGE", "Сообщение не найдено.");
     this.requireChannelManager(msg.channelId); // показ/скрытие — решение публикации, только менеджер
+    // Операторский тейкдаун перебивает стримера: снятое оператором сообщение он показать обратно не может.
+    if (state === "SHOWN" && this.operatorBlockedContent.has(messageId))
+      throw new DataError("BLOCKED_BY_OPERATOR", "Сообщение снято оператором платформы — показать нельзя.");
     const updated: MessageRef = {
       ...msg,
       state,
@@ -1186,6 +1228,34 @@ export class MockDataProvider implements DataProvider {
   ): Result<OperatorAction> {
     await this.gate("applyOperatorAction");
     const operator = this.requireOperator(); // только оператор: бан/заморозка каналов, ADMIN_VOID (§4.5)
+    // Санкция без нужной цели — не «тихий лог», а явная ошибка (иначе кнопка «сработала», но ничего не сделала).
+    const need = (ok: boolean, msg: string) => {
+      if (!ok) throw new DataError("BAD_TARGET", msg);
+    };
+    switch (action.action) {
+      case "HIDE_MESSAGE":
+        need(!!action.targetContentId, "Укажи id задания или сообщения для снятия с публикации.");
+        break;
+      case "BAN_WALLET_FULL":
+        need(!!action.targetAddress, "Укажи адрес кошелька для полного бана.");
+        break;
+      case "CHANNEL_BLOCK":
+        need(!!action.targetChannelId && !!action.targetAddress, "Нужны канал и адрес кошелька.");
+        break;
+      case "ADMIN_VOID":
+        need(!!action.targetAddress && !!action.targetChannelId, "Нужны канал и адрес донора.");
+        break;
+      case "SUSPEND_CHANNEL":
+      case "BAN_CREATOR_ROLE":
+        need(!!action.targetChannelId, "Укажи канал.");
+        break;
+      case "REINSTATE_CHANNEL": // восстановление — снимает санкцию с любой цели: канал / кошелёк / контент
+        need(
+          !!action.targetChannelId || !!action.targetAddress || !!action.targetContentId,
+          "Укажи цель восстановления (канал, кошелёк или id контента).",
+        );
+        break;
+    }
     const full: OperatorAction = {
       ...action,
       reason: (action.reason ?? "").slice(0, REASON_MAX), // ограничиваем длину причины
@@ -1219,14 +1289,45 @@ export class MockDataProvider implements DataProvider {
         this.channelsById.set(ch.id, { ...ch, status });
       }
     }
-    // Восстановление: обратное к suspend/ban. Только SUSPENDED|BANNED → ACTIVE (BASIC не трогаем, иначе
-    // обошли бы платный сбор активации).
-    if (action.action === "REINSTATE_CHANNEL" && action.targetChannelId) {
-      const ch = this.channelsById.get(action.targetChannelId);
-      if (ch && (ch.status === "SUSPENDED" || ch.status === "BANNED")) {
-        this.channelsById.set(ch.id, { ...ch, status: "ACTIVE" });
+    // Тейкдаун контента: снять задание/сообщение с публикации НАСОВСЕМ (перебивает стримера и авто-раскрытие
+    // индексера — см. isContentBlocked/revealFromChain). Множество вычислит rebuild ниже из журнала. Для
+    // донат-сообщения дополнительно гасим его state — уходит из очереди/ленты сразу (для заданий видимость
+    // целиком даёт override-набор). Деньги ончейн не трогаем (§4.1/§4.2).
+    if (action.action === "HIDE_MESSAGE" && action.targetContentId) {
+      const msg = this.messages.get(action.targetContentId);
+      if (msg) this.messages.set(msg.id, { ...msg, state: "HIDDEN" });
+    }
+    // Канальный блок кошелька: переиспользуем блок-лист канала (this.blocks) — он уже гейтит донат-с-текстом
+    // (precheckText/createDonation) и прячет ник. Идемпотентно (не плодим дубли).
+    if (action.action === "CHANNEL_BLOCK" && action.targetChannelId && action.targetAddress) {
+      const exists = this.blocks.some(
+        (b) => b.channelId === action.targetChannelId && b.blockedAddress === action.targetAddress,
+      );
+      if (!exists)
+        this.blocks.push({
+          channelId: action.targetChannelId,
+          blockedAddress: action.targetAddress,
+          reason: full.reason || undefined,
+          byModerator: operator,
+          ts: this.now(),
+        });
+    }
+    // Восстановление: обратное к любой санкции по указанной цели. Канал: SUSPENDED|BANNED → ACTIVE (BASIC не
+    // трогаем — иначе обошли бы платный сбор активации). Кошелёк/контент снимутся в rebuild ниже; канальный
+    // блок (канал+адрес) убираем из блок-листа тут.
+    if (action.action === "REINSTATE_CHANNEL") {
+      if (action.targetChannelId) {
+        const ch = this.channelsById.get(action.targetChannelId);
+        if (ch && (ch.status === "SUSPENDED" || ch.status === "BANNED"))
+          this.channelsById.set(ch.id, { ...ch, status: "ACTIVE" });
+        if (action.targetAddress)
+          this.blocks = this.blocks.filter(
+            (b) =>
+              !(b.channelId === action.targetChannelId && b.blockedAddress === action.targetAddress),
+          );
       }
     }
+    this.rebuildOperatorOverrides(); // тейкдаун контента / бан кошелька — из журнала (последнее действие побеждает)
     // Карательный инцидент — только для санкций; восстановление это резолюция, не инцидент (есть в журнале
     // operatorActions). Иначе бейдж «Флуд» вводил бы в заблуждение.
     if (action.action !== "REINSTATE_CHANNEL") {
@@ -1310,6 +1411,9 @@ export class MockDataProvider implements DataProvider {
     if (kind === "action" && req.op === "create" && !cfg.enabledGames.includes(req.gameId)) {
       throw new DataError("GAME_NOT_ENABLED", "Эта мини-игра не включена на канале.");
     }
+    // Забаненный оператором кошелёк не играет (создать/принять/голосовать и т.п.). Фоновый сеттлер зовёт
+    // без личности (settleDue) → requireNotBanned(null) — no-op, индексер не трогаем.
+    if (kind === "action") this.requireNotBanned(this.currentAddress());
     const exec = async (): Promise<unknown> => {
       const ctx: GameContext = {
         identity: this.currentAddress(),
@@ -1334,6 +1438,7 @@ export class MockDataProvider implements DataProvider {
         verifyEscrow: this.verifyEscrowHook ?? (async () => true),
         escrowOutcome: this.escrowOutcomeHook,
         escrowState: this.escrowStateHook,
+        isContentBlocked: (id) => this.operatorBlockedContent.has(id), // операторский тейкдаун (модерация)
         bankLedger: (entries) => {
           for (const e of entries) {
             this.ledger.push({
