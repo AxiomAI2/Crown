@@ -150,10 +150,6 @@ export const escrowTaskHandlers: GameHandlers = {
       const amount = String(p.amount ?? "");
       if (!/^\d+$/.test(amount) || BigInt(amount) <= 0n)
         throw new GameBusError("BAD_AMOUNT", "Нужна положительная сумма (micro-USDC).");
-      // Анти-wash (self-dealing): нельзя ставить задание самому себе (свой канал/payout). Иначе донор=стример
-      // прокручивает self-эскроу (fund→accept→готово→claim) и копит репутацию за ~3% комиссии (§4.3/§4.4).
-      if (donor === ctx.channelOwner || (ctx.channelPayout && donor === ctx.channelPayout))
-        throw new GameBusError("SELF_TASK", "Нельзя ставить задание самому себе (свой канал).");
       const text = typeof p.text === "string" ? p.text.trim() : "";
       if (!text) throw new GameBusError("NO_TEXT", "Нужен текст задания.");
       // Модерация текста задания: нелегальное/опасное не создаётся вовсе. Иначе видимость текста в ПУБЛИЧНОЙ

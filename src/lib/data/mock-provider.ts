@@ -836,9 +836,6 @@ export class MockDataProvider implements DataProvider {
     this.requireNotBanned(donor); // забаненный оператором кошелёк не донатит (офчейн-путь)
     const ch = this.channelsById.get(input.channelId);
     if (!ch) throw new DataError("NO_CHANNEL", "Канал не найден.");
-    // Анти-wash: нельзя донатить самому себе (свой канал/кошелёк выплаты) — накрутка репутации за ~3% (§4.3).
-    if (donor === ch.ownerAddress || donor === ch.payoutAddress)
-      throw new DataError("SELF_DONATION", "Нельзя донатить самому себе (свой канал/кошелёк выплаты).");
     const cfg = this.latestConfig(input.channelId);
     const hasText = Boolean(input.text && input.text.trim());
     // B4: лимит длины текста (как трастлесс-приём в server/ingest.ts) — иначе мегабайтный текст осел бы в
@@ -975,12 +972,7 @@ export class MockDataProvider implements DataProvider {
     const blocked = this.blocks.some(
       (b) => b.channelId === p.channelId && b.blockedAddress === p.donor,
     );
-    // Анти-wash (self-dealing): донат самому себе (свой канал/payout) НЕ копит репутацию. Иначе владелец с
-    // payout=свой кошелёк крутит bankroll — 97% возвращается ему, а очки капают за ~3% комиссии (§4.3/§4.4).
-    // Деньги ончейн финальны (не отклоняем на этом пути), но pointsDelta=0 → в журнале честный ноль.
-    const ch = this.channelsById.get(p.channelId);
-    const selfDeal = !!ch && (p.donor === ch.ownerAddress || p.donor === ch.payoutAddress);
-    const pointsDelta = selfDeal ? 0 : pointsForAmount(p.amount); // фиксировано: 1 USDC = 1 очко
+    const pointsDelta = pointsForAmount(p.amount); // фиксировано: 1 USDC = 1 очко
     const ts = this.now();
     const tierBefore = this.standingFor(p.channelId, p.donor)?.tier?.name;
     const donationId = this.nextId("d");
