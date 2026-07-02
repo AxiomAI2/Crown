@@ -1,6 +1,6 @@
 import { OPERATOR_ADDRESS, splitAmount } from "../chain/addresses";
 import { CHANNEL_DESC_MAX, sanitizeChannelLinks } from "../channel-links";
-import { computePoints, computeVoteWeightAsOf, pointsForAmount, resolveTier } from "../reputation";
+import { computePoints, computePointsAsOf, pointsForAmount, resolveTier } from "../reputation";
 import { isLikelyBase58Address, toMicro } from "../utils";
 import { dispatchGame, GAME_HANDLERS, GameBusError, type GameContext } from "../../games";
 import { defaultChannelConfig, MAX_TIERS, TIER_DESC_MAX } from "./fixtures";
@@ -675,9 +675,11 @@ export class MockDataProvider implements DataProvider {
         return donorName ? { ...r, donorName } : r;
       });
 
-    // Журнал очков донора: за что НАЧИСЛИЛИ (+ донат) и СПИСАЛИ (− ADMIN_VOID) очки, новые сверху.
-    const pointEvents: DonorPointEvent[] = [
-      ...donations.map((d) => ({
+    // Журнал очков донора: за что НАЧИСЛИЛИ очки (донаты, рост репутации), новые сверху.
+    // Лента активности донора — только донаты (рост репутации). Оператор репутацию не списывает (CR-1),
+    // а протокольные спор-события (DISPUTE_*) живут в слое игры, не в этой ленте.
+    const pointEvents: DonorPointEvent[] = donations
+      .map((d) => ({
         id: d.id,
         channelId: d.channelId,
         type: "DONATION" as const,
@@ -686,18 +688,8 @@ export class MockDataProvider implements DataProvider {
         ts: d.ts,
         txSignature: d.txSignature,
         message: d.message,
-      })),
-      ...this.ledger
-        .filter((e) => e.donor === address && e.type === "ADMIN_VOID")
-        .map((e) => ({
-          id: e.id,
-          channelId: e.creator,
-          type: "ADMIN_VOID" as const,
-          pointsDelta: e.pointsDelta,
-          amount: 0n,
-          ts: e.ts,
-        })),
-    ].sort((a, b) => (a.ts < b.ts ? 1 : -1));
+      }))
+      .sort((a, b) => (a.ts < b.ts ? 1 : -1));
 
     const totalDonated = standings.reduce((sum, x) => sum + x.totalDonated, 0n);
     const firstDonationAt = donations.reduce<string | undefined>(
@@ -1227,7 +1219,7 @@ export class MockDataProvider implements DataProvider {
     action: Omit<OperatorAction, "id" | "ts" | "byOperator">,
   ): Result<OperatorAction> {
     await this.gate("applyOperatorAction");
-    const operator = this.requireOperator(); // только оператор: бан/заморозка каналов, ADMIN_VOID (§4.5)
+    const operator = this.requireOperator(); // только оператор: бан/заморозка каналов, тейкдаун (§4.5)
     // Санкция без нужной цели — не «тихий лог», а явная ошибка (иначе кнопка «сработала», но ничего не сделала).
     const need = (ok: boolean, msg: string) => {
       if (!ok) throw new DataError("BAD_TARGET", msg);
@@ -1241,9 +1233,6 @@ export class MockDataProvider implements DataProvider {
         break;
       case "CHANNEL_BLOCK":
         need(!!action.targetChannelId && !!action.targetAddress, "Нужны канал и адрес кошелька.");
-        break;
-      case "ADMIN_VOID":
-        need(!!action.targetAddress && !!action.targetChannelId, "Нужны канал и адрес донора.");
         break;
       case "SUSPEND_CHANNEL":
       case "BAN_CREATOR_ROLE":
@@ -1264,21 +1253,9 @@ export class MockDataProvider implements DataProvider {
       byOperator: operator,
     };
     this.operatorActions.push(full);
-    if (action.action === "ADMIN_VOID" && action.targetAddress && action.targetChannelId) {
-      const events = this.eventsFor(action.targetAddress, action.targetChannelId);
-      const cfg = this.latestConfig(action.targetChannelId);
-      const points = computePoints(events);
-      this.ledger.push({
-        id: this.nextId("l"),
-        donor: action.targetAddress,
-        creator: action.targetChannelId,
-        type: "ADMIN_VOID",
-        amount: 0n,
-        pointsDelta: -points,
-        configVersion: cfg.version,
-        ts: this.now(),
-      });
-    }
+    // Оператор репутацию НЕ редактирует (CR-1): наказание — БЛОК (бан кошелька/канальный блок), который
+    // обесценивает репутацию, не трогая честное перевычислимое число (§4.4/§4.5). Единственное списание
+    // очков — протокольный DISPUTE_LOST (проигранный ложный спор), не операторская кнопка.
     if (
       (action.action === "SUSPEND_CHANNEL" || action.action === "BAN_CREATOR_ROLE") &&
       action.targetChannelId
@@ -1435,10 +1412,10 @@ export class MockDataProvider implements DataProvider {
         },
         // Мостики в ядро (ADR 0015): вес = очки на момент; банковка эффектов игры в журнал канала;
         // модерация UGC игры тем же ядровым пайплайном (для заданий — строгая политика, classifyTaskText).
-        // Вес голоса/кворум = заработанные очки на снэпшоте БЕЗ операторских ADMIN_VOID (CR-1): модерация
-        // не должна стирать голос присяжного. Наказания — в статусе (computePoints) и полном бане.
+        // Вес голоса/кворум = очки на снэпшоте. Оператор репутацию не редактирует (нет ADMIN_VOID, CR-1) →
+        // вес честный; единственное списание — протокольный DISPUTE_LOST (проигранный ложный спор).
         reputationAsOf: (address, asOf) =>
-          computeVoteWeightAsOf(this.eventsFor(address, req.channelId), asOf),
+          computePointsAsOf(this.eventsFor(address, req.channelId), asOf),
         moderate: (text) => classifyTaskText(text),
         textShowMode: cfg.textShowMode, // та же политика публикации, что у донат-сообщений (очередь/авто)
         // Серверные хуки сверки эскроу (ADR 0017/ESC-12) ИНЖЕКТЯТСЯ из store.ts (сервер) — так серверный DB/

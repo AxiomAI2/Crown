@@ -102,9 +102,8 @@ export interface ChannelConfig {
 // — Журнал репутации (источник истины) —
 export type LedgerType =
   | "DONATION" // (+) единственный источник роста в ядре
-  | "ADMIN_VOID" // (−) списание оператором при нелегальщине
   | "DISPUTE_WON" // (+) выигранный спор (игра escrow-task, ADR 0015)
-  | "DISPUTE_LOST" // (−) проигранный спор (игра escrow-task)
+  | "DISPUTE_LOST" // (−) проигранный ложный спор — ЕДИНСТВЕННОЕ протокольное списание (игра escrow-task)
   | "GAME" // зарезервировано под будущие игры
   | "REFUND"; // зарезервировано (возврат)
 
@@ -172,12 +171,11 @@ export interface ChannelBlock {
 }
 
 export type PenaltyAction =
-  | "HIDE_MESSAGE"
-  | "CHANNEL_BLOCK"
-  | "SUSPEND_CHANNEL"
-  | "BAN_CREATOR_ROLE"
-  | "BAN_WALLET_FULL"
-  | "ADMIN_VOID"
+  | "HIDE_MESSAGE" // тейкдаун текста (видимость; деньги/репутацию не трогает)
+  | "CHANNEL_BLOCK" // блок кошелька на одном канале: не донатит-с-текстом, не заходит в игру там
+  | "SUSPEND_CHANNEL" // канал → SUSPENDED (временная приостановка, обратимо)
+  | "BAN_CREATOR_ROLE" // канал → BANNED (снятие роли креатора; кошелёк может завести новый канал)
+  | "BAN_WALLET_FULL" // полный бан кошелька: не голосует/не спорит/не донатит/не создаёт — вся ценность репутации обнуляется, но само число остаётся честным (§4.4)
   | "REINSTATE_CHANNEL"; // обратное к suspend/ban: SUSPENDED|BANNED → ACTIVE (путь восстановления)
 
 export interface OperatorAction {
@@ -292,9 +290,9 @@ export interface DonorChannelStanding {
 export interface DonorPointEvent {
   id: string;
   channelId: string;
-  type: LedgerType; // в ядре: DONATION (+ за донат) | ADMIN_VOID (− списание оператором)
-  pointsDelta: Points; // + начислено / − списано
-  amount: MicroUSDC; // сумма доната (0 для списания)
+  type: "DONATION"; // лента активности донора показывает только донаты (рост репутации)
+  pointsDelta: Points; // + начислено за донат
+  amount: MicroUSDC; // сумма доната
   ts: Iso;
   txSignature?: TxSignature;
   message?: MessageRef; // приватный текст доната (если показан) — для строки активности

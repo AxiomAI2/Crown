@@ -25,8 +25,10 @@ export function pointsForAmount(amountMicro: MicroUSDC): Points {
 }
 
 /**
- * Свёртка журнала донора по каналу → текущие очки (дробные). ADMIN_VOID уже отрицателен; репутация только
- * растёт (кроме него), поэтому клампим к ≥0. Детерминизм §4.4: суммируем в ЦЕЛЫХ micro-очках (каждая дельта
+ * Свёртка журнала донора по каналу → текущие очки (дробные). Оператор репутацию НЕ редактирует (ручного
+ * списания нет, CR-1): единственная отрицательная дельта — протокольный DISPUTE_LOST (проигранный ложный
+ * спор); её и donation-рост клампим к ≥0. Наказание нарушителя — БЛОК кошелька/канала (обесценивает
+ * репутацию, не трогая честное число). Детерминизм §4.4: суммируем в ЦЕЛЫХ micro-очках (каждая дельта
  * кратна 1e-6 → *1e6 даёт целое), одно деление в конце — float-дрейф (0.1+0.2) исключён, все считают одно.
  */
 export function computePoints(events: LedgerEvent[]): Points {
@@ -43,22 +45,6 @@ export function computePoints(events: LedgerEvent[]): Points {
 export function computePointsAsOf(events: LedgerEvent[], asOf: string): Points {
   const cut = Date.parse(asOf);
   return computePoints(events.filter((e) => Date.parse(e.ts) <= cut));
-}
-
-/**
- * Вес голоса в споре на МОМЕНТ снэпшота (CR-1). Как `computePointsAsOf`, но ИСКЛЮЧАЕТ операторские
- * `ADMIN_VOID`: вес присяжного — это заработанные донатами/спорами очки, и оператор не должен уметь
- * стереть его голос модерацией текста (иначе «модерация» становится рычагом над ИСХОДОМ спора, аудит CR-1).
- * Наказания сохраняются в правильных инструментах: `ADMIN_VOID` по-прежнему обнуляет СТАТУС (тир/перки —
- * см. `computePoints`), `DISPUTE_LOST` (протокольное списание за ложный спор) остаётся в весе, а чтобы
- * вырезать нарушителя из голосования есть полный бан кошелька (`requireNotBanned`). Детерминизм §4.4
- * держится: та же чистая свёртка, просто без неаутентифицированных операторских воидов.
- */
-export function computeVoteWeightAsOf(events: LedgerEvent[], asOf: string): Points {
-  const cut = Date.parse(asOf);
-  return computePoints(
-    events.filter((e) => e.type !== "ADMIN_VOID" && Date.parse(e.ts) <= cut),
-  );
 }
 
 export interface TierResolution {

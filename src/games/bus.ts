@@ -50,8 +50,8 @@ export interface GameContext {
   newId: () => string;
   /** Состояние этой игры (непрозрачный для ядра слайс). */
   state: GameStateSlice;
-  /** Вес = заработанные очки адреса в этом канале на момент `asOf` (снэпшот; computeVoteWeightAsOf —
-   *  БЕЗ операторских ADMIN_VOID, CR-1: модерация не стирает голос присяжного). */
+  /** Вес = очки адреса в этом канале на момент `asOf` (снэпшот; computePointsAsOf). Оператор репутацию не
+   *  редактирует (CR-1) → вес честный; наказание нарушителя — блок кошелька/канала, не правка числа. */
   reputationAsOf: (address: string, asOf: string) => number;
   /** Забанковать эффекты на репутацию в журнал канала (ADR 0015). */
   bankLedger: (entries: GameLedgerEntry[]) => void;

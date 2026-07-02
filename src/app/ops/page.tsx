@@ -35,23 +35,23 @@ const KIND: Record<IncidentLog["kind"], { label: string; cls: string }> = {
   flood: { label: "Флуд", cls: "border-warn text-warn" },
 };
 
+// Лестница наказаний по нарастанию (каждая ступень — отдельная цель/эффект, не дубли):
+//  контент → участие на канале → сам канал (временно/навсегда) → кошелёк целиком → юр-эскалация.
 const LADDER = [
-  "Скрыть / карантин сообщения",
-  "Канальный блок (стример)",
-  "Временный саспенд канала (SUSPENDED)",
-  "Бан роли креатора (BANNED)",
-  "Полный бан кошелька",
-  "Воид репутации (ADMIN_VOID)",
+  "Скрыть контент (текст задания/сообщения)",
+  "Канальный блок кошелька (на одном канале)",
+  "Саспенд канала — временно (SUSPENDED, обратимо)",
+  "Бан роли креатора — навсегда (BANNED)",
+  "Полный бан кошелька (обнуляет ценность репутации везде)",
   "Юр-эскалация: NCMEC + preservation",
 ];
 
 const ACTIONS: { value: PenaltyAction; label: string }[] = [
-  { value: "HIDE_MESSAGE", label: "Скрыть сообщение" },
-  { value: "CHANNEL_BLOCK", label: "Канальный блок" },
-  { value: "SUSPEND_CHANNEL", label: "Саспенд канала" },
-  { value: "BAN_CREATOR_ROLE", label: "Бан креатор-роли" },
+  { value: "HIDE_MESSAGE", label: "Скрыть контент (текст)" },
+  { value: "CHANNEL_BLOCK", label: "Канальный блок кошелька" },
+  { value: "SUSPEND_CHANNEL", label: "Саспенд канала (временно)" },
+  { value: "BAN_CREATOR_ROLE", label: "Бан роли креатора (навсегда)" },
   { value: "BAN_WALLET_FULL", label: "Полный бан кошелька" },
-  { value: "ADMIN_VOID", label: "Воид репутации (ADMIN_VOID)" },
   { value: "REINSTATE_CHANNEL", label: "Восстановить канал (снять саспенд/бан)" },
 ];
 
@@ -62,7 +62,6 @@ const REQUIRES: Record<PenaltyAction, { channel: boolean; address: boolean; cont
   SUSPEND_CHANNEL: { channel: true, address: false, content: false },
   BAN_CREATOR_ROLE: { channel: true, address: false, content: false },
   BAN_WALLET_FULL: { channel: false, address: true, content: false },
-  ADMIN_VOID: { channel: true, address: true, content: false },
   // Восстановление снимает санкцию с любой цели — поля канал/адрес/контент показываем опционально (нужен ≥1).
   REINSTATE_CHANNEL: { channel: false, address: false, content: false },
 };
@@ -145,7 +144,8 @@ export default function OpsConsolePage() {
       <div className="flex flex-col gap-1">
         <h1 className="text-display-l text-fg">Консоль оператора / T&amp;S</h1>
         <p className="text-fg-muted">
-          Платформенный уровень: то, что не может стример. ADMIN_VOID — единственное списание репутации.
+          Платформенный уровень: то, что не может стример. Репутацию руками не редактируем — нарушителя
+          БЛОКИРУЕМ (бан кошелька/канала), и вся ценность его репутации обнуляется, а число остаётся честным.
         </p>
       </div>
 

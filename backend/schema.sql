@@ -62,7 +62,7 @@ CREATE TABLE ledger_events (
   donor          text NOT NULL,
   creator        text NOT NULL REFERENCES channels(id),
   type           text NOT NULL
-                   CHECK (type IN ('DONATION','ADMIN_VOID','DISPUTE_WON','DISPUTE_LOST','GAME','REFUND')),
+                   CHECK (type IN ('DONATION','DISPUTE_WON','DISPUTE_LOST','GAME','REFUND')),
   amount         numeric(20,0) NOT NULL DEFAULT 0,  -- micro-USDC (0 для не-донатных)
   points_delta   bigint NOT NULL,                   -- забанковано в момент события (+/−)
   config_version integer NOT NULL,
@@ -114,7 +114,7 @@ CREATE TABLE operator_actions (
   id                text PRIMARY KEY,
   action            text NOT NULL
                       CHECK (action IN ('HIDE_MESSAGE','CHANNEL_BLOCK','SUSPEND_CHANNEL',
-                                        'BAN_CREATOR_ROLE','BAN_WALLET_FULL','ADMIN_VOID')),
+                                        'BAN_CREATOR_ROLE','BAN_WALLET_FULL','REINSTATE_CHANNEL')),
   target_channel_id text,
   target_address    text,
   reason            text NOT NULL,

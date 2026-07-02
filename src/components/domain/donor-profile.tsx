@@ -306,7 +306,6 @@ function ActivityRow({
   handle?: string;
   channelName?: string;
 }) {
-  const isVoid = e.type === "ADMIN_VOID";
   const shown = e.message?.state === "SHOWN";
   const delta = e.pointsDelta;
   return (
@@ -320,26 +319,18 @@ function ActivityRow({
         ) : (
           <span className="mono min-w-0 truncate text-small text-fg-faint">{e.channelId}</span>
         )}
-        {/* дельта очков: + начислено / − списано */}
-        <span
-          className="mono shrink-0 text-small font-medium"
-          style={{ color: delta < 0 ? "var(--danger)" : "var(--money)" }}
-        >
-          {delta >= 0 ? "+" : "−"}
-          {formatPoints(Math.abs(delta))} {plural(Math.abs(delta), POINTS)}
+        {/* дельта очков за донат (лента — только донаты, рост) */}
+        <span className="mono shrink-0 text-small font-medium" style={{ color: "var(--money)" }}>
+          +{formatPoints(delta)} {plural(delta, POINTS)}
         </span>
       </div>
 
       {/* за что */}
-      {isVoid ? (
-        <p className="text-small text-danger">Списание оператором — нелегальный контент.</p>
-      ) : (
-        <div className="flex items-center gap-1.5 text-small text-fg-muted">
-          <span>Донат</span>
-          <Amount micro={e.amount} variant="money" />
-        </div>
-      )}
-      {!isVoid && shown && e.message ? (
+      <div className="flex items-center gap-1.5 text-small text-fg-muted">
+        <span>Донат</span>
+        <Amount micro={e.amount} variant="money" />
+      </div>
+      {shown && e.message ? (
         <p className="break-words text-body text-fg">{collapseWhitespace(e.message.text)}</p>
       ) : null}
 
