@@ -78,12 +78,13 @@ export async function saveConfigs(
       await db.query(
         `INSERT INTO channel_configs
            (channel_id, version, hash, description, tiers, min_donation, min_donation_with_text,
-            message_max_len, name_mode, text_show_mode, moderators, enabled_games, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+            message_max_len, name_mode, text_show_mode, moderators, enabled_games,
+            min_reputation_to_task, min_reputation_to_dispute, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
          ON CONFLICT (channel_id, version) DO UPDATE SET
            hash=$3, description=$4, tiers=$5, min_donation=$6, min_donation_with_text=$7,
            message_max_len=$8, name_mode=$9, text_show_mode=$10, moderators=$11, enabled_games=$12,
-           updated_at=$13`,
+           min_reputation_to_task=$13, min_reputation_to_dispute=$14, updated_at=$15`,
         [
           cfg.channelId,
           cfg.version,
@@ -97,6 +98,8 @@ export async function saveConfigs(
           cfg.textShowMode,
           JSON.stringify(cfg.moderators),
           JSON.stringify(cfg.enabledGames ?? []),
+          cfg.minReputationToTask,
+          cfg.minReputationToDispute,
           cfg.updatedAt,
         ],
       );
@@ -118,6 +121,8 @@ export async function loadConfigs(db: PGlite): Promise<Map<string, ChannelConfig
       tiers: asJson(row.tiers, []),
       minDonation: BigInt(row.min_donation as string),
       minDonationWithText: BigInt(row.min_donation_with_text as string),
+      minReputationToTask: Number(row.min_reputation_to_task ?? 0),
+      minReputationToDispute: Number(row.min_reputation_to_dispute ?? 0),
       messageMaxLen: Number(row.message_max_len),
       nameMode: row.name_mode as ChannelConfig["nameMode"],
       textShowMode: row.text_show_mode as ChannelConfig["textShowMode"],

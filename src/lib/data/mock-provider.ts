@@ -555,6 +555,16 @@ export class MockDataProvider implements DataProvider {
           );
       }
     }
+    // §10: пороги репутации (задание/спор) — неотрицательные конечные числа, вменяемый потолок (страховка
+    // поверх UI). Гейтят право присылать задание / поднимать спор, не вес и не исход.
+    for (const [k, v] of [
+      ["minReputationToTask", patch.minReputationToTask],
+      ["minReputationToDispute", patch.minReputationToDispute],
+    ] as const) {
+      if (v === undefined) continue;
+      if (!Number.isFinite(v) || v < 0 || v > 1_000_000_000)
+        throw new DataError("BAD_CONFIG", `Порог репутации (${k}) — неотрицательное число.`);
+    }
     // Описание канала (UGC): лимит + модерация. Имя/ссылки канала живут в профиле владельца, не здесь.
     if (patch.description !== undefined && patch.description.length > CHANNEL_DESC_MAX)
       throw new DataError("TOO_LONG", `Описание — до ${CHANNEL_DESC_MAX} символов.`);
@@ -1403,6 +1413,9 @@ export class MockDataProvider implements DataProvider {
           ? cfg.minDonationWithText
           : cfg.minDonation
         ).toString(),
+        // §10: пороги репутации на присыл задания / на право поднять спор (рычаги стримера, антиспам).
+        minReputationToTask: cfg.minReputationToTask,
+        minReputationToDispute: cfg.minReputationToDispute,
         textMaxLen: cfg.messageMaxLen,
         now: () => this.now(),
         newId: () => this.nextId("game"),

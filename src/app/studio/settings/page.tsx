@@ -19,6 +19,8 @@ interface Draft {
   tiers: Tier[];
   minDonation: bigint;
   minDonationWithText: bigint;
+  minReputationToTask: number;
+  minReputationToDispute: number;
   messageMaxLen: number;
   nameMode: ChannelConfig["nameMode"];
   textShowMode: ChannelConfig["textShowMode"];
@@ -31,6 +33,8 @@ function deriveDraft(c: ChannelConfig): Draft {
     tiers: c.tiers,
     minDonation: c.minDonation,
     minDonationWithText: c.minDonationWithText,
+    minReputationToTask: c.minReputationToTask,
+    minReputationToDispute: c.minReputationToDispute,
     messageMaxLen: c.messageMaxLen,
     nameMode: c.nameMode,
     textShowMode: c.textShowMode,
@@ -50,6 +54,10 @@ function buildPatch(draft: Draft, original: ChannelConfig): ConfigPatch {
   if (draft.minDonation !== original.minDonation) patch.minDonation = draft.minDonation;
   if (draft.minDonationWithText !== original.minDonationWithText)
     patch.minDonationWithText = draft.minDonationWithText;
+  if (draft.minReputationToTask !== original.minReputationToTask)
+    patch.minReputationToTask = draft.minReputationToTask;
+  if (draft.minReputationToDispute !== original.minReputationToDispute)
+    patch.minReputationToDispute = draft.minReputationToDispute;
   if (draft.messageMaxLen !== original.messageMaxLen) patch.messageMaxLen = draft.messageMaxLen;
   if (draft.nameMode !== original.nameMode) patch.nameMode = draft.nameMode;
   if (draft.textShowMode !== original.textShowMode) patch.textShowMode = draft.textShowMode;
@@ -170,6 +178,31 @@ export default function ChannelSettingsPage() {
             onChange={(e) => set("messageMaxLen", Number(e.target.value) || 0)}
           />
         </div>
+      </Section>
+
+      <Section title="Задания и споры (пороги репутации)">
+        <p className="text-small text-fg-muted">
+          Репутация набирается донатами. Пороги отсекают нулевые кошельки: чтобы прислать задание или
+          поднять спор, нужен статус — то есть реально поддержанный канал. 0 — без порога.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            label="Мин. репутация для задания, очков"
+            mono
+            value={String(draft.minReputationToTask)}
+            onChange={(e) => set("minReputationToTask", Math.max(0, Number(e.target.value) || 0))}
+          />
+          <Input
+            label="Порог репутации для спора, очков"
+            mono
+            value={String(draft.minReputationToDispute)}
+            onChange={(e) => set("minReputationToDispute", Math.max(0, Number(e.target.value) || 0))}
+          />
+        </div>
+        <p className="text-small text-fg-faint">
+          Высокий порог спора = меньше троллинга, но и меньше возможности оспорить. Совсем большой порог
+          фактически отключает споры на канале — доноры это увидят.
+        </p>
       </Section>
 
       <Section title="Имена и показ текста">

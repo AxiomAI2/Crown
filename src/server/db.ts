@@ -67,6 +67,8 @@ async function ensureSchema(db: PGlite): Promise<void> {
       tiers                  jsonb NOT NULL,
       min_donation           numeric(20,0) NOT NULL,
       min_donation_with_text numeric(20,0) NOT NULL,
+      min_reputation_to_task    double precision NOT NULL DEFAULT 0,
+      min_reputation_to_dispute double precision NOT NULL DEFAULT 0,
       message_max_len        integer NOT NULL,
       name_mode              text NOT NULL,
       text_show_mode         text NOT NULL,
@@ -75,8 +77,11 @@ async function ensureSchema(db: PGlite): Promise<void> {
       updated_at             timestamptz NOT NULL DEFAULT now(),
       PRIMARY KEY (channel_id, version)
     );
-    -- Миграция для уже созданных БД (CREATE TABLE IF NOT EXISTS не добавит колонку): включённые мини-игры.
+    -- Миграции для уже созданных БД (CREATE TABLE IF NOT EXISTS не добавит колонку):
     ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS enabled_games jsonb NOT NULL DEFAULT '[]';
+    -- §10: пороги репутации на присыл задания / на право поднять спор (рычаги стримера).
+    ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS min_reputation_to_task double precision NOT NULL DEFAULT 0;
+    ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS min_reputation_to_dispute double precision NOT NULL DEFAULT 0;
 
     -- Журнал репутации — append-only источник истины.
     CREATE TABLE IF NOT EXISTS ledger_events (

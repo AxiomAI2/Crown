@@ -17,6 +17,8 @@ function makeCtx(overrides: Partial<GameContext> = {}): GameContext {
     channelPayout: null,
     isChannelManager: false,
     minTaskAmountMicro: "0",
+    minReputationToTask: 0,
+    minReputationToDispute: 1,
     textMaxLen: 500,
     now: () => "2026-01-01T00:00:00.000Z",
     newId: () => "id-1",

@@ -28,6 +28,8 @@ function harness(
   minTaskAmountMicro = "0", // минимум канала для заданий (рычаг §10; тест BELOW_MIN передаёт свой)
   // CR-4: по умолчанию сверка коммитмента отключена (все прочие тесты); тест коммитмента ставит реальную.
   verifyTextCommitment: GameContext["verifyTextCommitment"] = async () => true,
+  minReputationToTask = 0, // §10: порог репутации на присыл задания (тест порога передаёт свой)
+  minReputationToDispute = 1, // §10: порог репутации на право поднять спор (дефолт фикстур = 1)
 ) {
   let slice: unknown;
   let counter = 0;
@@ -39,6 +41,8 @@ function harness(
     channelPayout,
     isChannelManager: identity === STREAMER, // менеджер = владелец (модераторов в харнессе нет)
     minTaskAmountMicro,
+    minReputationToTask,
+    minReputationToDispute,
     textMaxLen: 200, // дефолт фикстур ядра (messageMaxLen)
     escrowOutcome,
     now: () => new Date(t).toISOString(),
@@ -533,5 +537,41 @@ describe("CR-4: ончейн-коммитмент текста задания (t
     await expect(
       h.run("Donor", T0, "create", { amount: AMOUNT, text: "задание", escrowTaskId }),
     ).rejects.toMatchObject({ code: "ESCROW_TEXT_MISMATCH" });
+  });
+});
+
+describe("§10: пороги репутации на задание/спор (рычаги стримера, антиспам)", () => {
+  it("минимум репутации на задание: нулевой кошелёк отсекается, со статусом — проходит", async () => {
+    // порог 5 очков на присыл задания
+    const h = harness(
+      { Rich: 10 }, "Payout1", undefined, "auto_if_clean", undefined, undefined, "0",
+      async () => true, 5 /* minReputationToTask */,
+    );
+    await expect(
+      h.run("Poor", T0, "create", { amount: AMOUNT, text: "сделай X" }),
+    ).rejects.toMatchObject({ code: "LOW_REP" }); // rep 0 < 5
+    const t = (await h.run("Rich", T0, "create", { amount: AMOUNT, text: "сделай X" })) as EscrowTask;
+    expect(t.status).toBe("PENDING"); // rep 10 ≥ 5
+  });
+
+  it("порог 0 = без порога: нулевой кошелёк создаёт задание", async () => {
+    const h = harness(); // minReputationToTask default 0
+    const t = (await h.run("Poor", T0, "create", { amount: AMOUNT, text: "X" })) as EscrowTask;
+    expect(t.status).toBe("PENDING");
+  });
+
+  it("порог спора настраивается стримером: rep ниже порога не поднимает спор", async () => {
+    const h = harness(
+      { Weak: 3, Strong: 5 }, "Payout1", undefined, "auto_if_clean", undefined, undefined, "0",
+      async () => true, 0 /* task */, 5 /* dispute threshold */,
+    );
+    const t = (await h.run("Donor", T0, "create", { amount: AMOUNT, text: "X" })) as EscrowTask;
+    await h.run(STREAMER, T0 + 1, "accept", { taskId: t.id });
+    await h.run(STREAMER, TD, "markDone", { taskId: t.id });
+    await expect(
+      h.run("Weak", TD + 1, "raiseDispute", { taskId: t.id }),
+    ).rejects.toMatchObject({ code: "LOW_REP" }); // 3 < 5
+    const disputed = (await h.run("Strong", TD + 2, "raiseDispute", { taskId: t.id })) as EscrowTask;
+    expect(disputed.status).toBe("DISPUTED"); // 5 ≥ 5
   });
 });

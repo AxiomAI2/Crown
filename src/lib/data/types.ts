@@ -88,6 +88,12 @@ export interface ChannelConfig {
   tiers: Tier[];
   minDonation: MicroUSDC;
   minDonationWithText: MicroUSDC;
+  /** Мин. репутация (очки), чтобы прислать ЗАДАНИЕ-донат (§10 рычаг стримера): новички шлют простые
+   *  донаты и так набирают статус, задания — только с порога. Антиспам заданий. 0 = без порога. */
+  minReputationToTask: number;
+  /** Мин. репутация (очки), чтобы поднять СПОР (§10 рычаг «насколько эксклюзивно право судить мой канал»):
+   *  антитроллинг ↔ анти-цензура спора. Гейтит право поднять спор, НЕ вес голоса и НЕ исход. 0 = без порога. */
+  minReputationToDispute: number;
   messageMaxLen: number;
   nameMode: "addresses_only" | "allow_display_names";
   textShowMode: "manual" | "auto_if_clean";
@@ -354,6 +360,8 @@ export type ConfigPatch = Partial<
     | "tiers"
     | "minDonation"
     | "minDonationWithText"
+    | "minReputationToTask"
+    | "minReputationToDispute"
     | "messageMaxLen"
     | "nameMode"
     | "textShowMode"

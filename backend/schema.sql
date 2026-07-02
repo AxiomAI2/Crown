@@ -46,6 +46,8 @@ CREATE TABLE channel_configs (
   tiers                  jsonb NOT NULL,
   min_donation           numeric(20,0) NOT NULL,
   min_donation_with_text numeric(20,0) NOT NULL,
+  min_reputation_to_task    double precision NOT NULL DEFAULT 0,  -- §10 рычаг: порог статуса на присыл задания
+  min_reputation_to_dispute double precision NOT NULL DEFAULT 0,  -- §10 рычаг: порог статуса на право поднять спор
   message_max_len        integer NOT NULL,
   profanity_policy       text NOT NULL CHECK (profanity_policy IN ('mask','hide','queue')),
   name_mode              text NOT NULL CHECK (name_mode IN ('addresses_only','allow_display_names')),

@@ -13,8 +13,6 @@ import { GameBusError, type GameContext, type GameHandlers } from "../bus";
 import * as M from "./machine";
 import type { EscrowTask, ResolutionReason, TaskOutcome, VoteChoice } from "./types";
 
-/** Минимальная репутация, чтобы поднять спор (спека §10 — рычаг стримера; для мока — константа, калибровка). */
-const DISPUTE_MIN_REP = 1;
 /** Кворум в очках репутации — растёт с суммой доната (спека §8). Мок-дефолт: не меньше очков самого доната. */
 const quorumFor = (amount: string) => Math.max(1, pointsForAmount(BigInt(amount)));
 
@@ -170,6 +168,14 @@ export const escrowTaskHandlers: GameHandlers = {
         throw new GameBusError("TOO_LONG", "Текст задания превышает лимит канала.");
       if (BigInt(amount) < BigInt(ctx.minTaskAmountMicro))
         throw new GameBusError("BELOW_MIN", "Сумма ниже минимума канала для заданий.");
+      // §10: порог репутации на присыл задания — новички шлют простые донаты и так набирают статус, задания
+      // только с порога. Репутация = реально задонатенные деньги этому каналу → платный барьер против флуда
+      // заданий (в т.ч. бесплатного create через сырой RPC). 0 = без порога.
+      if (ctx.minReputationToTask > 0 && ctx.reputationAsOf(donor, ctx.now()) < ctx.minReputationToTask)
+        throw new GameBusError(
+          "LOW_REP",
+          "Недостаточно репутации на канале, чтобы присылать задания. Поддержи канал обычными донатами.",
+        );
       // Модерация текста задания: нелегальное/опасное не создаётся вовсе. Иначе видимость текста в ПУБЛИЧНОЙ
       // ленте решаем той же политикой, что донат-сообщения (textShowMode): чистый + auto_if_clean → сразу
       // SHOWN; иначе → HELD (очередь модерации стримера до «Показать»). Деньги/эскроу от этого не зависят (§7).
@@ -324,7 +330,9 @@ export const escrowTaskHandlers: GameHandlers = {
       const id = requireIdentity(ctx);
       if (id === ctx.channelOwner)
         throw new GameBusError("FORBIDDEN", "Стример не оспаривает своё выполнение.");
-      if (ctx.reputationAsOf(id, ctx.now()) < DISPUTE_MIN_REP)
+      // §10: порог репутации на право поднять спор (рычаг стримера) — гейтит право, не вес голоса и не исход.
+      // Репутация = задонатенные каналу деньги → спам ложных споров требует реального статуса, не нулевого кошелька.
+      if (ctx.reputationAsOf(id, ctx.now()) < ctx.minReputationToDispute)
         throw new GameBusError("LOW_REP", "Недостаточно репутации, чтобы поднять спор.");
       const tasks = loadTasks(ctx);
       const task = findTask(tasks, idOf(payload), ctx.channelId);

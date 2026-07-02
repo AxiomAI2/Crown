@@ -53,6 +53,8 @@ export function defaultChannelConfig(channelId: string): ChannelConfig {
     tiers: DEFAULT_TIERS,
     minDonation: toMicro(0.1),
     minDonationWithText: toMicro(0.5),
+    minReputationToTask: 0, // §10: по умолчанию без порога; стример поднимает для антиспама заданий
+    minReputationToDispute: 1, // §10: право поднять спор — от 1 очка (≈ 1 USDC доната), стример настраивает
     messageMaxLen: 200,
     nameMode: "addresses_only",
     textShowMode: "manual",

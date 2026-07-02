@@ -42,6 +42,11 @@ export interface GameContext {
   /** Минимум суммы задания-доната, micro-USDC строкой: задание = донат с текстом, действует бóльший из
    *  minDonation/minDonationWithText канала (спека §10 — рычаг стримера). Проверяется в create (BELOW_MIN). */
   minTaskAmountMicro: string;
+  /** Мин. репутация (очки), чтобы прислать задание (§10 рычаг стримера) — гейт в create (LOW_REP). 0 = без порога. */
+  minReputationToTask: number;
+  /** Мин. репутация (очки), чтобы поднять спор (§10 рычаг стримера) — гейт в raiseDispute (LOW_REP). Гейтит
+   *  ПРАВО поднять спор, не вес голоса и не исход. 0 = без порога. */
+  minReputationToDispute: number;
   /** Канальный лимит длины текста (messageMaxLen) — к тексту задания, как у донат-сообщений (TOO_LONG, B4). */
   textMaxLen: number;
   /** ISO-таймстамп «сейчас» от стора (детерминируемо в тестах через подмену). */
