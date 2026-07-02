@@ -13,6 +13,7 @@ import {
   splitAmount,
 } from "../chain/donation-tx";
 import {
+  buildAcceptIx,
   buildCancelIx,
   buildClaimDonorIxs,
   buildClaimStreamerIxs,
@@ -565,17 +566,21 @@ export class ChainDataProvider implements DataProvider {
         });
       }
 
-      // «Принять» (accept) на цепочке НЕ ходит — это бесплатный оффчейн-шаг (уходит в default → api).
+      // «Принять» (accept) теперь ХОДИТ на цепочку (ESC-19): без ончейн-accept нельзя mark_done/claim, а по
+      // accept-tx индексер раскрывает текст. Стример платит газ; текст публикуется — это и есть шов.
+      case "accept":
       case "reject":
       case "markDone":
       case "cancel": {
         const taskId = await this.escrowTaskIdOf(req.channelId, p.taskId);
         const ix =
-          req.op === "reject"
-            ? buildRejectIx(programId, w.publicKey, taskId)
-            : req.op === "markDone"
-              ? buildMarkDoneIx(programId, w.publicKey, taskId)
-              : buildCancelIx(programId, w.publicKey, taskId);
+          req.op === "accept"
+            ? buildAcceptIx(programId, w.publicKey, taskId)
+            : req.op === "reject"
+              ? buildRejectIx(programId, w.publicKey, taskId)
+              : req.op === "markDone"
+                ? buildMarkDoneIx(programId, w.publicKey, taskId)
+                : buildCancelIx(programId, w.publicKey, taskId);
         await this.sendTx([ix]);
         return this.api.gameAction(req);
       }

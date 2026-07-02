@@ -1,8 +1,9 @@
 /**
  * Смоук эскроу-программы (G3a) против ЖИВОЙ программы на devnet. Проверяет билдеры `escrow-tx.ts` и сам
  * контракт на СВОЁМ тестовом mint (не Circle USDC — нужен mint authority):
- *   happy:  fund → mark_done → (ждём окно спора) → resolve_timeout → claim_streamer  (97/3, эскроу закрыт)
+ *   happy:  fund → accept → mark_done → (ждём окно спора) → resolve_timeout → claim_streamer  (97/3, закрыт)
  *   refund: fund → reject → claim_donor  (100% назад)
+ *   ESC-19: mark_done БЕЗ accept отклонён (денег стримеру без ончейн-accept нет — а accept раскрывает текст)
  *   audit#1: чужой ключ НЕ может mark_disputed (резолвер захардкожен в программе → clawback закрыт)
  *
  * Резолвер/трежери теперь протокольные КОНСТАНТЫ контракта (аудит #1), поэтому смоук резолвит исход только
@@ -30,6 +31,7 @@ import {
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import {
+  buildAcceptIx,
   buildClaimDonorIxs,
   buildClaimStreamerIxs,
   buildFundIx,
@@ -131,7 +133,7 @@ async function main() {
 
   // ───────── happy-path (через permissionless resolve_timeout) ─────────
   console.log(
-    "\n[happy] fund → DUST → (грейс) mark_done заблокирован → ждём грейс → mark_done → ждём окно спора → resolve_timeout → claim_streamer",
+    "\n[happy] fund → DUST → mark_done БЕЗ accept отклонён (ESC-19) → accept → mark_done в грейсе отклонён → ждём грейс → mark_done → ждём окно спора → resolve_timeout → claim_streamer",
   );
   const t1 = randTaskId();
   const escrow1 = escrowPda(PROGRAM_ID, t1);
@@ -141,14 +143,24 @@ async function main() {
   const vault1 = await getAssociatedTokenAddress(mint, escrow1, true);
   await transfer(conn, payer, donorAta, vault1, donor.publicKey, Number(DUST));
   assert((await bal(conn, vault1)) === DUSTED, "хранилище заражено пылью (amount + dust)");
-  // ESC-13: в грейс-окне отмены донора стример НЕ может пометить «Готово» (фронт-раннинг отмены закрыт).
+  // ESC-19: mark_done НЕВОЗМОЖЕН без accept — нельзя забрать деньги, не приняв (и не раскрыв текст).
+  let noAcceptBlocked = false;
+  try {
+    await send(conn, [buildMarkDoneIx(PROGRAM_ID, streamer.publicKey, t1)], payer, [streamer]);
+  } catch {
+    noAcceptBlocked = true;
+  }
+  assert(noAcceptBlocked, "ESC-19: mark_done без ончейн-accept отклонён");
+  // accept (Pending→Accepted) — обязательный шаг; по нему индексер раскрывает текст задания комьюнити.
+  await send(conn, [buildAcceptIx(PROGRAM_ID, streamer.publicKey, t1)], payer, [streamer]);
+  // ESC-13: даже ПРИНЯВ, в грейс-окне отмены донора «Готово» нельзя (фронт-раннинг отмены закрыт).
   let graceBlocked = false;
   try {
     await send(conn, [buildMarkDoneIx(PROGRAM_ID, streamer.publicKey, t1)], payer, [streamer]);
   } catch {
     graceBlocked = true;
   }
-  assert(graceBlocked, "ESC-13: mark_done в грейс-окне отклонён");
+  assert(graceBlocked, "ESC-13: mark_done в грейс-окне отклонён (даже после accept)");
   console.log(`  ждём ${GRACE_WAIT_MS / 1000}с (грейс отмены донора)…`);
   await new Promise((r) => setTimeout(r, GRACE_WAIT_MS));
   await send(conn, [buildMarkDoneIx(PROGRAM_ID, streamer.publicKey, t1)], payer, [streamer]);

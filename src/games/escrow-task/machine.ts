@@ -102,17 +102,9 @@ export function accept(task: EscrowTask, nowMs: number): EscrowTask {
     throw new GameBusError("NOT_PENDING", "Задание уже не ждёт ответа.");
   if (nowMs > ms(task.executionDeadline))
     throw new GameBusError("ACCEPT_EXPIRED", "Срок сдачи истёк — донат вернётся донору.");
-  // Принять можно ТОЛЬКО показанное задание: иначе стример «выполнит» скрытый текст, и в возможном споре
-  // непонятно, что он брал в работу и за что голосуют. Публикация (SHOWN) обязательна ДО взятия в работу.
-  // ВНИМАНИЕ: это UI/сервер-гейт — контракт текст НЕ видит; ончейн `mark_done` из Pending его обходит
-  // (audit-map ESC-19). Полный фикс — на контракте в крипто-фазе (ончейн-accept-гейт / переворот дефолта).
-  if (!isTextPublic(task))
-    throw new GameBusError(
-      "TEXT_NOT_SHOWN",
-      "Сначала покажи текст задания — иначе непонятно, что берёшь в работу и за что будут голосовать.",
-    );
-  // Бесплатная пометка «беру в работу» (UI-гейт). Дедлайн сдачи и грейс отмены заданы при создании — не сбрасываем.
-  return { ...task, status: "ACCEPTED" };
+  // ESC-19: принятие РАСКРЫВАЕТ текст (SHOWN). Ончейн `accept` обязателен перед `mark_done`, а по accept-tx
+  // индексер раскроет текст и мимо UI — так «спрятал текст, но забрал деньги» невозможно (шов ончейн↔офчейн).
+  return { ...task, status: "ACCEPTED", textState: "SHOWN" };
 }
 
 export function reject(task: EscrowTask, nowMs: number): EscrowTask {

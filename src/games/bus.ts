@@ -67,6 +67,12 @@ export interface GameContext {
    * откладываем. Отсутствует (mock/api) → задание без `escrowTaskId`, сверка с цепочкой не нужна.
    */
   escrowOutcome?: (escrowTaskId: string) => Promise<"to_streamer" | "to_donor" | null>;
+  /**
+   * Сырое ончейн-состояние эскроу (ESC-19): 0 Pending, 1 Accepted, 2 Done, 3 Resolved, 4 Disputed; `null` —
+   * не настроено / аккаунт закрыт / сбой RPC. Нужно, чтобы офчейн раскрыть текст задания по ончейн-`accept`
+   * (state≥Accepted) НЕЗАВИСИМО от UI — стример не может забрать деньги, не приняв, а accept обнажает текст.
+   */
+  escrowState?: (escrowTaskId: string) => Promise<number | null>;
 }
 
 export type GameHandler = (ctx: GameContext, payload: unknown) => unknown | Promise<unknown>;

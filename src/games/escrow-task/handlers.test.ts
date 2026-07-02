@@ -22,6 +22,7 @@ function harness(
   // По умолчанию auto_if_clean → задание сразу SHOWN, чтобы lifecycle-тесты могли принять без явного показа.
   // Модерационные тесты передают "manual" (тогда HELD).
   textShowMode: GameContext["textShowMode"] = "auto_if_clean",
+  escrowState?: GameContext["escrowState"], // ESC-19: сырое ончейн-состояние (для теста раскрытия по accept)
 ) {
   let slice: unknown;
   let counter = 0;
@@ -45,6 +46,7 @@ function harness(
     moderate: async (text) => (/убей|укради/i.test(text) ? "HARD_BLOCK" : "CLEAR"),
     verifyEscrow: async () => true,
     textShowMode,
+    escrowState,
   });
   const run = (identity: string | null, t: number, op: string, payload?: unknown) =>
     dispatchGame(
@@ -332,16 +334,26 @@ describe("очередь модерации текста задания (textSta
     ).rejects.toMatchObject({ code: "TEXT_LOCKED" });
   });
 
-  it("принять можно ТОЛЬКО показанное: HELD → accept = TEXT_NOT_SHOWN; после «Показать» — ок", async () => {
+  it("ESC-19: accept РАСКРЫВАЕТ текст — HELD → accept делает ACCEPTED + SHOWN", async () => {
     const h = harness({}, "Payout1", undefined, "manual");
     const t = (await h.run("Donor", T0, "create", { amount: AMOUNT, text: "сделай X" })) as EscrowTask;
     expect(t.textState).toBe("HELD");
-    await expect(h.run(STREAMER, T0 + 1, "accept", { taskId: t.id })).rejects.toMatchObject({
-      code: "TEXT_NOT_SHOWN",
-    });
-    await h.run(STREAMER, T0 + 1, "setTextState", { taskId: t.id, state: "SHOWN" });
-    const accepted = (await h.run(STREAMER, T0 + 2, "accept", { taskId: t.id })) as EscrowTask;
+    const accepted = (await h.run(STREAMER, T0 + 1, "accept", { taskId: t.id })) as EscrowTask;
     expect(accepted.status).toBe("ACCEPTED");
+    expect(accepted.textState).toBe("SHOWN"); // принятие публикует текст
+  });
+
+  it("ESC-19: ончейн-accept (escrowState=Accepted) → settleDue раскрывает текст МИМО UI", async () => {
+    const h = harness({}, "Payout1", undefined, "manual", async () => 1); // 1 = Accepted на цепочке
+    const t = (await h.run("Donor", T0, "create", {
+      amount: AMOUNT,
+      text: "сделай X",
+      escrowTaskId: "abc123",
+    })) as EscrowTask;
+    expect(t.textState).toBe("HELD");
+    await h.run(null, T0 + 1, "settleDue"); // фоновый сеттлер (без личности) — как индексер
+    const after = (await h.query("get", { taskId: t.id })) as EscrowTask;
+    expect(after.textState).toBe("SHOWN"); // индексер увидел ончейн-accept и раскрыл текст
   });
 });
 

@@ -1,5 +1,5 @@
 import { MockDataProvider, type StoreSnapshot } from "@/lib/data/mock-provider";
-import { readEscrowOutcome, verifyEscrowOnChain } from "@/server/escrow-verify";
+import { readEscrowOutcome, readEscrowState, verifyEscrowOnChain } from "@/server/escrow-verify";
 import { scanEscrowClaimsNow, startIndexer } from "@/server/indexer-service";
 import { readSnapshot } from "@/server/persist";
 import { currentIdentity } from "@/server/request-context";
@@ -48,6 +48,8 @@ async function init(): Promise<MockDataProvider> {
     }
     return readEscrowOutcome(id);
   };
+  // ESC-19: сырое ончейн-состояние — индексер по нему раскрывает текст задания при ончейн-`accept`.
+  store.escrowStateHook = (id) => readEscrowState(id);
 
   const snap = await loadStore();
   if (snap) {

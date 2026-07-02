@@ -1264,6 +1264,7 @@ export class MockDataProvider implements DataProvider {
     expect: { donor: string; amount: string; streamer?: string },
   ) => Promise<boolean>;
   escrowOutcomeHook?: (escrowTaskId: string) => Promise<"to_streamer" | "to_donor" | null>;
+  escrowStateHook?: (escrowTaskId: string) => Promise<number | null>; // ESC-19: сырое ончейн-состояние
 
   // Очереди сериализации операций над общим in-memory стором: мутации игры по gameId (ESC-15; слайс игры
   // один на ВСЕ каналы) и приём доната по подписи (B1). Закрывают гонки «прочитал → await → записал»
@@ -1332,6 +1333,7 @@ export class MockDataProvider implements DataProvider {
         // mock-провайдера. В браузере/mock хуки не заданы → verifyEscrow=true, escrowOutcome отсутствует (эскроу нет).
         verifyEscrow: this.verifyEscrowHook ?? (async () => true),
         escrowOutcome: this.escrowOutcomeHook,
+        escrowState: this.escrowStateHook,
         bankLedger: (entries) => {
           for (const e of entries) {
             this.ledger.push({

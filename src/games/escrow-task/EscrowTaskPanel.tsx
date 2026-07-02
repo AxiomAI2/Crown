@@ -633,19 +633,16 @@ function TaskCard({
         ) : null}
         {isStreamer && task.status === "PENDING" && !due ? (
           <>
-            {/* Принять можно только показанное задание — иначе комьюнити не знает, что берёшь в работу. */}
-            {isTextPublic(task) ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                disabled={pending}
-                onClick={() => run("accept", { taskId: id }, "Принято")}
-              >
-                Принять
-              </Button>
-            ) : (
-              <span className="text-small text-fg-faint">Покажи текст, чтобы принять</span>
-            )}
+            {/* «Принять» = ончейн-accept: он же раскрывает текст комьюнити (ESC-19) — гейта «покажи сначала»
+                больше нет, публикация происходит самим принятием. */}
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={pending}
+              onClick={() => run("accept", { taskId: id }, "Принято — текст показан")}
+            >
+              Принять
+            </Button>
             <Button
               size="sm"
               variant="ghost"

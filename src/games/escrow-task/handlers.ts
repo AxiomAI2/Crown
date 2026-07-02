@@ -96,6 +96,31 @@ async function settle(ctx: GameContext, task: EscrowTask): Promise<EscrowTask> {
   return resolved;
 }
 
+/**
+ * ESC-19: раскрыть текст задания, если стример ПРИНЯЛ его на цепочке (даже в обход UI). Путь к деньгам
+ * стримеру (accept→mark_done→claim) невозможен без ончейн-`accept`, а `accept` мы видим через индексер и
+ * раскрываем текст комьюнити. Так «спрятал текст, но забрал деньги» исключено. Только для chain-backed
+ * заданий; state≥Accepted (или уже ушло стримеру) → SHOWN. Деньги/резолв не трогаем.
+ */
+async function revealFromChain(ctx: GameContext, task: EscrowTask): Promise<EscrowTask> {
+  if ((task.textState ?? "SHOWN") === "SHOWN" || !task.escrowTaskId) return task;
+  if (ctx.escrowState) {
+    const st = await ctx.escrowState(task.escrowTaskId);
+    // Accepted(1)/Done(2)/Disputed(4) ⟹ accept ончейн был (mark_done требует Accepted) → раскрываем текст.
+    if (st === 1 || st === 2 || st === 4)
+      return {
+        ...task,
+        textState: "SHOWN",
+        status: task.status === "PENDING" ? "ACCEPTED" : task.status,
+      };
+  }
+  // Эскроу закрыт claim'ом стримеру ⟹ прошёл через Done ⟹ accept был → раскрываем ретроспективно (страховка
+  // на случай, если индексер не успел до закрытия аккаунта).
+  if (ctx.escrowOutcome && (await ctx.escrowOutcome(task.escrowTaskId)) === "to_streamer")
+    return { ...task, textState: "SHOWN" };
+  return task;
+}
+
 export const escrowTaskHandlers: GameHandlers = {
   actions: {
     // Донор создаёт задание-донат (деньги «в эскроу» — мок).
@@ -294,19 +319,21 @@ export const escrowTaskHandlers: GameHandlers = {
     // независимо от браузера. Идемпотентно: settle() не трогает уже RESOLVED. Деньги не двигает (claim-модель).
     settleDue: async (ctx) => {
       const tasks = loadTasks(ctx);
-      let settledCount = 0;
+      let changed = 0;
       const next: EscrowTask[] = [];
       for (const t of tasks) {
         if (t.status === "RESOLVED" || t.channelId !== ctx.channelId) {
           next.push(t);
           continue;
         }
-        const s = await settle(ctx, t); // банкует эффекты при переходе в RESOLVED (побочный эффект bankLedger)
-        if (s !== t) settledCount++;
+        // ESC-19: раскрыть текст, если стример принял ончейн (даже мимо UI), ДО попытки резолва.
+        const revealed = await revealFromChain(ctx, t);
+        const s = await settle(ctx, revealed); // банкует эффекты при переходе в RESOLVED (bankLedger)
+        if (s !== t) changed++;
         next.push(s);
       }
-      if (settledCount > 0) saveTasks(ctx, next);
-      return { settled: settledCount };
+      if (changed > 0) saveTasks(ctx, next);
+      return { settled: changed };
     },
   },
 

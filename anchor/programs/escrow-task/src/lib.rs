@@ -7,6 +7,8 @@
 //!     `fund` — НИКТО, включая `resolver`, не может направить средства третьему лицу или изменить сумму.
 //!   * Claim-модель (ADR 0015 §7): забирает сам получатель отдельной транзакцией; крутки/keeper нет.
 //!   * Не-спорный цикл (fund/accept/reject/mark_done/cancel/resolve_timeout/claim) — БЕЗ ключа оператора.
+//!     `accept` (ESC-19) ОБЯЗАТЕЛЕН перед `mark_done`: путь к деньгам стартует с accept, а по accept-tx
+//!     офчейн-индексер раскрывает текст задания → «спрятать текст и молча забрать» невозможно.
 //!   * Спор в G3a решает `resolve_dispute` ограниченным резолвером (может только выбрать сторону
 //!     donor|streamer) — это объявленное bounded-доверие ТОЛЬКО для devnet, см. ADR 0017. На мейннете
 //!     заменяется ончейн commit-reveal голосованием (G3b).
@@ -36,7 +38,8 @@ const TREASURY: Pubkey =
 
 // ⚠️ ВРЕМЕННО (тест): короткие окна, чтобы прогонять цикл за минуты. ВЕРНУТЬ В ПРОД + РЕДЕПЛОЙ (совпадать
 //   с machine.ts): DISPUTE_WINDOW = 12*60*60 (12ч), VOTING_WINDOW = 24*60*60 (24ч), CANCEL_GRACE ≈ 2*60.
-//   Срок СДАЧИ задаёт донор при `fund`; отдельного окна «принятия» нет (`accept` — бесплатный оффчейн-шаг).
+//   Срок СДАЧИ задаёт донор при `fund`; отдельного окна «принятия» нет, но `accept` ончейн ОБЯЗАТЕЛЕН перед
+//   `mark_done` (ESC-19) — до срока сдачи.
 const DISPUTE_WINDOW: i64 = 2 * 60; // ТЕСТ: 2 мин (прод 12ч) — окно оспаривания от «Готово» (§10)
 const VOTING_WINDOW: i64 = 2 * 60; // ТЕСТ: 2 мин (прод 24ч) — на резолв спора; после → дефолт стримеру (§11)
 const CANCEL_GRACE: i64 = 60; // ТЕСТ: 1 мин (прод ~2 мин) — окно отмены донором (аудит #5)
@@ -49,7 +52,7 @@ pub mod escrow_task {
 
     /// Донор создаёт задание-донат: заводит эскроу-PDA + хранилище и переводит туда `amount` USDC.
     /// `task_id` — 32-байтовый id задания (хэш game-bus id), `execution_window` — срок СДАЧИ (от создания;
-    /// не сдал → возврат). «Принять» — бесплатный оффчейн-шаг, на цепочке его нет. Резолвер фиксируется тут.
+    /// не сдал → возврат). Стример потом вызывает `accept` (ончейн, ESC-19) перед `mark_done`. Резолвер — тут.
     pub fn fund(
         ctx: Context<Fund>,
         task_id: [u8; 32],
@@ -96,6 +99,19 @@ pub mod escrow_task {
         Ok(())
     }
 
+    /// Стример ПРИНИМАЕТ задание (Pending→Accepted). ОБЯЗАТЕЛЕН перед `mark_done` — денег стримеру без accept
+    /// нет (ESC-19). Accept — публичный ончейн-сигнал (подпись стримера): по нему офчейн-индексер РАСКРЫВАЕТ
+    /// текст задания комьюнити, даже если стример действовал мимо UI. Так «спрятать текст и молча забрать»
+    /// невозможно: путь к деньгам (accept→mark_done→claim) начинается с accept, а accept обнажает задание.
+    pub fn accept(ctx: Context<StreamerAction>) -> Result<()> {
+        let now = Clock::get()?.unix_timestamp;
+        let e = &mut ctx.accounts.escrow;
+        require!(e.state == TaskState::Pending as u8, EscrowError::BadState);
+        require!(now <= e.done_deadline, EscrowError::Expired); // просрочку не принимаем (→ no-show возврат)
+        e.state = TaskState::Accepted as u8;
+        Ok(())
+    }
+
     /// Стример отклоняет задание → возврат донору (деньги сохраняются, §6).
     pub fn reject(ctx: Context<StreamerAction>) -> Result<()> {
         let e = &mut ctx.accounts.escrow;
@@ -108,18 +124,15 @@ pub mod escrow_task {
         Ok(())
     }
 
-    /// Стример отмечает «Готово» (из Pending — accept оффчейн; Accepted допускаем для старых эскроу) →
-    /// стартует окно оспаривания.
+    /// Стример отмечает «Готово» → стартует окно оспаривания. ТРЕБУЕТ `Accepted` (ESC-19): нельзя сдать
+    /// непринятое задание — иначе деньги можно было бы забрать, ни разу не приняв (и не раскрыв текст).
     pub fn mark_done(ctx: Context<StreamerAction>) -> Result<()> {
         let now = Clock::get()?.unix_timestamp;
         let e = &mut ctx.accounts.escrow;
-        require!(
-            e.state == TaskState::Pending as u8 || e.state == TaskState::Accepted as u8,
-            EscrowError::BadState
-        );
+        require!(e.state == TaskState::Accepted as u8, EscrowError::BadState);
         require!(now <= e.done_deadline, EscrowError::Expired); // аудит #2: просрочка → no-show, не «Готово»
-        // ESC-13: нельзя «Готово», пока не истёк грейс отмены донора — иначе стример фронт-раннит mark_done
-        // сразу после fund и обнуляет аварийный выход донора (cancel доступен только из Pending).
+        // ESC-13: нельзя «Готово», пока не истёк грейс отмены донора — иначе стример принял бы и сразу сдал,
+        // обнулив аварийный выход донора (cancel доступен из Pending/Accepted в грейсе).
         // (Требует execution_window > CANCEL_GRACE; для прода держать EXEC_WINDOW_MIN заметно больше грейса.)
         require!(now > e.accept_deadline, EscrowError::GraceActive);
         e.state = TaskState::Done as u8;
@@ -127,11 +140,15 @@ pub mod escrow_task {
         Ok(())
     }
 
-    /// Донор отменяет в грейс-окне (до начала работы) → возврат донору.
+    /// Донор отменяет в грейс-окне (до начала работы) → возврат донору. Из Pending ИЛИ Accepted (паритет с
+    /// офчейн-machine.cancel): даже если стример уже принял, донор может отменить, пока не истёк грейс.
     pub fn cancel(ctx: Context<DonorAction>) -> Result<()> {
         let now = Clock::get()?.unix_timestamp;
         let e = &mut ctx.accounts.escrow;
-        require!(e.state == TaskState::Pending as u8, EscrowError::BadState);
+        require!(
+            e.state == TaskState::Pending as u8 || e.state == TaskState::Accepted as u8,
+            EscrowError::BadState
+        );
         require!(now <= e.accept_deadline, EscrowError::Expired); // аудит #5: только в грейс-окне
         e.resolution = Resolution::ToDonor as u8;
         e.state = TaskState::Resolved as u8;

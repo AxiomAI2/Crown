@@ -65,3 +65,13 @@ export async function readEscrowOutcome(escrowTaskId: string): Promise<EscrowOut
   }
   return r.escrow.resolution === 1 ? "to_streamer" : r.escrow.resolution === 2 ? "to_donor" : null;
 }
+
+/**
+ * ESC-19 — сырое ончейн-состояние эскроу (0 Pending, 1 Accepted, 2 Done, 3 Resolved, 4 Disputed). `null` —
+ * не настроено / битый id / сбой RPC / аккаунт закрыт (заклеймлен). Индексер по нему раскрывает текст задания
+ * при ончейн-`accept` (state≥Accepted) НЕЗАВИСИМО от UI: денег стримеру без accept нет, а accept обнажает текст.
+ */
+export async function readEscrowState(escrowTaskId: string): Promise<number | null> {
+  const r = await readEscrowAccount(escrowTaskId);
+  return r?.escrow ? r.escrow.state : null;
+}
