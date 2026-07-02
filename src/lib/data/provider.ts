@@ -93,7 +93,6 @@ export interface DataProvider {
   applyOperatorAction(
     action: Omit<OperatorAction, "id" | "ts" | "byOperator">,
   ): Result<OperatorAction>;
-  getIncidentLog(opts?: ListOpts): Result<Page<IncidentLog>>;
 
   // — Мини-игры: один game-bus на все игры (ADR 0016), интерфейс не растёт на каждую. Маршрутизация по
   //   gameId/op — на слое игр; результат типизируется хуками внутри модуля игры. —

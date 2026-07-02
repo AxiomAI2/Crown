@@ -10,7 +10,7 @@ import { useLeaderboard } from "@/lib/data/hooks";
 import type { Address, LeaderboardEntry, LeaderboardPeriod, Tier } from "@/lib/data/types";
 import { cn, formatPoints, shortAddress } from "@/lib/utils";
 
-// «Топ месяца» (top_donor_month) убран как дубль верха «Месяца». Период остаётся в типе (его юзает оверлей).
+// «Топ месяца» убран как дубль верха «Месяца» (и из типа тоже — оверлея, который его читал, в коде нет).
 const PERIODS: { value: LeaderboardPeriod; label: string }[] = [
   { value: "all_time", label: "За всё время" },
   { value: "month", label: "Месяц" },

@@ -52,7 +52,7 @@ export interface EscrowTask {
   channelId: string;
   donor: string; // адрес донора
   amount: string; // micro-USDC десятичной строкой
-  text: string; // текст задания (UGC; модерация — на G2)
+  text: string; // текст задания (UGC; модерация — в create: classifyTaskText до фандинга, CR-5)
   createdAt: string; // ISO
   // Срок сдачи (нажать «Готово»), отсчитывается от создания (= ончейн done_deadline). После него — возврат
   // донору (no-show). Задаётся при createTask, не сбрасывается.

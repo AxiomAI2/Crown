@@ -11,40 +11,41 @@ export const MAX_TIERS = 20;
 // Лимит длины описания тира (UGC, опц.). Короче описания канала — это подпись к тиру, не блок текста.
 export const TIER_DESC_MAX = 140;
 
-// — Тиры по умолчанию (core-spec.md §6, цвета — design-system.md §2) —
+// — Тиры по умолчанию (core-spec.md §6, цвета — design-system.md §2). Пороги — в очках (= USDC при
+// курсе 1:1, ADR 0007): $5 / $50 / $500 / $2000 суммарных донатов. Стартовые дефолты, калибруются. —
 export const DEFAULT_TIERS: Tier[] = [
   { name: "Новичок", threshold: 0, color: "#9AA1B2", badge: "rookie", perks: [] },
   {
     name: "Свой",
-    threshold: 500,
+    threshold: 5,
     color: "#7FA7C9",
     badge: "regular",
     perks: [{ label: "Цветной ник" }],
   },
   {
     name: "Постоянный",
-    threshold: 5_000,
+    threshold: 50,
     color: "#6FC3A6",
     badge: "frequent",
     perks: [{ label: "Эмодзи в чате" }],
   },
   {
     name: "VIP",
-    threshold: 50_000,
+    threshold: 500,
     color: "#C9A24B",
     badge: "vip",
     perks: [{ label: "Приоритет алерта" }],
   },
   {
     name: "Легенда",
-    threshold: 200_000,
+    threshold: 2_000,
     color: "#E8B04B",
     badge: "legend",
     perks: [{ label: "Закреплённый бейдж" }],
   },
 ];
 
-/** Конфиг нового канала по умолчанию (курс репутации фиксирован 1$=100; настраиваются тиры и минимумы). */
+/** Конфиг нового канала по умолчанию (курс фиксирован: 1 USDC = 1 очко, ADR 0007; настраиваются тиры и минимумы). */
 export function defaultChannelConfig(channelId: string): ChannelConfig {
   return {
     channelId,

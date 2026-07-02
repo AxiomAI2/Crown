@@ -57,7 +57,6 @@ const FAILABLE = new Set([
   "getModerationQueue",
   "getChannelBlocklist",
   "getOperatorQueue",
-  "getIncidentLog",
 ]);
 
 // R6 (ADR 0012): верхняя граница кэша дедупа модерации (in-memory стенд-ин под Postgres). При переполнении
@@ -87,7 +86,7 @@ interface ReportRecord {
 const REPORT_HIDE_THRESHOLD = 3;
 
 // Лимиты длины пользовательского ввода (анти-DoS + аккуратные поверхности). Имя/био — ещё и публичны.
-const PROFILE_LIMITS = { name: 40, bio: 280, url: 512, link: 256, links: 10 };
+const PROFILE_LIMITS = { name: 40, bio: 280 };
 const REASON_MAX = 500; // причина жалобы/операторского действия/блока (свободный текст)
 
 /**
@@ -183,11 +182,11 @@ export class MockDataProvider implements DataProvider {
   private session(): Session {
     const address = this.currentAddress();
     if (!address)
-      return { address: null, level: "address_only", isCreator: false, isOperator: false };
+      return { address: null, isCreator: false, isOperator: false };
     const isCreator = [...this.channelsById.values()].some((c) => c.ownerAddress === address);
     // C2: пустой OPERATOR_ADDRESS (prod без явного env) не должен давать прав оператора.
     const isOperator = Boolean(OPERATOR_ADDRESS) && address === OPERATOR_ADDRESS;
-    return { address, level: "address_only", isCreator, isOperator };
+    return { address, isCreator, isOperator };
   }
 
   // — Авторизация. Личность = ПРОВЕРЕННЫЙ адрес сессии (выставлен из токена SIWS, см. server/auth.ts).
@@ -663,7 +662,7 @@ export class MockDataProvider implements DataProvider {
         a.donor.localeCompare(b.donor),
     );
     entries.forEach((e, i) => (e.rank = i + 1));
-    return period === "top_donor_month" ? entries.slice(0, 1) : entries.slice(0, 50);
+    return entries.slice(0, 50);
   }
 
   async getDonorOverview(address: Address): Result<DonorOverview> {
@@ -1356,12 +1355,6 @@ export class MockDataProvider implements DataProvider {
       });
     }
     return full;
-  }
-  async getIncidentLog(_opts?: ListOpts): Result<Page<IncidentLog>> {
-    await this.gate("getIncidentLog");
-    this.requireOperator();
-    const items = [...this.incidents].sort((a, b) => (a.ts < b.ts ? 1 : -1));
-    return { items };
   }
 
   // — Мини-игры (game-bus, ADR 0016) —

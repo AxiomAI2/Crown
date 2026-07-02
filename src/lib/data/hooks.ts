@@ -28,7 +28,6 @@ export const qk = {
   moderationQueue: (channelId: string) => ["moderation", channelId] as const,
   blocklist: (channelId: string) => ["blocklist", channelId] as const,
   operatorQueue: () => ["operatorQueue"] as const,
-  incidentLog: () => ["incidentLog"] as const,
   profile: (address: Address) => ["profile", address] as const,
 };
 
@@ -217,7 +216,6 @@ export function useReportMessage(channelId: string) {
       qc.invalidateQueries({ queryKey: qk.donations(channelId) }); // авто-скрытие могло изменить ленту
       qc.invalidateQueries({ queryKey: qk.moderationQueue(channelId) });
       qc.invalidateQueries({ queryKey: qk.operatorQueue() });
-      qc.invalidateQueries({ queryKey: qk.incidentLog() });
     },
   });
 }
@@ -295,7 +293,6 @@ export function useApplyOperatorAction() {
       data.applyOperatorAction(action),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.operatorQueue() });
-      qc.invalidateQueries({ queryKey: qk.incidentLog() });
       qc.invalidateQueries({ queryKey: ["channel"] });
       qc.invalidateQueries({ queryKey: ["standing"] });
       qc.invalidateQueries({ queryKey: qk.discovery() }); // статус канала мог измениться (suspend/restore)

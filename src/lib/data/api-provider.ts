@@ -217,9 +217,6 @@ export class ApiDataProvider implements DataProvider {
   ): Result<OperatorAction> {
     return this.rpc("applyOperatorAction", [action]);
   }
-  getIncidentLog(opts?: ListOpts): Result<Page<IncidentLog>> {
-    return this.rpc("getIncidentLog", [opts]);
-  }
 
   // — Мини-игры (game-bus, ADR 0016) —
   gameAction(req: GameRequest): Result<unknown> {

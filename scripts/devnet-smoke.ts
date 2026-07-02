@@ -108,7 +108,8 @@ async function main(): Promise<void> {
   if (indexed.netMicro !== split.net || indexed.feeMicro !== split.fee) throw new Error("split mismatch");
   if (indexed.streamerAta !== streamerAta.toBase58()) throw new Error("streamer ATA mismatch");
   if (indexed.memo.c !== "ch-lumi" || indexed.memo.d !== "d-devnet-1") throw new Error("memo mismatch");
-  if (points !== 1000) throw new Error(`points mismatch: ${points}`);
+  // Курс 1 USDC = 1 очко (ADR 0007): за 10 USDC — ровно 10 очков.
+  if (points !== 10) throw new Error(`points mismatch: ${points}`);
 
   console.log("\n✅ DEVNET E2E OK — on-chain donation → indexer → reputation all match.");
 }

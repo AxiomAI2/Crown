@@ -131,7 +131,7 @@ export function buildMarkDoneIx(programId: PublicKey, streamer: PublicKey, taskI
   return streamerAction(programId, streamer, escrowPda(programId, taskId), DISC.markDone);
 }
 
-/** `cancel`: донор отменяет до принятия → возврат. */
+/** `cancel`: донор отменяет в грейс-окне (из Pending И Accepted, ESC-13) → возврат. */
 export function buildCancelIx(programId: PublicKey, donor: PublicKey, taskId: TaskId) {
   return new TransactionInstruction({
     programId,

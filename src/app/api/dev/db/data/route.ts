@@ -1,4 +1,4 @@
-import { OPERATOR_ADDRESS } from "@/lib/chain/addresses";
+import { IS_PROD, OPERATOR_ADDRESS } from "@/lib/chain/addresses";
 import { resolveToken } from "@/server/auth";
 import { getDb } from "@/server/db";
 
@@ -22,6 +22,8 @@ const TABLES = [
 ] as const;
 
 export async function POST(request: Request) {
+  // Паритет с /dev/* (layout → notFound): в проде dev-поверхности не существует, включая этот API.
+  if (IS_PROD) return new Response(null, { status: 404 });
   const body = (await request.json().catch(() => null)) as { token?: string } | null;
   const addr = resolveToken(body?.token);
   if (!OPERATOR_ADDRESS || addr !== OPERATOR_ADDRESS) {

@@ -17,7 +17,8 @@ export function HeaderSearch() {
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    router.push(q.trim() ? `/?q=${encodeURIComponent(q.trim())}` : "/");
+    // Каталог живёт на /discovery (ADR 0018), параметр ?q читает только он — не главная.
+    router.push(q.trim() ? `/discovery?q=${encodeURIComponent(q.trim())}` : "/discovery");
     setOpen(false);
   }
 

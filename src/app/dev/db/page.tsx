@@ -1,5 +1,7 @@
 "use client";
 
+import { SIWS_STORAGE_KEY } from "@/lib/chain/addresses";
+
 import { useEffect, useMemo, useState } from "react";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { useSession } from "@/lib/data/hooks";
@@ -13,7 +15,7 @@ const disp = (v: unknown): string =>
 // Токен сессии хранится клиентом под этим ключом (см. chain-provider SIWS_STORAGE_KEY).
 function siwsToken(): string | null {
   try {
-    return (JSON.parse(localStorage.getItem("standing.siws.v1") ?? "null") as { token?: string } | null)
+    return (JSON.parse(localStorage.getItem(SIWS_STORAGE_KEY) ?? "null") as { token?: string } | null)
       ?.token ?? null;
   } catch {
     return null;

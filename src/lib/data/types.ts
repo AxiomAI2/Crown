@@ -12,8 +12,7 @@ export type Iso = string; // ISO-8601 timestamp
 export type TxSignature = string; // подпись транзакции Solana (Фаза 3)
 
 // — Идентичность и профиль —
-export type ProfileLevel = "address_only" | "light" | "creator";
-
+// Профиль опционален: личность — это адрес; displayName/bio/links — надстройка.
 export interface LightProfile {
   address: Address;
   displayName?: string;
@@ -214,7 +213,7 @@ export interface IncidentLog {
 }
 
 // — Лидерборд (производная) —
-export type LeaderboardPeriod = "all_time" | "month" | "top_donor_month";
+export type LeaderboardPeriod = "all_time" | "month";
 
 export interface LeaderboardEntry {
   rank: number;
@@ -238,7 +237,6 @@ export interface ListOpts {
 
 export interface Session {
   address: Address | null; // null = не подключён
-  level: ProfileLevel;
   isCreator: boolean; // владеет каналом (один на кошелёк — ADR 0002)
   isOperator: boolean;
 }
@@ -265,7 +263,6 @@ export interface ChannelCard {
   donorsCount: number;
   totalDonated: MicroUSDC; // суммарный объём донатов (по лидерборду)
   activated: boolean; // ACTIVE → галочка; BASIC показывается, но без галочки и без донатов-с-текстом
-  isLive?: boolean;
 }
 
 export interface CreateChannelInput {

@@ -45,6 +45,9 @@ export const IS_PROD = process.env.NODE_ENV === "production";
 /** Chain-режим (NEXT_PUBLIC_DATA_SOURCE=chain) — единый клиентский флаг (как IS_PROD), не дублировать по месту. */
 export const IS_CHAIN = process.env.NEXT_PUBLIC_DATA_SOURCE === "chain";
 
+/** Ключ localStorage для SIWS-токена (пишет chain-provider, читает /dev/db). Один источник — не дублировать. */
+export const SIWS_STORAGE_KEY = "standing.siws.v1";
+
 // Известные devnet-дефолты (адрес трежери + Circle devnet USDC). Их происхождение/секрет публичны
 // (.treasury-devnet.json, faucet), поэтому на mainnet они ЗАПРЕЩЕНЫ: использовать devnet-трежери в проде =
 // слать 3%-комиссию на адрес, чей приватный ключ лежит в плейнтекст-файле. В проде дефолт НЕ применяется —

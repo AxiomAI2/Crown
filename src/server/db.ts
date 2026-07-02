@@ -31,12 +31,6 @@ export function getDb(): Promise<PGlite> {
  */
 async function ensureSchema(db: PGlite): Promise<void> {
   await db.exec(`
-    CREATE TABLE IF NOT EXISTS identities (
-      address     text PRIMARY KEY,
-      level       text NOT NULL DEFAULT 'address_only',
-      created_at  timestamptz NOT NULL DEFAULT now()
-    );
-
     CREATE TABLE IF NOT EXISTS light_profiles (
       address      text PRIMARY KEY,
       display_name text,
@@ -80,6 +74,11 @@ async function ensureSchema(db: PGlite): Promise<void> {
       updated_at             timestamptz NOT NULL DEFAULT now(),
       PRIMARY KEY (channel_id, version)
     );
+    -- Чистка мёртвой схемы (2026-07-02, yellow-paper §18.4): identities никогда не читалась/писалась,
+    -- messages.reported не маппился (жалобы живут в reports).
+    DROP TABLE IF EXISTS identities;
+    ALTER TABLE IF EXISTS messages DROP COLUMN IF EXISTS reported;
+
     -- Миграции для уже созданных БД (CREATE TABLE IF NOT EXISTS не добавит колонку):
     ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS enabled_games jsonb NOT NULL DEFAULT '[]';
     -- §10: пороги репутации на присыл задания / на право поднять спор (рычаги стримера).
@@ -123,7 +122,6 @@ async function ensureSchema(db: PGlite): Promise<void> {
       state        text NOT NULL DEFAULT 'HELD',
       auto_verdict text,
       content_hash text NOT NULL,
-      reported     boolean NOT NULL DEFAULT false,
       shown_at     timestamptz,
       created_at   timestamptz NOT NULL DEFAULT now()
     );

@@ -5,6 +5,7 @@ import {
   DEVNET_RPC,
   DEVNET_USDC_MINT,
   ESCROW_PROGRAM_ID,
+  SIWS_STORAGE_KEY,
   TREASURY_OWNER,
 } from "../chain/config";
 import {
@@ -67,8 +68,6 @@ import type {
  *
  * Кошелёк инжектится из React-дерева (useWallet) через setWallet — класс не вызывает хуки.
  */
-const SIWS_STORAGE_KEY = "standing.siws.v1";
-
 /** Uint8Array → base64 без Buffer (браузер). Подпись 64 байта — простая реализация достаточна. */
 function toBase64(bytes: Uint8Array): string {
   let s = "";
@@ -503,9 +502,6 @@ export class ChainDataProvider implements DataProvider {
   applyOperatorAction(a: Omit<OperatorAction, "id" | "ts" | "byOperator">): Result<OperatorAction> {
     return this.api.applyOperatorAction(a);
   }
-  getIncidentLog(o?: ListOpts): Result<Page<IncidentLog>> {
-    return this.api.getIncidentLog(o);
-  }
 
   // — Мини-игры (game-bus, ADR 0016) —
   // Для escrow-task (ADR 0017): денежные операции реально двигают USDC через ончейн-программу подключённым
@@ -666,7 +662,7 @@ export class ChainDataProvider implements DataProvider {
             await this.sendTx([buildResolveTimeoutIx(programId, me, taskId), ...claimIxs]);
           }
         }
-        // Оффчейн-settle забанкует репутацию (DONATION/REFUND) — мозг состояния/репутации остаётся оффчейн.
+        // Оффчейн-settle забанкует репутацию (DONATION при to_streamer; возврат очков не даёт) — мозг оффчейн.
         return this.api.gameAction(req);
       }
 

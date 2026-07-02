@@ -23,14 +23,14 @@ const HOUR = 60 * MIN;
 const DAY = 24 * HOUR;
 
 // ⚠️ ВРЕМЕННО (тест ончейн-цикла): короткие окна, чтобы прогонять задание за минуты. ВЕРНУТЬ В ПРОД
-// ОДНИМ ИЗМЕНЕНИЕМ — `FAST_TEST_WINDOWS = false`. ВАЖНО: ончейн-константы (ACCEPT_WINDOW/DISPUTE_WINDOW в
-// anchor/programs/escrow-task/src/lib.rs) должны совпадать с этими — при возврате их тоже вернуть + редеплой.
+// ОДНИМ ИЗМЕНЕНИЕМ — `FAST_TEST_WINDOWS = false`. ВАЖНО: ончейн-константы (DISPUTE_WINDOW/VOTING_WINDOW/
+// CANCEL_GRACE в anchor/programs/escrow-task/src/lib.rs) должны совпадать с этими — при возврате их тоже
+// вернуть + редеплой. Отдельного «окна принятия» НЕТ ни здесь, ни ончейн: все дедлайны идут от СОЗДАНИЯ.
 const FAST_TEST_WINDOWS = true;
 
 /** Окна процесса (спека §5/§10). Стартовые дефолты — калибруются на тестнете (спека §16). */
 export const WINDOWS = FAST_TEST_WINDOWS
   ? {
-      accept: 3 * MIN,
       grace: 1 * MIN,
       executionDefault: 2 * MIN,
       executionMin: 2 * MIN, // ESC-17: > grace, иначе окно mark_done (после грейса) вырождается
@@ -39,7 +39,6 @@ export const WINDOWS = FAST_TEST_WINDOWS
       voting: 2 * MIN,
     }
   : {
-      accept: 72 * HOUR, // не принят за это время → возврат донору
       grace: 2 * MIN, // окно отмены донором после принятия
       executionDefault: 24 * HOUR,
       // ESC-17: минимальный срок сдачи ОБЯЗАН превышать грейс (иначе окно mark_done после грейса пустое/

@@ -69,7 +69,6 @@ const ALLOWED = new Set<string>([
   "removeChannelBlock",
   "getOperatorQueue",
   "applyOperatorAction",
-  "getIncidentLog",
   "gameAction", // мини-игры (game-bus, ADR 0016)
   "gameQuery",
 ]);

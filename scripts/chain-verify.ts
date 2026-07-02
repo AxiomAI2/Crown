@@ -189,13 +189,16 @@ async function verifyIndexer() {
 }
 
 function verifyReputation() {
-  console.log("\n— (4) Очки репутации: целочисленность/детерминизм (R1) —");
-  check("1 USDC → 100 очков", pointsForAmount(1_000_000n) === 100);
-  check("0.005 USDC (5000 micro) → 1 очко (округление вверх)", pointsForAmount(5_000n) === 1);
-  check("0.0049 USDC → 0 очков", pointsForAmount(4_900n) === 0);
+  console.log("\n— (4) Очки репутации: курс 1:1, дробные без округления (ADR 0007 / A3) —");
+  check("1 USDC → 1 очко", pointsForAmount(1_000_000n) === 1);
+  check("2.5 USDC → 2.5 очка (дробные, без округления)", pointsForAmount(2_500_000n) === 2.5);
+  // A3: дробление нейтрально — сумма частей равна очкам целого (никакой накрутки сплитом).
+  check(
+    "0.5 + 0.5 USDC = 1 USDC по очкам (нейтральность дробления)",
+    pointsForAmount(500_000n) + pointsForAmount(500_000n) === pointsForAmount(1_000_000n),
+  );
   check("0 → 0", pointsForAmount(0n) === 0);
-  // За пределами 2^53 micro Number(micro) уже не целочислен — bigint-путь считает точно.
-  check("huge (2^53+1 micro): точное целое 900719925474", pointsForAmount((1n << 53n) + 1n) === 900719925474);
+  check("отрицательное → 0", pointsForAmount(-1n) === 0);
 }
 
 async function verifyActivation() {

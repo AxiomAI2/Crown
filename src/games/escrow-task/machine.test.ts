@@ -157,7 +157,7 @@ describe("подсчёт голосов (tally) по весу", () => {
 
 describe("разрешение по времени (dueResolution)", () => {
   it("PENDING после окна → возврат донору (expired)", () => {
-    expect(dueResolution(newTask(), T0 + WINDOWS.accept + 1)).toMatchObject({
+    expect(dueResolution(newTask(), T0 + WINDOWS.executionDefault + 1)).toMatchObject({
       reason: "expired",
       outcome: "to_donor",
     });
