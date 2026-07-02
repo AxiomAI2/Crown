@@ -31,6 +31,7 @@
 | [`docs/trust-layers.md`](./docs/trust-layers.md) | Три слоя доверия (кость/мышцы/кожа): правила слоёв и швы между ними |
 | [`docs/audit-map.md`](./docs/audit-map.md) | Инварианты → код, границы доверия, история находок аудитов |
 | [`docs/runbook.md`](./docs/runbook.md) | Запуск, операционные грабли, ключи |
+| [`docs/manual-testing.md`](./docs/manual-testing.md) | Плейбук ручного тестирования для не-программиста: сценарии по инвариантам + команды-светофоры |
 | [`ROADMAP.md`](./ROADMAP.md) | Фазовый план: фронт → бэкенд → крипта, с чек-листами |
 | [`docs/core-spec.md`](./docs/core-spec.md) | Спека ядра v0.1 — продуктовый замысел (частично устарела, см. баннер) |
 | [`docs/architecture.md`](./docs/architecture.md) | Ончейн/оффчейн, потоки данных |
