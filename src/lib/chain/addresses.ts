@@ -42,8 +42,15 @@ export const ACTIVATION_FEE_MICRO = BigInt(ACTIVATION_FEE_USDC) * 1_000_000n;
 /** Единая точка истины для prod-гейта (реэкспортируется из @/server/runtime). */
 export const IS_PROD = process.env.NODE_ENV === "production";
 
-/** Chain-режим (NEXT_PUBLIC_DATA_SOURCE=chain) — единый клиентский флаг (как IS_PROD), не дублировать по месту. */
-export const IS_CHAIN = process.env.NEXT_PUBLIC_DATA_SOURCE === "chain";
+/** icp-режим (M1, ADR 0021): chain + канон ЧТЕНИЯ репутации — core-канистра ICP (IcpDataProvider). */
+export const IS_ICP = process.env.NEXT_PUBLIC_DATA_SOURCE === "icp";
+
+/** Chain-режим — единый клиентский флаг (как IS_PROD), не дублировать по месту.
+ * `icp` — надмножество chain (кошелёк/донаты/эскроу те же), поэтому включает все chain-гейты UI. */
+export const IS_CHAIN = process.env.NEXT_PUBLIC_DATA_SOURCE === "chain" || IS_ICP;
+
+/** База HTTP-экспорта core-канистры (raw-домен; локальный стенд — см. runbook «Канистры ICP»). */
+export const ICP_CANISTER_URL = (process.env.NEXT_PUBLIC_ICP_CANISTER_URL ?? "").replace(/\/$/, "");
 
 /** Ключ localStorage для SIWS-токена (пишет chain-provider, читает /dev/db). Один источник — не дублировать. */
 export const SIWS_STORAGE_KEY = "standing.siws.v1";

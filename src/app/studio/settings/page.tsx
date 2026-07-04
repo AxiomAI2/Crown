@@ -9,9 +9,17 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
-import { IS_CHAIN } from "@/lib/chain/addresses";
+import { IS_CHAIN, IS_ICP } from "@/lib/chain/addresses";
+import type { DisputeParamsValues } from "@/lib/chain/dispute-params";
 import { CHANNEL_DESC_MAX } from "@/lib/channel-links";
-import { useAttestPayout, useChannelConfig, useMyChannel, useUpdateConfig } from "@/lib/data/hooks";
+import {
+  useAttestPayout,
+  useChannelConfig,
+  useDisputeParams,
+  useMyChannel,
+  useSetDisputeParams,
+  useUpdateConfig,
+} from "@/lib/data/hooks";
 import { fromMicro, isLikelyBase58Address, toMicro } from "@/lib/utils";
 import type { Channel, ChannelConfig, ConfigPatch, ModeratorRef, Tier } from "@/lib/data/types";
 
@@ -46,7 +54,8 @@ const eq = (a: unknown, b: unknown) => enc(a) === enc(b);
 function buildPatch(draft: Draft, original: ChannelConfig): ConfigPatch {
   const patch: ConfigPatch = {};
   const ds = draft.description.trim();
-  if ((ds || undefined) !== (original.description || undefined)) patch.description = ds || undefined;
+  if ((ds || undefined) !== (original.description || undefined))
+    patch.description = ds || undefined;
   if (!eq(draft.tiers, original.tiers)) patch.tiers = draft.tiers;
   if (draft.minDonation !== original.minDonation) patch.minDonation = draft.minDonation;
   if (draft.minDonationWithText !== original.minDonationWithText)
@@ -107,7 +116,9 @@ export default function ChannelSettingsPage() {
     return <Skeleton className="h-96 w-full rounded-lg" />;
   }
   if (configQ.error || !config) {
-    return <ErrorState description="Не удалось загрузить конфиг." onRetry={() => configQ.refetch()} />;
+    return (
+      <ErrorState description="Не удалось загрузить конфиг." onRetry={() => configQ.refetch()} />
+    );
   }
 
   const patch = buildPatch(draft, config);
@@ -118,7 +129,8 @@ export default function ChannelSettingsPage() {
   function save() {
     update.mutate(patch, {
       onSuccess: () => toast({ variant: "success", title: "Сохранено" }),
-      onError: (e) => toast({ variant: "error", title: "Ошибка сохранения", description: String(e) }),
+      onError: (e) =>
+        toast({ variant: "error", title: "Ошибка сохранения", description: String(e) }),
     });
   }
 
@@ -134,8 +146,8 @@ export default function ChannelSettingsPage() {
           <Link href="/me/profile" className="text-info hover:underline">
             профиля
           </Link>{" "}
-          — один ник и один набор ссылок на человека. Здесь — только описание канала (тэглайн); оно видно
-          на странице канала и модерируется как UGC (мат — ок, запрещёнка — нет).
+          — один ник и один набор ссылок на человека. Здесь — только описание канала (тэглайн); оно
+          видно на странице канала и модерируется как UGC (мат — ок, запрещёнка — нет).
         </p>
         <Textarea
           label="Описание"
@@ -148,8 +160,8 @@ export default function ChannelSettingsPage() {
 
       <Section title="Тиры и пороги участия">
         <p className="text-small text-fg-muted">
-          Репутация начисляется фиксированно: <span className="mono">1 USDC = 1 очко</span>. Здесь ты
-          задаёшь пороги в очках — сколько нужно для тира, перков и участия в мини-играх.
+          Репутация начисляется фиксированно: <span className="mono">1 USDC = 1 очко</span>. Здесь
+          ты задаёшь пороги в очках — сколько нужно для тира, перков и участия в мини-играх.
         </p>
         <TierEditor value={draft.tiers} onChange={(t) => set("tiers", t)} />
       </Section>
@@ -205,12 +217,18 @@ export default function ChannelSettingsPage() {
         <ModeratorEditor value={draft.moderators} onChange={(m) => set("moderators", m)} />
       </Section>
 
+      {IS_ICP && myChannelQ.data ? <DisputeParamsSection channelId={myChannelQ.data.id} /> : null}
+
       {dirty ? (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-raised">
           <div className="mx-auto flex max-w-content items-center justify-between gap-3 px-4 py-3">
             <span className="text-small text-fg-muted">Несохранённые изменения</span>
             <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => setDraft(deriveDraft(config))} disabled={update.isPending}>
+              <Button
+                variant="ghost"
+                onClick={() => setDraft(deriveDraft(config))}
+                disabled={update.isPending}
+              >
                 Отменить
               </Button>
               <Button variant="money" onClick={save} loading={update.isPending}>
@@ -236,12 +254,14 @@ function PayoutAttestationSection({ channel }: { channel: Channel }) {
     <Section title="Адрес выплат">
       <div className="flex flex-col gap-3">
         <p className="text-small text-fg-muted">
-          Донаты идут напрямую на этот адрес. Подпись кошелька закрепляет его за тобой: донор проверяет
-          её перед отправкой, и никто (включая площадку) не может тихо подменить адрес.
+          Донаты идут напрямую на этот адрес. Подпись кошелька закрепляет его за тобой: донор
+          проверяет её перед отправкой, и никто (включая площадку) не может тихо подменить адрес.
         </p>
         <span className="mono text-small text-fg">{channel.payoutAddress}</span>
         {attested ? (
-          <p className="text-small text-success">Подтверждён подписью владельца — донаты открыты.</p>
+          <p className="text-small text-success">
+            Подтверждён подписью владельца — донаты открыты.
+          </p>
         ) : (
           <div className="flex flex-col items-start gap-2">
             <p className="text-small text-danger">
@@ -283,6 +303,165 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+/**
+ * Governance-параметры споров (миграция M1, ADR 0021) — живут в core-канистре ICP, НЕ на сервере.
+ * Меняются только подписью кошелька владельца и вступают с таймлоком (идущие споры — по прежним
+ * правилам). Черновик — в человеческих единицах (очки/минуты/USDC), micro — на границе.
+ */
+interface ParamsDraft {
+  minRep: string;
+  minWeight: string;
+  quorumK: string;
+  disputeMin: string;
+  votingMin: string;
+  dMax: string;
+}
+
+function DisputeParamsSection({ channelId }: { channelId: string }) {
+  const paramsQ = useDisputeParams(channelId);
+  const save = useSetDisputeParams();
+  const [draft, setDraft] = useState<ParamsDraft | null>(null);
+
+  const info = paramsQ.data;
+  useEffect(() => {
+    if (!info) return;
+    const e = info.effective;
+    setDraft({
+      minRep: String(fromMicro(e.minReputationToDisputeMicro)),
+      minWeight: String(fromMicro(e.minWeightToVoteMicro)),
+      quorumK: String(e.quorumCoefficientMilli / 1000),
+      disputeMin: String(e.disputeWindowSecs / 60),
+      votingMin: String(e.votingWindowSecs / 60),
+      dMax: String(fromMicro(e.dMaxMicro)),
+    });
+  }, [info?.version, info?.channelId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (paramsQ.error) {
+    return (
+      <Section title="Параметры споров (канистра)">
+        <ErrorState
+          description={`Канистра недоступна: ${paramsQ.error instanceof Error ? paramsQ.error.message : String(paramsQ.error)}`}
+          onRetry={() => paramsQ.refetch()}
+        />
+      </Section>
+    );
+  }
+  if (!info || !draft) {
+    return (
+      <Section title="Параметры споров (канистра)">
+        <Skeleton className="h-32 w-full rounded-lg" />
+      </Section>
+    );
+  }
+
+  const num = (s: string) => Number(s.replace(",", "."));
+  const valid =
+    Number.isFinite(num(draft.minRep)) &&
+    Number.isFinite(num(draft.minWeight)) &&
+    num(draft.quorumK) > 0 &&
+    num(draft.disputeMin) >= 1 &&
+    num(draft.votingMin) >= 1 &&
+    Number.isFinite(num(draft.dMax));
+
+  function submit() {
+    const params: DisputeParamsValues = {
+      minReputationToDisputeMicro: toMicro(num(draft!.minRep)),
+      minWeightToVoteMicro: toMicro(num(draft!.minWeight)),
+      quorumCoefficientMilli: Math.round(num(draft!.quorumK) * 1000),
+      disputeWindowSecs: Math.round(num(draft!.disputeMin) * 60),
+      votingWindowSecs: Math.round(num(draft!.votingMin) * 60),
+      dMaxMicro: toMicro(num(draft!.dMax)),
+    };
+    save.mutate(
+      { channelId, params },
+      {
+        onSuccess: (r) =>
+          toast({
+            variant: "success",
+            title: "Правила отправлены в канистру",
+            description: r.pending
+              ? `Вступят ${new Date(r.pending.effectiveAtMs).toLocaleString("ru-RU")} (таймлок).`
+              : undefined,
+          }),
+        onError: (e) =>
+          toast({
+            variant: "error",
+            title: "Канистра не приняла запись",
+            description: e instanceof Error ? e.message : String(e),
+          }),
+      },
+    );
+  }
+
+  return (
+    <Section title="Параметры споров (канистра)">
+      <p className="text-small text-fg-muted">
+        Правила споров по заданиям-донатам хранятся в канистре ICP, а не у площадки: изменить их
+        может только подпись твоего кошелька, и вступают они с таймлоком — идущие споры играются по
+        прежним правилам. Площадка подкрутить эти параметры не может.
+      </p>
+      {info.pending ? (
+        <p className="text-small text-info">
+          Ожидает вступления (версия {info.pending.version}):{" "}
+          {new Date(info.pending.effectiveAtMs).toLocaleString("ru-RU")}. До этого действуют прежние
+          правила.
+        </p>
+      ) : info.isDefault ? (
+        <p className="text-small text-fg-faint">
+          Действуют дефолтные правила — канал ничего не менял.
+        </p>
+      ) : null}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Input
+          label="Порог репутации для открытия спора, очки"
+          mono
+          value={draft.minRep}
+          onChange={(e) => setDraft({ ...draft, minRep: e.target.value })}
+        />
+        <Input
+          label="Минимальный вес присяжного, очки"
+          mono
+          value={draft.minWeight}
+          onChange={(e) => setDraft({ ...draft, minWeight: e.target.value })}
+        />
+        <Input
+          label="Кворум-коэффициент K (кворум = K·√USDC)"
+          mono
+          value={draft.quorumK}
+          onChange={(e) => setDraft({ ...draft, quorumK: e.target.value })}
+        />
+        <Input
+          label="Потолок суммы задания, USDC (0 — без потолка)"
+          mono
+          value={draft.dMax}
+          onChange={(e) => setDraft({ ...draft, dMax: e.target.value })}
+        />
+        <Input
+          label="Окно «поднять спор», минут"
+          mono
+          value={draft.disputeMin}
+          onChange={(e) => setDraft({ ...draft, disputeMin: e.target.value })}
+        />
+        <Input
+          label="Окно голосования, минут"
+          mono
+          value={draft.votingMin}
+          onChange={(e) => setDraft({ ...draft, votingMin: e.target.value })}
+        />
+      </div>
+      <div className="flex flex-col items-start gap-2">
+        <Button variant="money" loading={save.isPending} disabled={!valid} onClick={submit}>
+          Подписать и отправить в канистру
+        </Button>
+        <p className="text-small text-fg-faint">
+          Это подпись сообщения, не транзакция: деньги не двигаются, газ не списывается. Версия
+          правил: {info.version}.
+        </p>
+      </div>
+    </Section>
+  );
+}
+
 // Человекочитаемые подписи прав модератора (значения "queue"/"queue_and_block" — это данные, их не трогаем).
 const SCOPE_LABEL: Record<ModeratorRef["scope"], string> = {
   queue: "Модерация очереди",
@@ -311,7 +490,11 @@ function ModeratorEditor({
             >
               <span className="mono text-small text-fg">{m.address.slice(0, 10)}…</span>
               <span className="text-small text-fg-muted">{SCOPE_LABEL[m.scope]}</span>
-              <Button variant="ghost" size="sm" onClick={() => onChange(value.filter((_, idx) => idx !== i))}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onChange(value.filter((_, idx) => idx !== i))}
+              >
                 ✕
               </Button>
             </li>
@@ -320,9 +503,18 @@ function ModeratorEditor({
       )}
       <div className="flex items-end gap-2">
         <div className="flex-1">
-          <Input label="Адрес модератора" mono value={address} onChange={(e) => setAddress(e.target.value)} />
+          <Input
+            label="Адрес модератора"
+            mono
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+          />
         </div>
-        <Select label="Права" value={scope} onChange={(e) => setScope(e.target.value as ModeratorRef["scope"])}>
+        <Select
+          label="Права"
+          value={scope}
+          onChange={(e) => setScope(e.target.value as ModeratorRef["scope"])}
+        >
           <option value="queue">{SCOPE_LABEL.queue}</option>
           <option value="queue_and_block">{SCOPE_LABEL.queue_and_block}</option>
         </Select>

@@ -69,7 +69,10 @@ export async function scanEscrowClaimsNow(): Promise<boolean> {
 }
 
 export function startIndexer(store: MockDataProvider, persist: () => void): void {
-  if (process.env.NEXT_PUBLIC_DATA_SOURCE !== "chain") return; // ончейн-донатов нет вне chain
+  // Ончейн-донатов нет вне chain/icp. В icp-режиме (M1) серверный индексер ОБЯЗАН работать:
+  // сервер — дублёр канистры, двойная бухгалтерия до конца миграции (migration-plan §0.2).
+  const src = process.env.NEXT_PUBLIC_DATA_SOURCE;
+  if (src !== "chain" && src !== "icp") return;
   const g = globalThis as unknown as { __indexerOn?: boolean };
   if (g.__indexerOn) return; // один цикл на процесс (переживает HMR)
   g.__indexerOn = true;

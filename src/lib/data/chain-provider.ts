@@ -92,7 +92,8 @@ function randomTaskId(): Uint8Array {
 export class ChainDataProvider implements DataProvider {
   private api = new ApiDataProvider();
   private connection = new Connection(DEVNET_RPC, "confirmed");
-  private wallet: WalletContextState | null = null;
+  // protected: IcpDataProvider (подкласс) подписывает кошельком governance-сообщения (M1).
+  protected wallet: WalletContextState | null = null;
   private authedAddress: string | null = null; // адрес, по которому уже есть проверенный токен
   private authing: Promise<boolean> | null = null;
 

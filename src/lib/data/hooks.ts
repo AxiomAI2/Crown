@@ -2,6 +2,7 @@
 
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useData } from "./context";
+import type { DisputeParamsValues } from "../chain/dispute-params";
 import type {
   Address,
   ConfigPatch,
@@ -354,4 +355,29 @@ export function useDevControls() {
       qc.invalidateQueries();
     },
   };
+}
+
+// ─────────── governance-параметры споров (миграция M1, ADR 0021; только режим icp) ───────────
+
+/** Параметры споров канала из канистры. У прочих провайдеров метода нет → хук выключен. */
+export function useDisputeParams(channelId: string | undefined) {
+  const data = useData();
+  return useQuery({
+    queryKey: ["dispute-params", channelId ?? ""],
+    queryFn: () => data.getDisputeParams!(channelId!),
+    enabled: Boolean(channelId && data.getDisputeParams),
+  });
+}
+
+/** Записать параметры споров: подпись кошельком владельца → канистра (таймлок §8.9). */
+export function useSetDisputeParams() {
+  const data = useData();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { channelId: string; params: DisputeParamsValues }) =>
+      data.setDisputeParams!(input.channelId, input.params),
+    onSuccess: (_res, input) => {
+      qc.invalidateQueries({ queryKey: ["dispute-params", input.channelId] });
+    },
+  });
 }

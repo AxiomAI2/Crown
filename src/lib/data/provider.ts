@@ -23,6 +23,7 @@ import type {
   Session,
   ViewerStanding,
 } from "./types";
+import type { DisputeParamsInfo, DisputeParamsValues } from "../chain/dispute-params";
 import { MockDataProvider } from "./mock-provider";
 import { ApiDataProvider } from "./api-provider";
 
@@ -32,7 +33,7 @@ import { ApiDataProvider } from "./api-provider";
  */
 export type Result<T> = Promise<T>;
 
-export type DataSource = "mock" | "api" | "chain";
+export type DataSource = "mock" | "api" | "chain" | "icp";
 
 /**
  * Единственный интерфейс доступа к данным (frontend/mock-data.md §1, CLAUDE.md §3).
@@ -68,6 +69,13 @@ export interface DataProvider {
   // Лента главной (ADR 0018): свои открытые циклы + что кипит. Личность — из сессии на сервере (не параметр),
   // иначе можно было бы прочитать чужой приватный текст задания (§4.6).
   homeFeed(): Result<HomeFeed>;
+
+  // — Governance-параметры споров (миграция M1, ADR 0021) — ОПЦИОНАЛЬНЫ: канон живёт в
+  // core-канистре ICP, методы есть только у IcpDataProvider (режим icp). UI проверяет наличие.
+  getDisputeParams?(channelId: string): Result<DisputeParamsInfo>;
+  // Запись = подпись кошельком владельца канонического сообщения (chain/dispute-params.ts) —
+  // право на запись проверяет КАНИСТРА по владельцу-из-цепочки, сервер не участвует.
+  setDisputeParams?(channelId: string, params: DisputeParamsValues): Result<DisputeParamsInfo>;
 
   // — Донаты —
   createDonation(input: DonationInput): Result<DonationResult>;
@@ -132,12 +140,13 @@ export function createDataProvider(source: string | undefined): DataProvider {
     case "api":
       return new ApiDataProvider();
     case "chain":
-      // ChainDataProvider РЕАЛИЗОВАН, но включается отдельным путём (app/providers.tsx → chain-providers.tsx,
-      // динамический chunk: Solana-стек не попадает в bundle mock/api, ADR 0004). Через эту фабрику он не
-      // инстанцируется намеренно — она для серверного/SSR-пути, где кошелька нет.
+    case "icp":
+      // Chain/IcpDataProvider РЕАЛИЗОВАНЫ, но включаются отдельным путём (app/providers.tsx →
+      // chain-providers.tsx, динамический chunk: Solana-стек не попадает в bundle mock/api, ADR 0004).
+      // Через эту фабрику они не инстанцируются намеренно — она для серверного/SSR-пути, где кошелька нет.
       throw new DataError(
         "CHAIN_VIA_PROVIDERS",
-        "chain-провайдер подключается в app/providers.tsx (ADR 0004).",
+        "chain/icp-провайдер подключается в app/providers.tsx (ADR 0004).",
       );
     default:
       throw new DataError("BAD_DATA_SOURCE", `Неизвестный NEXT_PUBLIC_DATA_SOURCE: ${source}`);

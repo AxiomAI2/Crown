@@ -5,12 +5,15 @@ import { useState } from "react";
 import { Toaster } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ChainDataProvider } from "@/lib/data/chain-provider";
+import { IcpDataProvider } from "@/lib/data/icp-provider";
 import { DataProviderProvider } from "@/lib/data/context";
+import { IS_ICP } from "./addresses";
 import { ChainWalletBridge, SolanaWalletProvider } from "./wallet-provider";
 
 /**
- * Провайдеры для режима `chain` (Фаза 3). Грузится динамическим чанком только когда
- * NEXT_PUBLIC_DATA_SOURCE=chain, чтобы тяжёлый Solana-стек не попадал в bundle mock/api.
+ * Провайдеры для режимов `chain`/`icp` (Фаза 3 / миграция M1). Грузится динамическим чанком,
+ * чтобы тяжёлый Solana-стек не попадал в bundle mock/api. `icp` = тот же chain-провайдер,
+ * но канон чтения репутации — core-канистра ICP (IcpDataProvider, ADR 0021).
  */
 export function ChainProviders({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -29,7 +32,7 @@ export function ChainProviders({ children }: { children: React.ReactNode }) {
         },
       }),
   );
-  const [provider] = useState(() => new ChainDataProvider());
+  const [provider] = useState(() => (IS_ICP ? new IcpDataProvider() : new ChainDataProvider()));
 
   return (
     <SolanaWalletProvider>
