@@ -31,8 +31,11 @@ const BPS_DENOM: u64 = 10_000;
 
 // РОЛИ — захардкожены в программе (аудит #1): резолвер и трежери НЕ выбирает донор, иначе донор ставит
 // резолвером себя и делает clawback после выполнения. Devnet-адреса; на мейннете → config-PDA (G3b) + редеплой.
+// M2 (ADR 0021): RESOLVER = ТРЕСХОЛД-адрес core-канистры ICP — вердикт подписывает консенсус узлов,
+// ключа целиком не существует. Пишется в эскроу при `fund`: лётные эскроу доживают со старым резолвером
+// (миграции денег нет), новые рождаются с канистрой. Прежний (операторский): 6F5Y3qLd…PofB5xR.
 const RESOLVER: Pubkey =
-    anchor_lang::solana_program::pubkey!("6F5Y3qLdDCB7gm1hFwdangodbRjWJRhnvNSxgPofB5xR");
+    anchor_lang::solana_program::pubkey!("EekhckALUYi5r8ph1uuDQCaN4YHwnKSf7EqNyFgQi1SZ");
 const TREASURY: Pubkey =
     anchor_lang::solana_program::pubkey!("9tSWouwVrPahnnLW4AMQcNn53Uk5okFEdduo1M3Gtrpe");
 
