@@ -47,3 +47,74 @@ export function buildVoteMessage(
     "v: 1",
   ].join("\n");
 }
+
+// ─────────── вид спора из канистры (ответ GET /dispute, arbiter/http.rs::case_json) ───────────
+
+export interface CanisterDisputeVote {
+  voter: string;
+  choice: DisputeVoteChoice;
+  weightMicro: bigint;
+  atMs: number;
+}
+
+export interface CanisterDisputeView {
+  escrowAccount: string;
+  channelId: string;
+  status: string; // DISPUTED | RESOLVED (машина канистры)
+  openedBy: string | null;
+  openedAtMs: number | null;
+  votingEndsAtMs: number | null;
+  quorumMicro: bigint;
+  votes: CanisterDisputeVote[];
+  tallyCompletedMicro: bigint;
+  tallyNotCompletedMicro: bigint;
+  markDisputedTx: string | null;
+  resolveTx: string | null;
+  lastSendError: string | null;
+  verdict: { outcome: "to_streamer" | "to_donor"; reason: string; finalizedAtMs: number } | null;
+}
+
+/** Сырой JSON канистры → типизированный вид (деньги/веса строками → bigint). */
+export function normalizeCanisterDispute(raw: {
+  escrowAccount: string;
+  channelId: string;
+  status: string;
+  openedBy: string | null;
+  openedAtMs: number | null;
+  votingEndsAtMs: number | null;
+  quorumMicro: string | null;
+  votes: { voter: string; choice: string; weightMicro: string; atMs: number }[] | null;
+  tally: { completedMicro: string; notCompletedMicro: string };
+  markDisputedTx: string | null;
+  resolveTx: string | null;
+  lastSendError: string | null;
+  verdict: { outcome: string; reason: string; finalizedAtMs: number } | null;
+}): CanisterDisputeView {
+  return {
+    escrowAccount: raw.escrowAccount,
+    channelId: raw.channelId,
+    status: raw.status,
+    openedBy: raw.openedBy,
+    openedAtMs: raw.openedAtMs,
+    votingEndsAtMs: raw.votingEndsAtMs,
+    quorumMicro: BigInt(raw.quorumMicro ?? 0),
+    votes: (raw.votes ?? []).map((v) => ({
+      voter: v.voter,
+      choice: v.choice as DisputeVoteChoice,
+      weightMicro: BigInt(v.weightMicro),
+      atMs: v.atMs,
+    })),
+    tallyCompletedMicro: BigInt(raw.tally.completedMicro),
+    tallyNotCompletedMicro: BigInt(raw.tally.notCompletedMicro),
+    markDisputedTx: raw.markDisputedTx,
+    resolveTx: raw.resolveTx,
+    lastSendError: raw.lastSendError,
+    verdict: raw.verdict
+      ? {
+          outcome: raw.verdict.outcome as "to_streamer" | "to_donor",
+          reason: raw.verdict.reason,
+          finalizedAtMs: raw.verdict.finalizedAtMs,
+        }
+      : null,
+  };
+}

@@ -15,8 +15,9 @@
  *
  * Откат (migration-plan §3): NEXT_PUBLIC_DATA_SOURCE=chain — фронт снова читает сервер.
  */
+import { PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
-import { ICP_CANISTER_URL } from "@/lib/chain/addresses";
+import { ESCROW_PROGRAM_ID, ICP_CANISTER_URL } from "@/lib/chain/addresses";
 import {
   buildDisputeParamsMessage,
   normalizeDisputeParams,
@@ -24,10 +25,24 @@ import {
   type DisputeParamsValues,
   type RawDisputeParamsResponse,
 } from "@/lib/chain/dispute-params";
+import {
+  buildOpenDisputeMessage,
+  buildVoteMessage,
+  normalizeCanisterDispute,
+  type CanisterDisputeView,
+} from "@/lib/chain/dispute-vote";
+import { escrowPda } from "@/lib/chain/escrow-tx";
 import { resolveTier } from "@/lib/reputation";
 import { ChainDataProvider } from "./chain-provider";
 import { DataError, type Result } from "./provider";
-import type { Address, LeaderboardEntry, LeaderboardPeriod, ViewerStanding } from "./types";
+import type {
+  Address,
+  DonorOverview,
+  GameRequest,
+  LeaderboardEntry,
+  LeaderboardPeriod,
+  ViewerStanding,
+} from "./types";
 
 /** Агрегат донора из HTTP-экспорта канистры (`/standing`, `/leaderboard`). Деньги — строками. */
 interface CanisterAgg {
@@ -120,6 +135,66 @@ export class IcpDataProvider extends ChainDataProvider {
     })();
   }
 
+  /**
+   * Профиль донора (/me, /u): цифры репутации/денег по каналам — КАНОН из канистры
+   * (`/donor?address=`), кожа (имена каналов, handle, тексты активности) — с сервера.
+   * Каналы, которых канистра не знает (mock-эпоха, без ончейн-активации), остаются с
+   * серверными цифрами — честная переходная дельта (yellow-paper §18.5-8a).
+   */
+  override getDonorOverview(address: Address): Result<DonorOverview> {
+    return (async () => {
+      const [base, canon] = await Promise.all([
+        super.getDonorOverview(address),
+        this.canisterGet<{
+          rows: (CanisterAgg & { channelId: string; lastBlockTime: number | null })[];
+        }>(`/donor?address=${encodeURIComponent(address)}`),
+      ]);
+      const byChannel = new Map(canon.rows.map((r) => [r.channelId, r]));
+
+      const iso = (bt: number | null | undefined) =>
+        bt != null ? new Date(bt * 1000).toISOString() : undefined;
+      const standings = await Promise.all(
+        base.standings.map(async (row) => {
+          const c = byChannel.get(row.channelId);
+          if (!c) return row; // канистра канал не знает — серверная строка как есть
+          const points = Number(c.pointsMicro) / MICRO_PER_POINT;
+          // Тир — по действующей лестнице канала; конфиг недоступен → без тира (честно).
+          const tier = await this.getChannelConfig(row.channelId)
+            .then((cfg) => resolveTier(points, cfg.tiers).tier)
+            .catch(() => undefined);
+          return {
+            ...row,
+            points,
+            tier,
+            totalDonated: BigInt(c.totalDonatedMicro),
+            donationCount: c.donations,
+            firstDonationAt: iso(c.firstBlockTime) ?? row.firstDonationAt,
+            lastDonationAt: iso(c.lastBlockTime) ?? row.lastDonationAt,
+          };
+        }),
+      );
+      standings.sort((a, b) => (a.totalDonated < b.totalDonated ? 1 : -1));
+
+      const topStanding = standings.reduce(
+        (best, row) => (best === undefined || row.points > best.points ? row : best),
+        undefined as (typeof standings)[number] | undefined,
+      );
+      const firstDonationAt = standings
+        .map((r) => r.firstDonationAt)
+        .filter((v): v is string => !!v)
+        .sort()[0];
+      return {
+        ...base,
+        standings,
+        topStanding,
+        totalDonated: standings.reduce((sum, r) => sum + r.totalDonated, 0n),
+        donationCount: standings.reduce((sum, r) => sum + r.donationCount, 0),
+        channelsSupported: standings.filter((r) => r.donationCount > 0).length,
+        firstDonationAt: firstDonationAt ?? base.firstDonationAt,
+      };
+    })();
+  }
+
   // ─────────── governance-параметры споров (M1): канон — канистра ───────────
 
   getDisputeParams(channelId: string): Result<DisputeParamsInfo> {
@@ -192,6 +267,93 @@ export class IcpDataProvider extends ChainDataProvider {
           `Канистра отвергла запись: ${body.error ?? `HTTP ${res.status}`}`,
         );
       return this.getDisputeParams(channelId);
+    })();
+  }
+
+  // ─────────── споры по chain-задачам (M2): канон — арбитр канистры ───────────
+
+  /** Адрес эскроу-аккаунта задания (base58 PDA); null = задача без ончейн-эскроу (mock-эпоха). */
+  private async escrowAccountOf(channelId: string, taskId: string): Promise<string | null> {
+    const task = (await this.gameQuery({
+      gameId: "escrow-task",
+      channelId,
+      op: "get",
+      payload: { taskId },
+    })) as { escrowTaskId?: string } | null;
+    if (!task?.escrowTaskId) return null;
+    const seed = new Uint8Array(task.escrowTaskId.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
+    return escrowPda(new PublicKey(ESCROW_PROGRAM_ID!), seed).toBase58();
+  }
+
+  getCanisterDispute(channelId: string, taskId: string): Result<CanisterDisputeView | null> {
+    return (async () => {
+      const escrowAccount = await this.escrowAccountOf(channelId, taskId);
+      if (!escrowAccount) return null;
+      let res: Response;
+      try {
+        res = await fetch(
+          `${ICP_CANISTER_URL}/dispute?escrow=${encodeURIComponent(escrowAccount)}`,
+        );
+      } catch {
+        throw new DataError("NETWORK", "Канистра недоступна (runbook «Канистры ICP»)");
+      }
+      if (res.status === 404) return null; // спора по этому эскроу нет
+      if (!res.ok) throw new DataError("BAD_RESPONSE", `Канистра ответила HTTP ${res.status}`);
+      return normalizeCanisterDispute(
+        (await res.json()) as Parameters<typeof normalizeCanisterDispute>[0],
+      );
+    })();
+  }
+
+  /**
+   * Маршрутизация операций спора: для CHAIN-задач `raiseDispute`/`vote` идут В КАНИСТРУ
+   * (подпись кошельком канонического сообщения; исход исполняет тресхолд-резолвер) — те же
+   * кнопки панели, другой субстрат. Задачи без эскроу (mock/api-эпоха) — как раньше, оффчейн.
+   */
+  override gameAction(req: GameRequest): Result<unknown> {
+    return (async () => {
+      const p = (req.payload ?? {}) as { taskId?: string; choice?: string };
+      if (
+        req.gameId !== "escrow-task" ||
+        !p.taskId ||
+        (req.op !== "raiseDispute" && req.op !== "vote")
+      )
+        return super.gameAction(req);
+      const escrowAccount = await this.escrowAccountOf(req.channelId, p.taskId);
+      if (!escrowAccount) return super.gameAction(req);
+
+      const w = this.wallet;
+      if (!w?.publicKey || !w.signMessage)
+        throw new DataError("NO_SIGN", "Кошелёк не умеет подписывать сообщения.");
+      const me = w.publicKey.toBase58();
+
+      const post = async (path: string, body: Record<string, unknown>) => {
+        const res = await fetch(`${ICP_CANISTER_URL}${path}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const out = (await res.json()) as { ok: boolean; error?: string };
+        if (!res.ok || !out.ok)
+          throw new DataError("BAD_RESPONSE", `Канистра: ${out.error ?? `HTTP ${res.status}`}`);
+      };
+
+      if (req.op === "raiseDispute") {
+        const message = buildOpenDisputeMessage(escrowAccount, req.channelId, me);
+        const signature = bs58.encode(await w.signMessage(new TextEncoder().encode(message)));
+        await post("/dispute/open", {
+          escrowAccount,
+          channelId: req.channelId,
+          by: me,
+          signature,
+        });
+        return { ok: true };
+      }
+      const choice = p.choice === "completed" ? "completed" : "not_completed";
+      const message = buildVoteMessage(escrowAccount, req.channelId, me, choice);
+      const signature = bs58.encode(await w.signMessage(new TextEncoder().encode(message)));
+      await post("/dispute/vote", { escrowAccount, voter: me, choice, signature });
+      return { ok: true };
     })();
   }
 }

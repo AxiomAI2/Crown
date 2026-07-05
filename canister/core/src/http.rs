@@ -357,6 +357,45 @@ pub fn handle(req: HttpRequest) -> HttpResponse {
     let path = req.url.split('?').next().unwrap_or("/");
 
     match path {
+        // M1+: агрегат ДОНОРА по всем каналам (для профиля /me и /u — канон чтения).
+        "/donor" => {
+            let Some(address) = query_param(&req.url, "address") else {
+                return json_response(400, json!({ "error": "нужен ?address=" }));
+            };
+            let mut acc: std::collections::BTreeMap<String, DonorAgg> = Default::default();
+            let mut last_bt: std::collections::BTreeMap<String, i64> = Default::default();
+            for i in 0..state::journal_len() {
+                let Some(e) = state::journal_get(i) else { continue };
+                if e.kind == EntryKind::Activation || e.actor != address {
+                    continue;
+                }
+                let agg = acc.entry(e.channel_id.clone()).or_default();
+                agg.points_micro_signed += e.points_delta_micro as i128;
+                if is_money(&e.kind) {
+                    agg.total_donated_micro += e.amount_micro;
+                    agg.donations += 1;
+                    agg.first_block_time = match (agg.first_block_time, e.block_time) {
+                        (None, bt) => bt,
+                        (cur, None) => cur,
+                        (Some(a), Some(b)) => Some(a.min(b)),
+                    };
+                    if let Some(bt) = e.block_time {
+                        let cur = last_bt.entry(e.channel_id.clone()).or_insert(bt);
+                        *cur = (*cur).max(bt);
+                    }
+                }
+            }
+            let rows: Vec<_> = acc
+                .iter()
+                .map(|(ch, a)| {
+                    let mut row = agg_json(&address, a);
+                    row["channelId"] = json!(ch);
+                    row["lastBlockTime"] = json!(last_bt.get(ch));
+                    row
+                })
+                .collect();
+            json_response(200, json!({ "address": address, "rows": rows }))
+        }
         // M2: спор по эскроу (табло скрыто до вердикта) и список споров.
         "/dispute" => {
             let Some(escrow) = query_param(&req.url, "escrow") else {

@@ -76,20 +76,11 @@ export const OPERATOR_ADDRESS =
 
 // — Эскроу-программа задания-доната (игра, G3a; ADR 0017). На devnet — задеплоенный id; в проде env. —
 const DEVNET_ESCROW_PROGRAM = "GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4";
-// ОБЯЗАН совпадать с RESOLVER-константой в anchor/programs/escrow-task/src/lib.rs — иначе подписанные
-// resolve_dispute/mark_disputed отвергаются программой (ровно эта рассинхронизация и была: дефолт тянулся
-// от OPERATOR_ADDRESS = трежери, а программа ждёт другой ключ).
-const DEVNET_ESCROW_RESOLVER = "6F5Y3qLdDCB7gm1hFwdangodbRjWJRhnvNSxgPofB5xR";
 /** Program id эскроу-программы. На mainnet задать свежий задеплоенный id через env. */
 export const ESCROW_PROGRAM_ID =
   process.env.NEXT_PUBLIC_ESCROW_PROGRAM_ID ?? devnetOnly(DEVNET_ESCROW_PROGRAM);
-/**
- * Bounded-резолвер спора (G3a, devnet-only): адрес, которому программа разрешает выбрать сторону спора
- * (украсть/перенаправить не может — получатели зашиты в эскроу). Дефолт = захардкоженный в программе RESOLVER.
- * На мейннете заменяется ончейн-голосованием (G3b) — переменная уйдёт.
- */
-export const ESCROW_RESOLVER =
-  process.env.NEXT_PUBLIC_ESCROW_RESOLVER ?? devnetOnly(DEVNET_ESCROW_RESOLVER);
+// M2 (ADR 0021): ESCROW_RESOLVER удалён — резолвер новых эскроу зашит в программе
+// (тресхолд-адрес core-канистры), вердикты исполняет она сама; env-переменной больше нет.
 
 /**
  * Fail-closed валидация денежной конфигурации на mainnet (аудит C2). Вне прода — no-op (devnet-дефолты ок).

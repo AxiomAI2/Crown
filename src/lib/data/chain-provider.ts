@@ -19,10 +19,8 @@ import {
   buildClaimDonorIxs,
   buildClaimStreamerIxs,
   buildFundIx,
-  buildMarkDisputedIx,
   buildMarkDoneIx,
   buildRejectIx,
-  buildResolveDisputeIx,
   buildResolveTimeoutIx,
   decodeEscrow,
   escrowPda,
@@ -408,7 +406,11 @@ export class ChainDataProvider implements DataProvider {
   private assertPayoutAttested(channel: Channel): void {
     if (
       !channel.payoutAttestation ||
-      !verifyPayoutAttestation(channel.ownerAddress, channel.payoutAddress, channel.payoutAttestation)
+      !verifyPayoutAttestation(
+        channel.ownerAddress,
+        channel.payoutAddress,
+        channel.payoutAttestation,
+      )
     )
       throw new DataError(
         "PAYOUT_UNATTESTED",
@@ -677,24 +679,9 @@ export class ChainDataProvider implements DataProvider {
         return this.api.gameAction(req);
       }
 
-      // Ончейн-действия резолвера (оператора) по спору. Подписывает подключённый кошелёк = резолвер
-      // (программа сама проверяет signer == escrow.resolver). Оффчейн спор/тальи/репутация идут своим
-      // чередом (raiseDispute/vote → api; settler банкует) — здесь только синхронизируем ДЕНЬГИ на цепочке.
-      case "markDisputed": {
-        // Поднят оффчейн-спор → метим эскроу спорным, чтобы resolve_timeout не опередил голосование.
-        const taskId = await this.escrowTaskIdOf(req.channelId, p.taskId);
-        await this.sendTx([buildMarkDisputedIx(programId, w.publicKey, taskId)]);
-        return { ok: true };
-      }
-
-      case "resolveDispute": {
-        // Голосование закрылось → фиксируем вердикт на цепочке (toStreamer считает UI из тальи).
-        const taskId = await this.escrowTaskIdOf(req.channelId, p.taskId);
-        await this.sendTx([
-          buildResolveDisputeIx(programId, w.publicKey, taskId, Boolean(p.toStreamer)),
-        ]);
-        return { ok: true };
-      }
+      // M2 (ADR 0021): ручные ончейн-действия резолвера (markDisputed/resolveDispute) УДАЛЕНЫ —
+      // спор chain-задачи ведёт арбитр канистры, вердикт исполняет тресхолд-резолвер
+      // (IcpDataProvider.gameAction маршрутизирует raiseDispute/vote в канистру).
 
       default:
         // raiseDispute, vote и прочее — оффчейн (off-chain спор; на цепочку его двигает резолвер выше).

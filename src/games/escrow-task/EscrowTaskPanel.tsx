@@ -22,11 +22,12 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
-import { ESCROW_RESOLVER, explorerTxUrl } from "@/lib/chain/addresses";
+import { explorerTxUrl } from "@/lib/chain/addresses";
+import type { CanisterDisputeView } from "@/lib/chain/dispute-vote";
 import { useChannelConfig, useSession, useStanding } from "@/lib/data/hooks";
 import { pointsForAmount } from "@/lib/reputation";
 import { collapseWhitespace, formatPoints, shortAddress, timeAgo, toMicro } from "@/lib/utils";
-import { useEscrowAction, useEscrowTasks } from "./hooks";
+import { useCanisterDispute, useEscrowAction, useEscrowTasks } from "./hooks";
 import { dueResolution, isTextPublic, WINDOWS } from "./machine";
 import type { EscrowTask, TaskDispute } from "./types";
 
@@ -71,7 +72,9 @@ function deadlineLabel(task: EscrowTask, now: number): string | null {
     case "ACCEPTED":
       return `Выполнить · ${until(task.executionDeadline, now)}`;
     case "DONE":
-      return task.disputeWindowEndsAt ? `Оспорить до · ${until(task.disputeWindowEndsAt, now)}` : null;
+      return task.disputeWindowEndsAt
+        ? `Оспорить до · ${until(task.disputeWindowEndsAt, now)}`
+        : null;
     case "DISPUTED":
       return task.dispute ? `Голосование · ${until(task.dispute.votingEndsAt, now)}` : null;
     default:
@@ -282,8 +285,8 @@ export function EscrowTaskRail({ channelId }: GameProps) {
               <p className="text-small text-warn">
                 Долгий срок — долгая заморозка: если стример просто проигнорирует задание, деньги
                 пролежат в эскроу до {Math.round(deadlineMs / DAY)} дней и вернутся только по
-                истечении срока. Отменить можно лишь в первые ~
-                {Math.round(WINDOWS.grace / MIN)} мин после создания.
+                истечении срока. Отменить можно лишь в первые ~{Math.round(WINDOWS.grace / MIN)} мин
+                после создания.
               </p>
             ) : null}
           </div>
@@ -507,7 +510,7 @@ export function TaskFeedRow({
         <div className="flex min-w-0 items-center gap-2">
           <Link
             href={`/u/${task.donor}`}
-            className="truncate text-small text-fg transition-colors hover:text-status"
+            className="text-small truncate text-fg transition-colors hover:text-status"
           >
             {shortAddress(task.donor)}
           </Link>
@@ -523,7 +526,7 @@ export function TaskFeedRow({
       {/* Текст — только если опубликован (SHOWN). Иначе «[не показано]» (не светим приватный текст, §4.6);
           снятое оператором — «[снято оператором платформы]» (тейкдаун модерации перебивает публикацию). */}
       {isTextPublic(task) ? (
-        <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
+        <p className="text-body break-words text-fg">{collapseWhitespace(task.text)}</p>
       ) : task.operatorBlocked ? (
         <p className="text-body italic text-fg-faint">[снято оператором платформы]</p>
       ) : (
@@ -541,7 +544,7 @@ export function TaskFeedRow({
           </Link>
         </>
       ) : null}
-      <div className="flex flex-wrap items-center gap-2 text-small text-fg-faint">
+      <div className="text-small flex flex-wrap items-center gap-2 text-fg-faint">
         <span title={task.createdAt}>{timeAgo(task.createdAt)}</span>
         <div className="ml-auto flex items-center gap-2">
           {task.fundTx ? (
@@ -585,9 +588,14 @@ function TaskCard({
 
   const isStreamer = !!viewer && viewer === ownerAddress;
   const isDonor = !!viewer && viewer === task.donor;
-  // Резолвер спора (оператор) — может пометить эскроу спорным и зафиксировать вердикт на цепочке (G3a).
-  const isResolver = !!viewer && !!ESCROW_RESOLVER && viewer === ESCROW_RESOLVER && !!task.escrowTaskId;
   const id = task.id;
+  // M2 (ADR 0021): спор chain-задачи живёт в КАНИСТРЕ (открытие/голоса — подписи кошельков,
+  // вердикт исполняет тресхолд-резолвер). Ручной оператор-резолвер удалён — человека в цепочке
+  // решения больше нет. Задачи без эскроу (mock/api) спорятся по-старому, оффчейн.
+  const canisterDisputeQ = useCanisterDispute(task.channelId, id, task.escrowTaskId);
+  const cd = canisterDisputeQ.data ?? null;
+  const cdVoted = !!viewer && !!cd && cd.votes.some((v) => v.voter === viewer);
+  const cdVotingOpen = !!cd && !cd.verdict && !!cd.votingEndsAtMs && now <= cd.votingEndsAtMs;
   const within = (iso?: string) => !!iso && now <= Date.parse(iso);
   const alreadyVoted = !!viewer && (task.dispute?.votes.some((v) => v.voter === viewer) ?? false);
   const winner = effective?.outcome === "to_streamer" ? ownerAddress : task.donor;
@@ -605,7 +613,7 @@ function TaskCard({
         <div className="flex min-w-0 items-center gap-2">
           <Link
             href={`/u/${task.donor}`}
-            className="truncate text-small text-fg transition-colors hover:text-status"
+            className="text-small truncate text-fg transition-colors hover:text-status"
           >
             {shortAddress(task.donor)}
           </Link>
@@ -619,14 +627,16 @@ function TaskCard({
       </div>
 
       {canSeeText ? (
-        <p className="break-words text-body text-fg">{collapseWhitespace(task.text)}</p>
+        <p className="text-body break-words text-fg">{collapseWhitespace(task.text)}</p>
       ) : task.operatorBlocked ? (
         <p className="text-body italic text-fg-faint">[снято оператором платформы]</p>
       ) : (
         <p className="text-body italic text-fg-faint">[не показано]</p>
       )}
 
-      {task.dispute ? (
+      {cd ? <CanisterDisputeBlock cd={cd} now={now} /> : null}
+
+      {task.dispute && !cd ? (
         <>
           <DisputeTally dispute={task.dispute} />
           <Link
@@ -638,7 +648,7 @@ function TaskCard({
         </>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2 text-small text-fg-faint">
+      <div className="text-small flex flex-wrap items-center gap-2 text-fg-faint">
         <span title={task.createdAt}>{timeAgo(task.createdAt)}</span>
         {!final && due ? (
           <span>· готово к разрешению: {outcomeLabel(due.outcome)}</span>
@@ -732,7 +742,10 @@ function TaskCard({
           </Button>
         ) : null}
 
-        {task.status === "DONE" && !due && !!viewer && !isStreamer ? (
+        {/* «Оспорить»: для chain-задач в icp-режиме провайдер сам уводит операцию в канистру
+            (подпись кошельком); для остальных — прежний оффчейн-путь. Скрываем, если спор
+            в канистре уже открыт (cd). */}
+        {task.status === "DONE" && !due && !!viewer && !isStreamer && !cd ? (
           <Button
             size="sm"
             variant="secondary"
@@ -744,6 +757,7 @@ function TaskCard({
         ) : null}
 
         {task.status === "DISPUTED" &&
+        !cd &&
         !due &&
         !!viewer &&
         !isDonor &&
@@ -769,34 +783,26 @@ function TaskCard({
           </>
         ) : null}
 
-        {/* Резолвер (оператор) — во время спора метит эскроу спорным (защита от таймаута). */}
-        {isResolver && task.status === "DISPUTED" && !due && !final ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={pending}
-            onClick={() => run("markDisputed", { taskId: id }, "Помечено спорным на цепочке")}
-          >
-            Пометить спорным (on-chain)
-          </Button>
-        ) : null}
-
-        {/* Резолвер — после голосования фиксирует вердикт на цепочке (исход берём из тальи). */}
-        {isResolver && task.dispute && due && !final ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={pending}
-            onClick={() =>
-              run(
-                "resolveDispute",
-                { taskId: id, toStreamer: due.outcome === "to_streamer" },
-                "Итог зафиксирован на цепочке",
-              )
-            }
-          >
-            Зафиксировать на цепочке: {outcomeLabel(due.outcome)}
-          </Button>
+        {/* Голос в споре КАНИСТРЫ: та же операция vote — провайдер подпишет и отправит в арбитр. */}
+        {cdVotingOpen && !!viewer && !isDonor && !isStreamer && !cdVoted ? (
+          <>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={pending}
+              onClick={() => run("vote", { taskId: id, choice: "completed" }, "Голос учтён")}
+            >
+              Голос: выполнил
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={pending}
+              onClick={() => run("vote", { taskId: id, choice: "not_completed" }, "Голос учтён")}
+            >
+              Голос: не выполнил
+            </Button>
+          </>
         ) : null}
 
         {canClaim ? (
@@ -810,6 +816,70 @@ function TaskCard({
           </Button>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Спор в КАНИСТРЕ (M2): открытое табло (решение владельца — голоса видны живьём), окно,
+ * вердикт и ончейн-подписи тресхолд-резолвера. Табло переиспользует DisputeTally —
+ * синтезируем оффчейн-форму спора из данных канистры (micro → очки на границе UI).
+ */
+function CanisterDisputeBlock({ cd, now }: { cd: CanisterDisputeView; now: number }) {
+  const synthetic: TaskDispute = {
+    by: cd.openedBy ?? "",
+    openedAt: new Date(cd.openedAtMs ?? 0).toISOString(),
+    votingEndsAt: new Date(cd.votingEndsAtMs ?? 0).toISOString(),
+    quorum: Number(cd.quorumMicro) / 1_000_000,
+    votes: cd.votes.map((v) => ({
+      voter: v.voter,
+      choice: v.choice,
+      weight: Number(v.weightMicro) / 1_000_000,
+      at: new Date(v.atMs).toISOString(),
+    })),
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="text-caption flex flex-wrap items-center gap-x-3 text-fg-faint">
+        <span>
+          Спор решается канистрой — исход подпишет тресхолд-резолвер, площадка не участвует.
+        </span>
+        {!cd.verdict && cd.votingEndsAtMs ? (
+          <span className="mono">
+            голосование ·{" "}
+            {now <= cd.votingEndsAtMs
+              ? `ещё ${Math.max(1, Math.round((cd.votingEndsAtMs - now) / 60_000))} мин`
+              : "ждёт вердикта"}
+          </span>
+        ) : null}
+      </div>
+      <DisputeTally dispute={synthetic} />
+      {cd.verdict ? (
+        <div className="text-small flex flex-wrap items-center gap-x-3 text-fg-muted">
+          <span>
+            Вердикт:{" "}
+            <span
+              style={{
+                color: cd.verdict.outcome === "to_streamer" ? "var(--money)" : "var(--danger)",
+              }}
+            >
+              {outcomeLabel(cd.verdict.outcome)}
+            </span>
+          </span>
+          {cd.resolveTx ? (
+            <a
+              href={explorerTxUrl(cd.resolveTx)}
+              target="_blank"
+              rel="noreferrer"
+              className="text-info hover:underline"
+            >
+              подпись резолвера ↗
+            </a>
+          ) : (
+            <span className="text-fg-faint">исполняется на цепочке…</span>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

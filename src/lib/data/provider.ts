@@ -24,6 +24,7 @@ import type {
   ViewerStanding,
 } from "./types";
 import type { DisputeParamsInfo, DisputeParamsValues } from "../chain/dispute-params";
+import type { CanisterDisputeView } from "../chain/dispute-vote";
 import { MockDataProvider } from "./mock-provider";
 import { ApiDataProvider } from "./api-provider";
 
@@ -73,6 +74,10 @@ export interface DataProvider {
   // — Governance-параметры споров (миграция M1, ADR 0021) — ОПЦИОНАЛЬНЫ: канон живёт в
   // core-канистре ICP, методы есть только у IcpDataProvider (режим icp). UI проверяет наличие.
   getDisputeParams?(channelId: string): Result<DisputeParamsInfo>;
+  // Спор по chain-задаче ИЗ КАНИСТРЫ (M2): открытое табло/голоса/вердикт/ончейн-подписи
+  // резолвера. null = спора нет (или задача без эскроу). Открытие/голос идут через gameAction
+  // (raiseDispute/vote) — IcpDataProvider сам маршрутизирует их в канистру подписью кошелька.
+  getCanisterDispute?(channelId: string, taskId: string): Result<CanisterDisputeView | null>;
   // Запись = подпись кошельком владельца канонического сообщения (chain/dispute-params.ts) —
   // право на запись проверяет КАНИСТРА по владельцу-из-цепочки, сервер не участвует.
   setDisputeParams?(channelId: string, params: DisputeParamsValues): Result<DisputeParamsInfo>;

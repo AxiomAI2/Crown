@@ -93,3 +93,22 @@ export function useDisputeVotes(
     enabled: !!channelId && !!taskId,
   });
 }
+
+/**
+ * Спор по chain-задаче ИЗ КАНИСТРЫ (M2, ADR 0021): открытое табло, голоса, вердикт,
+ * ончейн-подписи резолвера. Метод есть только у IcpDataProvider — вне icp-режима хук выключен.
+ * Поллинг: финализация и ончейн-отправки приходят таймером канистры (~20 с).
+ */
+export function useCanisterDispute(
+  channelId: string | undefined,
+  taskId: string | undefined,
+  escrowTaskId: string | undefined,
+) {
+  const data = useData();
+  return useQuery({
+    queryKey: ["game", "escrow-task", channelId ?? "", "canister-dispute", taskId ?? ""],
+    queryFn: () => data.getCanisterDispute!(channelId!, taskId!),
+    enabled: Boolean(channelId && taskId && escrowTaskId && data.getCanisterDispute),
+    refetchInterval: 15_000,
+  });
+}
