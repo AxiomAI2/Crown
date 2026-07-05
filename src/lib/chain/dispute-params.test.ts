@@ -10,13 +10,13 @@ describe("dispute-params (кросс-языковой пин с канистро
     const msg = buildDisputeParamsMessage("chan-1", "OWNER", 1, {
       minReputationToDisputeMicro: 1_000_000n,
       minWeightToVoteMicro: 1_000_000n,
-      quorumCoefficientMilli: 2000,
+      quorumMicro: 1_000_000n,
       disputeWindowSecs: 120,
       votingWindowSecs: 120,
       dMaxMicro: 0n,
     });
     const expected =
-      "Standing: параметры споров канала.\n\nПодписывая, вы устанавливаете правила споров для своего канала.\nИзменения вступят после таймлока — идущие споры играются по прежним правилам.\n\nchannel: chan-1\nowner: OWNER\nversion: 1\nminReputationToDisputeMicro: 1000000\nminWeightToVoteMicro: 1000000\nquorumCoefficientMilli: 2000\ndisputeWindowSecs: 120\nvotingWindowSecs: 120\ndMaxMicro: 0\nv: 1";
+      "Standing: параметры споров канала.\n\nПодписывая, вы устанавливаете правила споров для своего канала.\nИзменения вступят после таймлока — идущие споры играются по прежним правилам.\n\nchannel: chan-1\nowner: OWNER\nversion: 1\nminReputationToDisputeMicro: 1000000\nminWeightToVoteMicro: 1000000\nquorumMicro: 1000000\ndisputeWindowSecs: 120\nvotingWindowSecs: 120\ndMaxMicro: 0\nv: 2";
     expect(msg).toBe(expected);
   });
 
@@ -29,7 +29,7 @@ describe("dispute-params (кросс-языковой пин с канистро
       effective: {
         minReputationToDisputeMicro: 1_000_000,
         minWeightToVoteMicro: 1_000_000,
-        quorumCoefficientMilli: 2000,
+        quorumMicro: 1_000_000,
         disputeWindowSecs: 120,
         votingWindowSecs: 120,
         dMaxMicro: "0",
@@ -38,7 +38,7 @@ describe("dispute-params (кросс-языковой пин с канистро
         params: {
           minReputationToDisputeMicro: 2_000_000,
           minWeightToVoteMicro: 1_000_000,
-          quorumCoefficientMilli: 2000,
+          quorumMicro: "1000000",
           disputeWindowSecs: 180,
           votingWindowSecs: 300,
           dMaxMicro: "50000000",

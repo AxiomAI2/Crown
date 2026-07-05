@@ -311,7 +311,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 interface ParamsDraft {
   minRep: string;
   minWeight: string;
-  quorumK: string;
+  quorum: string;
   disputeMin: string;
   votingMin: string;
   dMax: string;
@@ -329,7 +329,7 @@ function DisputeParamsSection({ channelId }: { channelId: string }) {
     setDraft({
       minRep: String(fromMicro(e.minReputationToDisputeMicro)),
       minWeight: String(fromMicro(e.minWeightToVoteMicro)),
-      quorumK: String(e.quorumCoefficientMilli / 1000),
+      quorum: String(fromMicro(e.quorumMicro)),
       disputeMin: String(e.disputeWindowSecs / 60),
       votingMin: String(e.votingWindowSecs / 60),
       dMax: String(fromMicro(e.dMaxMicro)),
@@ -358,7 +358,7 @@ function DisputeParamsSection({ channelId }: { channelId: string }) {
   const valid =
     Number.isFinite(num(draft.minRep)) &&
     Number.isFinite(num(draft.minWeight)) &&
-    num(draft.quorumK) > 0 &&
+    num(draft.quorum) >= 0 &&
     num(draft.disputeMin) >= 1 &&
     num(draft.votingMin) >= 1 &&
     Number.isFinite(num(draft.dMax));
@@ -367,7 +367,7 @@ function DisputeParamsSection({ channelId }: { channelId: string }) {
     const params: DisputeParamsValues = {
       minReputationToDisputeMicro: toMicro(num(draft!.minRep)),
       minWeightToVoteMicro: toMicro(num(draft!.minWeight)),
-      quorumCoefficientMilli: Math.round(num(draft!.quorumK) * 1000),
+      quorumMicro: toMicro(num(draft!.quorum)),
       disputeWindowSecs: Math.round(num(draft!.disputeMin) * 60),
       votingWindowSecs: Math.round(num(draft!.votingMin) * 60),
       dMaxMicro: toMicro(num(draft!.dMax)),
@@ -425,10 +425,10 @@ function DisputeParamsSection({ channelId }: { channelId: string }) {
           onChange={(e) => setDraft({ ...draft, minWeight: e.target.value })}
         />
         <Input
-          label="Кворум-коэффициент K (кворум = K·√USDC)"
+          label="Кворум явки, очки (соберётся меньше — спор уйдёт тебе)"
           mono
-          value={draft.quorumK}
-          onChange={(e) => setDraft({ ...draft, quorumK: e.target.value })}
+          value={draft.quorum}
+          onChange={(e) => setDraft({ ...draft, quorum: e.target.value })}
         />
         <Input
           label="Потолок суммы задания, USDC (0 — без потолка)"

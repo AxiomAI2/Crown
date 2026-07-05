@@ -14,8 +14,8 @@ export interface DisputeParamsValues {
   minReputationToDisputeMicro: bigint;
   /** Порог веса присяжного (micro-очки). */
   minWeightToVoteMicro: bigint;
-  /** K в кворуме `max(1, ceil(K·√(сумма в USDC)))`, в тысячных (2000 = 2.0). */
-  quorumCoefficientMilli: number;
+  /** Кворум явки — фиксированное число micro-очков, задаёт стример (дефолт 1 очко). */
+  quorumMicro: bigint;
   /** Окно «поднять спор» от «Готово», сек. */
   disputeWindowSecs: number;
   /** Окно голосования, сек. */
@@ -55,11 +55,11 @@ export function buildDisputeParamsMessage(
     `version: ${version}`,
     `minReputationToDisputeMicro: ${p.minReputationToDisputeMicro}`,
     `minWeightToVoteMicro: ${p.minWeightToVoteMicro}`,
-    `quorumCoefficientMilli: ${p.quorumCoefficientMilli}`,
+    `quorumMicro: ${p.quorumMicro}`,
     `disputeWindowSecs: ${p.disputeWindowSecs}`,
     `votingWindowSecs: ${p.votingWindowSecs}`,
     `dMaxMicro: ${p.dMaxMicro}`,
-    "v: 1",
+    "v: 2",
   ].join("\n");
 }
 
@@ -67,7 +67,7 @@ export function buildDisputeParamsMessage(
 interface RawParams {
   minReputationToDisputeMicro: number | string;
   minWeightToVoteMicro: number | string;
-  quorumCoefficientMilli: number | string;
+  quorumMicro: number | string;
   disputeWindowSecs: number | string;
   votingWindowSecs: number | string;
   dMaxMicro: number | string;
@@ -86,7 +86,7 @@ function normalizeValues(raw: RawParams): DisputeParamsValues {
   return {
     minReputationToDisputeMicro: BigInt(raw.minReputationToDisputeMicro),
     minWeightToVoteMicro: BigInt(raw.minWeightToVoteMicro),
-    quorumCoefficientMilli: Number(raw.quorumCoefficientMilli),
+    quorumMicro: BigInt(raw.quorumMicro),
     disputeWindowSecs: Number(raw.disputeWindowSecs),
     votingWindowSecs: Number(raw.votingWindowSecs),
     dMaxMicro: BigInt(raw.dMaxMicro),

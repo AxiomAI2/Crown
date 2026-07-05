@@ -171,7 +171,7 @@ export class IcpDataProvider extends ChainDataProvider {
             params: {
               minReputationToDisputeMicro: params.minReputationToDisputeMicro.toString(),
               minWeightToVoteMicro: params.minWeightToVoteMicro.toString(),
-              quorumCoefficientMilli: params.quorumCoefficientMilli,
+              quorumMicro: params.quorumMicro.toString(),
               disputeWindowSecs: params.disputeWindowSecs,
               votingWindowSecs: params.votingWindowSecs,
               dMaxMicro: params.dMaxMicro.toString(),

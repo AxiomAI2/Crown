@@ -53,6 +53,8 @@ import {
 } from "../src/games/escrow-task/machine";
 import type { EscrowTask, TaskDispute, VoteChoice } from "../src/games/escrow-task/types";
 import { GameBusError } from "../src/games/bus";
+import { buildDisputeParamsMessage } from "../src/lib/chain/dispute-params";
+import { buildOpenDisputeMessage, buildVoteMessage } from "../src/lib/chain/dispute-vote";
 
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "testdata", "golden");
 
@@ -892,6 +894,23 @@ write("donations.json", {
 });
 
 write("reputation.json", reputationGolden());
+
+// Канон-сообщения подписи (кросс-языковой пин: Rust-тесты канистры читают ЭТОТ файл —
+// расхождение текстов TS↔Rust ловится сборкой, а не отказом подписи на живом стенде).
+write("messages.json", {
+  _readme:
+    "Канонические строки под подпись кошелька, порождены TS-билдерами. Rust-тесты (governance.rs, arbiter.rs) сверяют свои билдеры с этим файлом байт-в-байт.",
+  disputeParams: buildDisputeParamsMessage("chan-1", "OWNER", 1, {
+    minReputationToDisputeMicro: 1_000_000n,
+    minWeightToVoteMicro: 1_000_000n,
+    quorumMicro: 1_000_000n,
+    disputeWindowSecs: 120,
+    votingWindowSecs: 120,
+    dMaxMicro: 0n,
+  }),
+  openDispute: buildOpenDisputeMessage("ESCROW", "chan-1", "BY"),
+  vote: buildVoteMessage("ESCROW", "chan-1", "VOTER", "not_completed"),
+});
 
 write("disputes.json", {
   _readme:
