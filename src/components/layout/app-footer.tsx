@@ -1,6 +1,6 @@
 import { EXPLORER_CLUSTER } from "@/lib/chain/addresses";
 
-/** Минимальный глобальный футер (frontend/spec.md §2). Статичный — без данных/клиента. */
+/** Минимальный глобальный футер (yellow-paper §14). Статичный — без данных/клиента. */
 export function AppFooter() {
   return (
     <footer className="border-t border-border bg-[var(--bg)]">

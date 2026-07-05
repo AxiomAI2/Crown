@@ -85,7 +85,7 @@ struct TokenAmount {
 
 // ─────────────── результаты разбора ───────────────
 
-/// memo-атрибуция доната `{c,d,m}` (crypto/spec.md §3).
+/// memo-атрибуция доната `{c,d,m}` (docs/yellow-paper.md §5.1).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemoAttribution {
     pub c: String,

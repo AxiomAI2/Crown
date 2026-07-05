@@ -24,7 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { explorerTxUrl } from "@/lib/chain/addresses";
 import type { CanisterDisputeView } from "@/lib/chain/dispute-vote";
-import { useChannelConfig, useSession, useStanding } from "@/lib/data/hooks";
+import { useChannelConfig, useDisputeParams, useSession, useStanding } from "@/lib/data/hooks";
 import { pointsForAmount } from "@/lib/reputation";
 import { collapseWhitespace, formatPoints, shortAddress, timeAgo, toMicro } from "@/lib/utils";
 import { useCanisterDispute, useEscrowAction, useEscrowTasks } from "./hooks";
@@ -400,8 +400,17 @@ export function EscrowTaskHub({ channelId, ownerAddress, handle }: GameProps) {
 const fmtWindow = (ms: number) =>
   ms >= 3_600_000 ? `${Math.round(ms / 3_600_000)} ч` : `${Math.round(ms / 60_000)} мин`;
 
-/** Правила игры — показываются в модалке «i» пикера игр (GameActionRail). Внешний контейнер даёт модалка. */
-export function EscrowTaskRules() {
+/**
+ * Правила игры — показываются в модалке «i» пикера игр (GameActionRail). Внешний контейнер даёт модалка.
+ * В icp-режиме окна/пороги спора — ДЕЙСТВУЮЩИЕ параметры канала из канистры (M1/M2: их задаёт владелец,
+ * донор видит их ДО открытия спора); вне icp (или пока канистра не ответила) — дефолты машины.
+ */
+export function EscrowTaskRules({ channelId }: { channelId?: string }) {
+  const params = useDisputeParams(channelId).data?.effective;
+  const disputeWindow = params ? params.disputeWindowSecs * 1000 : WINDOWS.disputeWindow;
+  const votingWindow = params ? params.votingWindowSecs * 1000 : WINDOWS.voting;
+  const minRepPts = params ? Number(params.minReputationToDisputeMicro) / 1_000_000 : null;
+  const quorumPts = params ? Number(params.quorumMicro) / 1_000_000 : null;
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
@@ -410,12 +419,25 @@ export function EscrowTaskRules() {
           <li>Зритель донатит с заданием — деньги замораживаются в эскроу.</li>
           <li>Стример выполняет задание и жмёт «Готово» (доказательство — сам стрим/VOD).</li>
           <li>
-            Окно оспаривания {fmtWindow(WINDOWS.disputeWindow)}: если никто не спорит — деньги
-            уходят стримеру.
+            Окно оспаривания {fmtWindow(disputeWindow)}: если никто не спорит — деньги уходят
+            стримеру.
           </li>
           <li>
-            Считаешь, что не выполнено? С репутацией ≥ порога поднимаешь спор → голосование{" "}
-            {fmtWindow(WINDOWS.voting)}.
+            Считаешь, что не выполнено? С репутацией{" "}
+            {minRepPts != null ? (
+              <span className="mono">≥ {formatPoints(minRepPts)}</span>
+            ) : (
+              "≥ порога"
+            )}{" "}
+            поднимаешь спор → голосование {fmtWindow(votingWindow)}
+            {quorumPts != null ? (
+              <>
+                {" "}
+                (кворум явки — <span className="mono">{formatPoints(quorumPts)}</span> очков; не
+                соберётся — деньги уйдут стримеру)
+              </>
+            ) : null}
+            .
           </li>
           <li>Комьюнити решило «не выполнил» → 100% назад донору; «выполнил» → стримеру.</li>
         </ol>
@@ -599,7 +621,10 @@ function TaskCard({
   const within = (iso?: string) => !!iso && now <= Date.parse(iso);
   const alreadyVoted = !!viewer && (task.dispute?.votes.some((v) => v.voter === viewer) ?? false);
   const winner = effective?.outcome === "to_streamer" ? ownerAddress : task.donor;
-  const canClaim = !!effective && !final?.claimed && viewer === winner;
+  // При споре канистры (cd) «Забрать» открывается только после НАСТОЯЩЕГО исхода (task.resolution:
+  // тресхолд-резолвер исполнил вердикт ончейн и индексер это увидел) — «дозревший» по времени `due`
+  // здесь не основание: эскроу ончейн в Disputed, программа отклонит claim.
+  const canClaim = !!effective && !final?.claimed && viewer === winner && (!cd || !!final);
   // Стример/автор видят текст всегда; остальным — только SHOWN (иначе плашка «на модерации»/«скрыто»).
   // Операторский тейкдаун перебивает роль: снятый оператором текст не виден НИКОМУ (даже стримеру/автору).
   const canSeeText = !task.operatorBlocked && (isTextPublic(task) || isStreamer || isDonor);
@@ -636,16 +661,17 @@ function TaskCard({
 
       {cd ? <CanisterDisputeBlock cd={cd} now={now} /> : null}
 
-      {task.dispute && !cd ? (
-        <>
-          <DisputeTally dispute={task.dispute} />
-          <Link
-            href={`/c/${handle}/dispute/${encodeURIComponent(task.id)}`}
-            className="text-small self-start text-info hover:underline"
-          >
-            Участники и голоса ({task.dispute.votes.length}) →
-          </Link>
-        </>
+      {/* Табло старого оффчейн-спора — только когда нет канистрового (иначе оно уже в блоке выше). */}
+      {task.dispute && !cd ? <DisputeTally dispute={task.dispute} /> : null}
+      {/* Ссылка на полную страницу спора — для ОБОИХ контуров: в icp-режиме провайдер вливает
+          спор канистры в task.dispute, и страница «Участники и голоса» читает его тем же видом. */}
+      {task.dispute ? (
+        <Link
+          href={`/c/${handle}/dispute/${encodeURIComponent(task.id)}`}
+          className="text-small self-start text-info hover:underline"
+        >
+          Участники и голоса ({task.dispute.votes.length}) →
+        </Link>
       ) : null}
 
       <div className="text-small flex flex-wrap items-center gap-2 text-fg-faint">
@@ -848,7 +874,7 @@ function CanisterDisputeBlock({ cd, now }: { cd: CanisterDisputeView; now: numbe
           <span className="mono">
             голосование ·{" "}
             {now <= cd.votingEndsAtMs
-              ? `ещё ${Math.max(1, Math.round((cd.votingEndsAtMs - now) / 60_000))} мин`
+              ? until(new Date(cd.votingEndsAtMs).toISOString(), now)
               : "ждёт вердикта"}
           </span>
         ) : null}

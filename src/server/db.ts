@@ -25,7 +25,7 @@ export function getDb(): Promise<PGlite> {
 }
 
 /**
- * Схема под АКТУАЛЬНЫЕ типы (docs/data-model.md, обновлено ADR 0007: без reputation/overlay/profanity_policy).
+ * Схема под АКТУАЛЬНЫЕ типы (yellow-paper §13, обновлено ADR 0007: без reputation/overlay/profanity_policy).
  * Деньги — numeric(20,0) (micro-USDC), очки — numeric (дробные, 1 USDC = 1 очко с копейками).
  * Идемпотентно (IF NOT EXISTS) — безопасно вызывать при каждом старте.
  */

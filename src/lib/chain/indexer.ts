@@ -8,7 +8,7 @@ import {
 import { splitAmount } from "./donation-tx";
 import { decodeActivationMemo, decodeMemo, type MemoAttribution } from "./memo";
 
-/** Истина о деньгах — цепочка, не клиент (crypto/spec.md §4). Реконструированный донат из ончейна. */
+/** Истина о деньгах — цепочка, не клиент (yellow-paper §5.1). Реконструированный донат из ончейна. */
 export interface IndexedDonation {
   signature: string;
   donor: string;

@@ -33,7 +33,7 @@ pub async fn poll() {
     // Арбитр: споры с истёкшим голосованием финализируются (вердикт + журнал-эффекты),
     // затем ретраятся ончейн-отправки (mark_disputed / resolve_dispute тресхолд-подписью).
     crate::arbiter::finalize_due((ic_cdk::api::time() / 1_000_000) as i64);
-    crate::arbiter::send_pending_txs().await;
+    crate::arbiter::send_pending_txs((ic_cdk::api::time() / 1_000_000) as i64).await;
 
     state::STATUS.with(|s| {
         let mut st = s.borrow_mut();

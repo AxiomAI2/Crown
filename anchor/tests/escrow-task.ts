@@ -1,13 +1,14 @@
 /**
- * Скаффолд anchor-тестов эскроу-программы (G3a) для `anchor test` на localnet (нужен тулчейн, см. BUILD.md).
+ * Скаффолд anchor-тестов эскроу-программы (G3a) для `anchor test` на localnet (нужен тулчейн, см. docs/runbook.md).
  *
  * ⚠️ КАНОНИЧЕСКАЯ проверка — `scripts/escrow-smoke.ts` (гоняется против ЖИВОЙ devnet-программы; happy через
  * resolve_timeout + refund + проверка аудита #1). Этот файл покрывает time-независимые пути под НОВОЙ моделью
  * (после аудита):
  *   • refund: fund → reject → claim_donor (100%);
  *   • audit #1: резолвер/трежери — КОНСТАНТЫ программы; fund их не принимает, чужой ключ не может mark_disputed.
- * Пути по таймауту (resolve_timeout, окно спора) и резолв спора (нужен ключ оператора-резолвера) требуют
- * клок-варпа валидатора / реального резолвера — здесь не покрыты (см. escrow-smoke.ts).
+ * Пути по таймауту (resolve_timeout, окно спора) и резолв спора (подписывает тресхолд-адрес канистры,
+ * M2/ADR 0021 — ключа целиком не существует) требуют клок-варпа валидатора / живого арбитра — здесь
+ * не покрыты (см. escrow-smoke.ts и dispute-smoke.ts).
  */
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";

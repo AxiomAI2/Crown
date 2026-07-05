@@ -6,8 +6,9 @@
  *   ESC-19: mark_done БЕЗ accept отклонён (денег стримеру без ончейн-accept нет — а accept раскрывает текст)
  *   audit#1: чужой ключ НЕ может mark_disputed (резолвер захардкожен в программе → clawback закрыт)
  *
- * Резолвер/трежери теперь протокольные КОНСТАНТЫ контракта (аудит #1), поэтому смоук резолвит исход только
- * через permissionless resolve_timeout (ждёт окно), а не resolve_dispute (его подписывает лишь оператор).
+ * Резолвер/трежери — протокольные КОНСТАНТЫ контракта (аудит #1), поэтому смоук резолвит исход только
+ * через permissionless resolve_timeout (ждёт окно), а не resolve_dispute (его с M2 подписывает лишь
+ * тресхолд-адрес канистры-арбитра; спорный путь живьём гоняет scripts/dispute-smoke.ts).
  *
  * Запуск: export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"; npx tsx scripts/escrow-smoke.ts
  */

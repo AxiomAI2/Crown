@@ -20,7 +20,7 @@ export interface GamePanelProps {
 export interface GameUI {
   Rail: ComponentType<GamePanelProps>;
   Hub: ComponentType<GamePanelProps>;
-  Rules: ComponentType;
+  Rules: ComponentType<{ channelId?: string }>;
   Icon: ComponentType<{ className?: string }>;
 }
 

@@ -35,7 +35,7 @@ export function splitAmount(amountMicro: bigint): { fee: bigint; net: bigint } {
   return { fee, net: amountMicro - fee };
 }
 
-/** Одноразовый сбор активации канала (~$2 в трежери), анти-флуд-якорь (core-spec §3/§9). */
+/** Одноразовый сбор активации канала (~$2 в трежери), анти-флуд-якорь (yellow-paper §3.4). */
 const ACTIVATION_FEE_USDC = 2;
 export const ACTIVATION_FEE_MICRO = BigInt(ACTIVATION_FEE_USDC) * 1_000_000n;
 

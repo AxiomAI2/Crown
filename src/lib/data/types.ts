@@ -1,7 +1,7 @@
 /**
- * Канонические типы ядра (docs/data-model.md). Используются и фронтом (форма мок-данных),
+ * Канонические типы ядра (docs/yellow-paper.md §13). Используются и фронтом (форма мок-данных),
  * и позже бэкендом (схема БД). Деньги — micro-USDC (bigint), очки — целые.
- * UI-специфичные типы (Session, DonationInput, ChannelCard, ...) — из frontend/mock-data.md §1.
+ * UI-специфичные типы (Session, DonationInput, ChannelCard, ...) — docs/yellow-paper.md §11.
  */
 
 // — Базовые типы —
@@ -224,7 +224,7 @@ export interface LeaderboardEntry {
   totalDonated: MicroUSDC;
 }
 
-// — UI-специфичные типы (frontend/mock-data.md §1) —
+// — UI-специфичные типы (docs/yellow-paper.md §11) —
 export interface Page<T> {
   items: T[];
   cursor?: string;
@@ -298,12 +298,15 @@ export interface DonorChannelStanding {
 }
 
 // Событие журнала репутации донора для ленты «Активность»: за что НАЧИСЛИЛИ (+) или СПИСАЛИ (−) очки.
+// Сервер (mock/api/chain) отдаёт только DONATION; в icp-режиме детализацию даёт журнал канистры —
+// туда входят выплаты заданий (GAME_DONATION) и протокольные исходы споров (DISPUTE_*, M2).
+// Оператор очки не двигает (§4.5, CR-1): отрицательная дельта бывает только протокольной (DISPUTE_LOST).
 export interface DonorPointEvent {
   id: string;
   channelId: string;
-  type: "DONATION"; // лента активности донора показывает только донаты (рост репутации)
-  pointsDelta: Points; // + начислено за донат
-  amount: MicroUSDC; // сумма доната
+  type: "DONATION" | "GAME_DONATION" | "DISPUTE_WON" | "DISPUTE_LOST";
+  pointsDelta: Points; // знаковая дельта (DISPUTE_LOST < 0)
+  amount: MicroUSDC; // сумма денег события (0n у DISPUTE_*)
   ts: Iso;
   txSignature?: TxSignature;
   message?: MessageRef; // приватный текст доната (если показан) — для строки активности

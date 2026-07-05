@@ -314,7 +314,6 @@ interface ParamsDraft {
   quorum: string;
   disputeMin: string;
   votingMin: string;
-  dMax: string;
 }
 
 function DisputeParamsSection({ channelId }: { channelId: string }) {
@@ -332,7 +331,6 @@ function DisputeParamsSection({ channelId }: { channelId: string }) {
       quorum: String(fromMicro(e.quorumMicro)),
       disputeMin: String(e.disputeWindowSecs / 60),
       votingMin: String(e.votingWindowSecs / 60),
-      dMax: String(fromMicro(e.dMaxMicro)),
     });
   }, [info?.version, info?.channelId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -360,8 +358,7 @@ function DisputeParamsSection({ channelId }: { channelId: string }) {
     Number.isFinite(num(draft.minWeight)) &&
     num(draft.quorum) >= 0 &&
     num(draft.disputeMin) >= 1 &&
-    num(draft.votingMin) >= 1 &&
-    Number.isFinite(num(draft.dMax));
+    num(draft.votingMin) >= 1;
 
   function submit() {
     const params: DisputeParamsValues = {
@@ -370,7 +367,9 @@ function DisputeParamsSection({ channelId }: { channelId: string }) {
       quorumMicro: toMicro(num(draft!.quorum)),
       disputeWindowSecs: Math.round(num(draft!.disputeMin) * 60),
       votingWindowSecs: Math.round(num(draft!.votingMin) * 60),
-      dMaxMicro: toMicro(num(draft!.dMax)),
+      // Мёртвое поле формата подписи (арбитр его не читает; экономики от суммы нет — решение
+      // владельца M2). Из формы убрано, значение пробрасывается как есть до бампа `v:`.
+      dMaxMicro: info!.effective.dMaxMicro,
     };
     save.mutate(
       { channelId, params },
@@ -429,12 +428,6 @@ function DisputeParamsSection({ channelId }: { channelId: string }) {
           mono
           value={draft.quorum}
           onChange={(e) => setDraft({ ...draft, quorum: e.target.value })}
-        />
-        <Input
-          label="Потолок суммы задания, USDC (0 — без потолка)"
-          mono
-          value={draft.dMax}
-          onChange={(e) => setDraft({ ...draft, dMax: e.target.value })}
         />
         <Input
           label="Окно «поднять спор», минут"

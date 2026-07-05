@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-/** Отдельный admin-хром для консоли оператора (frontend/spec.md §2). */
+/** Отдельный admin-хром для консоли оператора (yellow-paper §14). */
 export default function OpsLayout({ children }: { children: React.ReactNode }) {
   return (
     <>

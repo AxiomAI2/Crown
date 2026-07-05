@@ -20,7 +20,8 @@ export interface DisputeParamsValues {
   disputeWindowSecs: number;
   /** Окно голосования, сек. */
   votingWindowSecs: number;
-  /** Потолок суммы задания (micro-USDC); 0n = не ограничен. */
+  /** МЁРТВОЕ поле (решение владельца M2: экономики от суммы нет — арбитр его не читает).
+   * Держится ради стабильности подписанного сообщения; убирать только с бампом `v:`. */
   dMaxMicro: bigint;
 }
 

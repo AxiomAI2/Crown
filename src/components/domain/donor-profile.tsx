@@ -295,8 +295,14 @@ function PositionRow({ s }: { s: DonorChannelStanding }) {
   );
 }
 
-/** Строка активности: канал (ссылка) + сумма + время + текст (если показан). */
-/** Строка журнала очков: канал + «за что» (донат $X / списание оператором) + дельта очков (+/−). */
+/** Строка журнала очков: канал + «за что» (донат / задание / исход спора) + знаковая дельта очков. */
+const EVENT_LABEL: Record<DonorPointEvent["type"], string> = {
+  DONATION: "Донат",
+  GAME_DONATION: "Задание-донат выполнено",
+  DISPUTE_WON: "Выигранный спор",
+  DISPUTE_LOST: "Проигранный ложный спор",
+};
+
 function ActivityRow({
   e,
   handle,
@@ -308,6 +314,7 @@ function ActivityRow({
 }) {
   const shown = e.message?.state === "SHOWN";
   const delta = e.pointsDelta;
+  const negative = delta < 0;
   return (
     <div className="flex flex-col gap-2 border-b border-border py-3">
       <div className="flex items-center justify-between gap-2">
@@ -319,16 +326,20 @@ function ActivityRow({
         ) : (
           <span className="mono min-w-0 truncate text-small text-fg-faint">{e.channelId}</span>
         )}
-        {/* дельта очков за донат (лента — только донаты, рост) */}
-        <span className="mono shrink-0 text-small font-medium" style={{ color: "var(--money)" }}>
-          +{formatPoints(delta)} {plural(delta, POINTS)}
+        {/* знаковая дельта: рост — money-green, протокольное списание (DISPUTE_LOST) — danger */}
+        <span
+          className="mono shrink-0 text-small font-medium"
+          style={{ color: negative ? "var(--danger)" : "var(--money)" }}
+        >
+          {negative ? "−" : "+"}
+          {formatPoints(Math.abs(delta))} {plural(Math.abs(delta), POINTS)}
         </span>
       </div>
 
-      {/* за что */}
+      {/* за что: денежные события — с суммой; исходы споров — только подпись */}
       <div className="flex items-center gap-1.5 text-small text-fg-muted">
-        <span>Донат</span>
-        <Amount micro={e.amount} variant="money" />
+        <span>{EVENT_LABEL[e.type] ?? e.type}</span>
+        {e.amount > 0n ? <Amount micro={e.amount} variant="money" /> : null}
       </div>
       {shown && e.message ? (
         <p className="break-words text-body text-fg">{collapseWhitespace(e.message.text)}</p>

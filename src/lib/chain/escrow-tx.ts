@@ -28,6 +28,9 @@ const DISC = {
   markDone: [112, 146, 215, 90, 40, 16, 44, 149], // mark_done
   cancel: [232, 219, 223, 41, 219, 236, 220, 190],
   resolveTimeout: [149, 55, 89, 144, 121, 143, 48, 210], // resolve_timeout
+  // mark_disputed / resolve_dispute фронт НЕ отправляет с M2 (их шлёт арбитр канистры тресхолд-подписью;
+  // сборщики ручного резолвера удалены). Дискриминаторы держим как читаемый источник для сверки с
+  // канистрой: canister/core/src/arbiter.rs::DISC_* обязан совпадать байт-в-байт.
   markDisputed: [136, 86, 152, 120, 3, 21, 223, 251], // mark_disputed
   resolveDispute: [231, 6, 202, 6, 96, 103, 12, 230], // resolve_dispute
   claimStreamer: [126, 138, 229, 228, 43, 41, 147, 179], // claim_streamer
@@ -155,28 +158,16 @@ export function buildResolveTimeoutIx(programId: PublicKey, caller: PublicKey, t
   });
 }
 
-/** `mark_disputed` (bounded резолвер): пометить эскроу спорным → resolve_timeout блокируется до резолва. */
+/**
+ * `mark_disputed`: пометить эскроу спорным → resolve_timeout блокируется до резолва. С M2 фронт его
+ * НЕ отправляет (шлёт арбитр канистры тресхолд-подписью); билдер живёт ради негативной проверки
+ * escrow-smoke «чужой ключ не может mark_disputed» (аудит #1). resolve_dispute-билдера нет совсем —
+ * его подпись существует только как консенсус канистры.
+ */
 export function buildMarkDisputedIx(programId: PublicKey, resolver: PublicKey, taskId: TaskId) {
   return new TransactionInstruction({
     programId,
     data: disc(DISC.markDisputed),
-    keys: [
-      { pubkey: resolver, isSigner: true, isWritable: false },
-      { pubkey: escrowPda(programId, taskId), isSigner: false, isWritable: true },
-    ],
-  });
-}
-
-/** `resolve_dispute` (bounded, devnet): только зафиксированный резолвер; выбор стороны (toStreamer). */
-export function buildResolveDisputeIx(
-  programId: PublicKey,
-  resolver: PublicKey,
-  taskId: TaskId,
-  toStreamer: boolean,
-) {
-  return new TransactionInstruction({
-    programId,
-    data: Buffer.concat([disc(DISC.resolveDispute), Buffer.from([toStreamer ? 1 : 0])]),
     keys: [
       { pubkey: resolver, isSigner: true, isWritable: false },
       { pubkey: escrowPda(programId, taskId), isSigner: false, isWritable: true },

@@ -31,7 +31,8 @@ export interface PickerEntry {
   name: string;
   tagline: string;
   Icon: ComponentType<{ className?: string }>;
-  Rules: ComponentType;
+  // channelId — играм с параметрами канала (правила спора живут в канистре, M1/M2); донату не нужен.
+  Rules: ComponentType<{ channelId?: string }>;
   Form: ComponentType<{ ctx: RailContext }>;
 }
 

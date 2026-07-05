@@ -11,7 +11,7 @@ export const MAX_TIERS = 20;
 // Лимит длины описания тира (UGC, опц.). Короче описания канала — это подпись к тиру, не блок текста.
 export const TIER_DESC_MAX = 140;
 
-// — Тиры по умолчанию (core-spec.md §6, цвета — design-system.md §2). Пороги — в очках (= USDC при
+// — Тиры по умолчанию (yellow-paper §9.1, цвета — design-system.md §2). Пороги — в очках (= USDC при
 // курсе 1:1, ADR 0007): $5 / $50 / $500 / $2000 суммарных донатов. Стартовые дефолты, калибруются. —
 export const DEFAULT_TIERS: Tier[] = [
   { name: "Новичок", threshold: 0, color: "#9AA1B2", badge: "rookie", perks: [] },

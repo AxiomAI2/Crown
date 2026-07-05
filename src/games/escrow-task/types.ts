@@ -1,5 +1,5 @@
 /**
- * Модель данных мини-игры «задание-донат» (спека `docs/games/escrow-task-spec.md` §5/§6). Чистые данные —
+ * Модель данных мини-игры «задание-донат» (yellow-paper §7). Чистые данные —
  * без React и IO. Деньги храним как ДЕСЯТИЧНУЮ СТРОКУ micro-USDC (JSON-чисто; bigint только на границе при
  * банковании в журнал репутации), чтобы непрозрачный слайс состояния игры (ADR 0016) сериализовался без
  * codec-тегов.
@@ -103,4 +103,45 @@ export interface RepEffect {
   type: "DONATION" | "DISPUTE_WON" | "DISPUTE_LOST";
   pointsDelta: number;
   amount?: string; // micro-USDC (для DONATION)
+}
+
+// ─────────── постраничный вид голосов спора (страница «Участники и голоса») ───────────
+// Тип общий для сервера (game-bus `disputeVotes`) и icp-провайдера (спор канистры вливается
+// в тот же вид) — сама выборка/пагинация считается чистой функцией machine.disputeVotesView.
+
+export interface DisputeVotesQuery {
+  page?: number;
+  pageSize?: number;
+  side?: VoteChoice | null;
+  sort?: "weight" | "recent";
+  q?: string;
+}
+
+export interface DisputeVotesResult {
+  found: boolean;
+  task?: {
+    id: string;
+    status: TaskStatus;
+    amount: string;
+    text: string;
+    donor: string;
+    resolution: TaskResolution | null;
+  };
+  dispute?: {
+    by: string;
+    openedAt: string;
+    votingEndsAt: string;
+    quorum: number;
+    tally: {
+      completed: number;
+      not: number;
+      completedVotes: number;
+      notVotes: number;
+      total: number;
+    };
+  };
+  votes: TaskVote[];
+  total: number;
+  page: number;
+  pageSize: number;
 }

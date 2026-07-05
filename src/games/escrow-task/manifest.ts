@@ -2,7 +2,7 @@ import type { GameModule } from "../types";
 
 /**
  * Манифест первой мини-игры — «задание-донат с проверкой комьюнити». Полная спека —
- * `docs/games/escrow-task-spec.md`, шов с ядром репутации — ADR 0015. Статус `available`:
+ * `yellow-paper §7`, шов с ядром репутации — ADR 0015. Статус `available`:
  * канал включает игру тумблером в студии (enabledGames).
  */
 export const escrowTask: GameModule = {
@@ -11,5 +11,5 @@ export const escrowTask: GameModule = {
   tagline:
     "Донат с заданием в эскроу: стример выполняет, комьюнити проверяет, иначе — возврат донору.",
   status: "available",
-  specDoc: "docs/games/escrow-task-spec.md",
+  specDoc: "docs/yellow-paper.md",
 };

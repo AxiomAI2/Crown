@@ -33,6 +33,20 @@
    devnet-программы: `scripts/escrow-smoke.ts`. Правишь `lib.rs` → синхронно правь TS-зеркала
    (`escrow-tx.ts`, `machine.ts`) — единого источника констант нет (yellow-paper §18.2).
 
+## Эскроу-программа (`anchor/`) — сборка и редеплой
+
+- **Program id неизменен** `GPP2…7GU4` (ENV `NEXT_PUBLIC_ESCROW_PROGRAM_ID`); история редеплоев —
+  audit-map §ESC. Тулчейн, которым программа реально собрана и задеплоена: **Solana CLI (Agave)
+  4.0.2 / platform-tools v1.53 / rustc 1.89, Anchor 0.31.1 (avm)**; для хост-сборки proc-макросов
+  нужен `build-essential`. `anchor/Cargo.lock` ЗАПИНЕН под этот тулчейн — не обновляй зависимости
+  «заодно».
+- Редеплой: `cd anchor && anchor build && anchor deploy --provider.cluster devnet` (id уже вписан —
+  `anchor keys sync` нужен только новой программе). Upgrade authority — `~/.config/solana/id.json`
+  (`G1vJ…uz14`); буфер деплоя требует ~2.01 SOL НА ВРЕМЯ деплоя (возвращается).
+- Правишь `lib.rs` → синхронно TS-зеркала (`escrow-tx.ts`, `machine.ts`, yellow-paper §18.2) и,
+  если менялись константы окон, — Rust-порт канистры; проверка — `scripts/escrow-smoke.ts` против
+  живой программы + `npm run golden && (cd canister && cargo test)`.
+
 ## Канистры ICP (миграция v3, с M-1)
 
 - **Тулчейн:** `dfx` 0.32 при вызове предупреждает «dfx is deprecated, use icp-cli» — DFINITY мигрирует
@@ -79,7 +93,6 @@
   ~0.002 SOL ренты хранилища + комиссии), USDC в трежери. Газ резолвера: тресхолд-адресу
   канистры нужен SOL на `mark_disputed`+`resolve_dispute` (по 5000 lamports); вернуть излишек —
   `dfx canister call core withdraw_sol '("<куда>", <lamports>)'` (только контроллер).
-  ⚠️ Редеплой эскроу-программы: буфер деплоя требует ~2.01 SOL НА ВРЕМЯ деплоя (возвращается).
 - **Тресхолд-подпись (M0-светофор, контур резолвера M2):** локальные тестовые chain-ключи
   зовутся `key_1` (НЕ `dfx_test_key`) — имя в init-аргументе `schnorr_key_name`.
   Адрес канистры: `dfx canister call core solana_address` (после reinstall НЕ меняется —

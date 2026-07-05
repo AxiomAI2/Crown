@@ -214,8 +214,10 @@ async function main() {
   const escrowInfo = async () => decodeEscrow((await conn.getAccountInfo(escrowAccount))!.data);
   const resolver = (await escrowInfo()).resolver.toBase58();
   console.log(`   резолвер эскроу: ${resolver}`);
-  const canisterStatus = await canisterGet<{ config?: unknown }>(`/status`);
-  void canisterStatus;
+  const canisterStatus = await canisterGet<{ version?: string }>(`/status`);
+  if (!canisterStatus.version)
+    die("канистра /status не отвечает ожидаемым JSON — стенд поднят? (runbook «Канистры ICP»)");
+  ok(`канистра жива (standing-core v${canisterStatus.version})`);
   if (resolver === "6F5Y3qLdDCB7gm1hFwdangodbRjWJRhnvNSxgPofB5xR")
     die("резолвер — старый операторский ключ: редеплой программы не подхватился");
   ok("резолвер эскроу = тресхолд-адрес канистры (редеплой работает)");

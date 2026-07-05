@@ -24,25 +24,24 @@
 
 ## Документация
 
+> Чистка доков 2026-07-05: фазовые спеки (core/backend/crypto/frontend, спеки игр) удалены как
+> устаревшие дубли — истина по механике теперь ТОЛЬКО код и yellow-paper; история — в git.
+
 | Файл | О чём |
 |------|-------|
 | [`CLAUDE.md`](./CLAUDE.md) | Точка входа для Claude Code: инварианты, конвенции, порядок работы |
 | [`docs/yellow-paper.md`](./docs/yellow-paper.md) | **Yellow Paper — техспека всей системы ПО КОДУ** (протоколы, константы, §18 — известные проблемы/компромиссы). Старший документ после кода |
 | [`docs/trust-layers.md`](./docs/trust-layers.md) | Три слоя доверия (кость/мышцы/кожа): правила слоёв и швы между ними |
 | [`docs/audit-map.md`](./docs/audit-map.md) | Инварианты → код, границы доверия, история находок аудитов |
-| [`docs/runbook.md`](./docs/runbook.md) | Запуск, операционные грабли, ключи |
-| [`docs/manual-testing.md`](./docs/manual-testing.md) | Плейбук ручного тестирования для не-программиста: сценарии по инвариантам + команды-светофоры |
-| [`ROADMAP.md`](./ROADMAP.md) | Фазовый план: фронт → бэкенд → крипта, с чек-листами |
-| [`docs/core-spec.md`](./docs/core-spec.md) | Спека ядра v0.1 — продуктовый замысел (частично устарела, см. баннер) |
-| [`docs/architecture.md`](./docs/architecture.md) | Ончейн/оффчейн, потоки данных |
-| [`docs/data-model.md`](./docs/data-model.md) | Сущности, журнал репутации, версионирование конфига |
-| [`docs/legal-and-risk.md`](./docs/legal-and-risk.md) | Карта юридических рисков и инварианты |
+| [`docs/canister-architecture.md`](./docs/canister-architecture.md) | Архитектура v3 «две кости и кожа»: трастлесс-слой на канистрах ICP |
+| [`docs/migration-plan.md`](./docs/migration-plan.md) | План+журнал миграции M-1…M5 (статусы фаз — в шапке) |
+| [`docs/runbook.md`](./docs/runbook.md) | Запуск, операционные грабли, ключи, редеплой эскроу/канистр |
+| [`docs/manual-testing.md`](./docs/manual-testing.md) | Плейбук ручного тестирования для не-программиста: сценарии + команды-светофоры |
+| [`docs/legal-and-risk.md`](./docs/legal-and-risk.md) | Юридические замки, риски и карта дисклеймеров |
+| [`docs/design-system.md`](./docs/design-system.md) | Язык дизайна: регистры, токены, движение, тон копирайта |
 | [`docs/glossary.md`](./docs/glossary.md) | Глоссарий |
-| [`docs/games/escrow-task-spec.md`](./docs/games/escrow-task-spec.md) | Спека первой мини-игры «задание-донат» (v1.1) |
-| [`frontend/`](./frontend/) | Спека UI/UX (Фаза 1) |
-| [`backend/spec.md`](./backend/spec.md) | Бэкенд (Фаза 2) |
-| [`crypto/spec.md`](./crypto/spec.md) | Крипта (Фаза 3) |
-| [`decisions/`](./decisions/) | ADR — архитектурные решения |
+| [`ROADMAP.md`](./ROADMAP.md) | Что построено и что осталось |
+| [`decisions/`](./decisions/) | ADR — архитектурные решения (история «почему») |
 
 ## Статус
 
@@ -52,10 +51,12 @@
 некастодиальным эскроу на devnet (G3a, ADR 0017), прозрачность (аттестация payout, публичный экспорт
 с независимым пересчётом, пруф-якорь — ADR 0019) и проходы по безопасности (ADR 0006–0019, карта —
 `docs/audit-map.md`). Идёт **миграция трастлесс-слоя на канистры ICP** (архитектура v3 «две кости
-и кожа», ADR 0021): фазы M-1…M1 построены — канистра-наблюдатель пересобирает журнал репутации из
+и кожа», ADR 0021): фазы M-1…M2 построены — канистра-наблюдатель пересобирает журнал репутации из
 цепочки (golden-паритет Rust↔TS), в режиме `icp` браузер читает канон из канистры мимо сервера,
-правила споров канала меняются только подписью владельца с таймлоком; впереди M2 — споры целиком
-на канистре (`docs/canister-architecture.md`, `docs/migration-plan.md`). Актуальное техническое
+правила споров канала меняются только подписью владельца с таймлоком, а споры по chain-заданиям
+целиком ведёт канистра-арбитр: RESOLVER эскроу — её тресхолд-адрес, ручного резолвера больше нет;
+впереди M3 — фронт на asset-канистре (mainnet на паузе; `docs/canister-architecture.md`,
+`docs/migration-plan.md`). Актуальное техническое
 состояние — `docs/yellow-paper.md`; статусы по фазам — `ROADMAP.md`.
 
 ## Разработка
@@ -71,8 +72,9 @@ npm run typecheck  # tsc --noEmit
 npm run format     # Prettier
 ```
 
-Источник данных переключается флагом `NEXT_PUBLIC_DATA_SOURCE` (`chain` | `api` | `mock`, см.
-`CLAUDE.md` §3 и `.env.example`). По умолчанию — `chain` (реальный кошелёк devnet).
+Источник данных переключается флагом `NEXT_PUBLIC_DATA_SOURCE` (`chain` | `icp` | `api` | `mock`,
+см. `CLAUDE.md` §3 и `.env.example`). По умолчанию — `chain` (реальный кошелёк devnet); `icp`
+дополнительно читает репутацию и споры из локального стенда канистры (runbook → «Канистры ICP»).
 
 ## Запуск на devnet с реальным кошельком (Фаза 3)
 
@@ -119,5 +121,9 @@ src/
     ├── chain/            Solana: адреса/конфиг, сборка донат-tx, индексер
     ├── reputation.ts     чистый движок репутации (свёртка журнала → очки, тиры)
     ├── utils.ts          cn + деньги (toMicro/fromMicro/formatUSDC) + адреса
-    └── data/             DataProvider: интерфейс + mock/api/chain, контекст useData, хуки, типы
+    └── data/             DataProvider: интерфейс + mock/api/chain/icp, контекст useData, хуки, типы
 ```
+
+Отдельно от `src/`: `canister/` — Rust-канистра ICP (кость №2), `anchor/` — эскроу-программа
+Solana, `scripts/` — смоуки и ревизоры (yellow-paper §15), `testdata/golden/` — эталон паритета
+TS↔Rust.

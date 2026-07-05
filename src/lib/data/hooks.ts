@@ -13,7 +13,7 @@ import type {
   OperatorAction,
 } from "./types";
 
-/** Стабильные ключи кэша (mock-data.md §2). */
+/** Стабильные ключи кэша (yellow-paper §11). */
 export const qk = {
   session: () => ["session"] as const,
   discovery: () => ["discovery"] as const,

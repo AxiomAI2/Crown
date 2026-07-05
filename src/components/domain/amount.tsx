@@ -18,7 +18,7 @@ export function Amount({
   );
 }
 
-/** Разбивка комиссии 97/3 прямо в виджете доната (screens.md). */
+/** Разбивка комиссии 97/3 прямо в виджете доната (yellow-paper §14). */
 export function FeeSplit({ amount }: { amount: bigint }) {
   const { fee, net } = splitAmount(amount);
   return (

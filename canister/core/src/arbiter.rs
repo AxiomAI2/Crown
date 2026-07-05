@@ -19,9 +19,9 @@
 //!  - пороги/окно голосования — governance-параметры канала (пишутся только владельцем);
 //!  - финализация — таймером канистры; исход пишет DISPUTE_*/GameDonation в журнал.
 //!
-//! Отправка `resolve_dispute` в Solana тресхолд-подписью — СЛЕДУЮЩИЙ шов M2 (вместе с
-//! редеплоем эскроу: до него RESOLVER лётных эскроу — операторский ключ, канистру контракт
-//! не послушает). Вердикт уже вычисляется и хранится здесь.
+//! Ончейн-исполнение (M2 закрыта): `mark_disputed` и `resolve_dispute` шлёт САМА канистра
+//! тресхолд-подписью (`send_pending_txs`, ретраи тиком таймера) — RESOLVER эскроу-программы
+//! на devnet уже её тресхолд-адрес, человека в цепочке решения нет.
 //!
 //! Известное допущение v1 (devnet): привязка эскроу→канал проверяется как
 //! `escrow.streamer == владелец канала из журнала` — если payout-адрес канала не равен
@@ -65,6 +65,27 @@ pub struct EscrowInfo {
 
 pub const ESCROW_STATE_DONE: u8 = 2;
 const ESCROW_ACCOUNT_SIZE: usize = 243;
+
+/// Запас до ончейн-дедлайна резолва: тик таймера (20 с) + сборка/отправка транзакции.
+/// Голосование канистры ОБЯЗАНО закончиться раньше, чем контракт разблокирует permissionless
+/// `resolve_timeout` (дефолт стримеру) — иначе проигрывающая сторона могла бы опередить вердикт
+/// (гонка найдена 2026-07-05 при разборе 20-секундного тика, закрыта в тот же день).
+const RESOLVE_SAFETY_MARGIN_MS: i64 = 40_000;
+
+/// Ужать конец голосования под фактический ончейн-дедлайн (после mark_disputed контракт
+/// ставит dispute_deadline = now + VOTING_WINDOW). Только ВНИЗ и идемпотентно; дедлайн уже
+/// рядом/прошёл → голосование закрывается немедленно (финализация ближайшим тиком —
+/// лучший шанс успеть раньше таймаута).
+fn clamp_voting_end(case: &mut DisputeCase, onchain_deadline_secs: i64, now_ms: i64) -> bool {
+    let Some(d) = case.task.dispute.as_mut() else { return false };
+    let latest_safe = onchain_deadline_secs.saturating_mul(1000) - RESOLVE_SAFETY_MARGIN_MS;
+    let target = latest_safe.max(now_ms);
+    if target < d.voting_ends_at_ms {
+        d.voting_ends_at_ms = target;
+        return true;
+    }
+    false
+}
 
 /// Anchor-дискриминаторы инструкций эскроу (1:1 с escrow-tx.ts DISC).
 const DISC_MARK_DISPUTED: [u8; 8] = [136, 86, 152, 120, 3, 21, 223, 251];
@@ -397,13 +418,38 @@ async fn try_send_mark_disputed(mut case: DisputeCase) -> DisputeCase {
 
 /// Ретраи отправок (тик таймера): недоставленный mark_disputed идущего спора и
 /// resolve_dispute вынесенного вердикта. Идемпотентно: подпись есть → не шлём.
-pub async fn send_pending_txs() {
+/// Плюс страховка от гонки с resolve_timeout: у идущих споров конец голосования ужимается
+/// под фактический ончейн-дедлайн (читается из аккаунта эскроу, finalized).
+pub async fn send_pending_txs(now_ms: i64) {
     for case in list_cases() {
         if case.verdict.is_none()
             && case.task.status == TaskStatus::Disputed
             && case.mark_disputed_tx.is_none()
         {
             try_send_mark_disputed(case).await;
+        } else if case.verdict.is_none() && case.task.status == TaskStatus::Disputed {
+            // mark_disputed отправлен → как только он финализировался, контракт переписал
+            // dispute_deadline (= конец окна резолва). Ужимаем своё голосование под него.
+            let cfg = state::config();
+            let Some(program) = cfg.escrow_program else { continue };
+            let Ok(Some(info)) = sol_rpc::get_account_info(&cfg.rpc_url, &case.escrow_account).await
+            else {
+                continue;
+            };
+            if info.owner != program {
+                continue;
+            }
+            let Ok(raw) = base64::engine::general_purpose::STANDARD.decode(info.data_base64) else {
+                continue;
+            };
+            let Ok(esc) = decode_escrow_account(&raw) else { continue };
+            if esc.state != 4 {
+                continue; // Disputed ончейн ещё не финализировался — дедлайн пока старый
+            }
+            let mut c = case.clone();
+            if clamp_voting_end(&mut c, esc.dispute_deadline_secs, now_ms) {
+                put_case(c);
+            }
         } else if let Some(v) = &case.verdict {
             if case.resolve_tx.is_none() {
                 let mut case = case.clone();
@@ -461,8 +507,8 @@ pub fn cast_vote(args: &CastVoteArgs, now_ms: i64) -> Result<DisputeCase, String
 
 // ─────────────── финализация (таймер) ───────────────
 
-/// Дозревшие споры: вердикт + учёт депозита + записи журнала. Отправка resolve в Solana —
-/// следующий шов M2 (редеплой эскроу с RESOLVER = тресхолд-адрес канистры).
+/// Дозревшие споры: вердикт + записи журнала (DISPUTE_*/GameDonation; депозитов нет — решение
+/// владельца M2). Отправку resolve в Solana делает send_pending_txs следующими тиками.
 pub fn finalize_due(now_ms: i64) -> u64 {
     let due: Vec<DisputeCase> = CASES.with(|c| {
         c.borrow()
@@ -570,7 +616,7 @@ mod tests {
     }
 
     /// Полный цикл: открытие по подписи → голоса-подписи → финализация таймером →
-    /// вердикт + журнал-эффекты + учёт депозита.
+    /// вердикт + журнал-эффекты (депозитов нет — решение владельца M2).
     #[test]
     fn full_dispute_flow() {
         let ch = "arb-chan";
@@ -670,6 +716,61 @@ mod tests {
         let w_after = weight_as_of_micro(ch, &initiator, now + 122_000);
         assert_eq!(w_before, 5_000_000);
         assert_eq!(w_after, 15_000_000);
+    }
+
+    /// Гонка resolve_timeout: голосование обязано кончаться раньше ончейн-дедлайна.
+    #[test]
+    fn voting_end_clamped_to_onchain_deadline() {
+        let mk = |ends_ms: i64| DisputeCase {
+            escrow_account: "E".into(),
+            channel_id: "c".into(),
+            escrow: EscrowInfo {
+                task_id_hex: "00".repeat(32),
+                donor: "D".into(),
+                streamer: "S".into(),
+                resolver: "R".into(),
+                amount_micro: 1,
+                execution_window_secs: 60,
+                state: 4,
+                accept_deadline_secs: 0,
+                done_deadline_secs: 0,
+                dispute_deadline_secs: 0,
+            },
+            task: Task {
+                id: "t".into(),
+                channel_id: "c".into(),
+                donor: "D".into(),
+                amount_micro: 1,
+                created_at_ms: 0,
+                execution_deadline_ms: 0,
+                grace_until_ms: 0,
+                status: TaskStatus::Disputed,
+                dispute_window_ends_at_ms: None,
+                dispute: Some(crate::disputes::TaskDispute {
+                    by: "B".into(),
+                    opened_at_ms: 0,
+                    voting_ends_at_ms: ends_ms,
+                    quorum_micro: 1,
+                    votes: vec![],
+                }),
+                resolution: None,
+            },
+            verdict: None,
+            mark_disputed_tx: Some("sig".into()),
+            resolve_tx: None,
+            last_send_error: None,
+        };
+        // Дедлайн 200с, голосование до 190_000 мс → ужалось до 200_000−40_000 = 160_000.
+        let mut c = mk(190_000);
+        assert!(clamp_voting_end(&mut c, 200, 100_000));
+        assert_eq!(c.task.dispute.as_ref().unwrap().voting_ends_at_ms, 160_000);
+        // Уже раньше безопасной границы → не трогаем (только вниз, идемпотентно).
+        let mut c = mk(150_000);
+        assert!(!clamp_voting_end(&mut c, 200, 100_000));
+        // Дедлайн почти прошёл → голосование закрывается СЕЙЧАС (now), не в прошлом.
+        let mut c = mk(190_000);
+        assert!(clamp_voting_end(&mut c, 130, 100_000));
+        assert_eq!(c.task.dispute.as_ref().unwrap().voting_ends_at_ms, 100_000);
     }
 
     /// Кросс-языковой пин: сообщения сверяются с общей фикстурой testdata/golden/messages.json

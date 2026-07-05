@@ -3,7 +3,7 @@ import { HeaderBalance } from "./header-balance";
 import { HeaderSearch } from "./header-search";
 import { WalletConnectButton } from "./wallet-connect";
 
-/** Публичная шапка (frontend/spec.md §2). Липкая. Слева — логотип + поиск каналов + nav; справа — кошелёк. */
+/** Публичная шапка (yellow-paper §14). Липкая. Слева — логотип + поиск каналов + nav; справа — кошелёк. */
 export function AppHeader() {
   return (
     <header className="sticky top-0 z-30 h-[var(--header-h)] border-b border-border bg-[var(--bg)]">

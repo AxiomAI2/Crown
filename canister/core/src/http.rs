@@ -357,18 +357,29 @@ pub fn handle(req: HttpRequest) -> HttpResponse {
     let path = req.url.split('?').next().unwrap_or("/");
 
     match path {
-        // M1+: агрегат ДОНОРА по всем каналам (для профиля /me и /u — канон чтения).
+        // M1+: агрегат ДОНОРА по всем каналам (для профиля /me и /u — канон чтения) +
+        // детализация журнала (M2: «Журнал репутации» профиля — донаты И спор-эффекты).
         "/donor" => {
             let Some(address) = query_param(&req.url, "address") else {
                 return json_response(400, json!({ "error": "нужен ?address=" }));
             };
             let mut acc: std::collections::BTreeMap<String, DonorAgg> = Default::default();
             let mut last_bt: std::collections::BTreeMap<String, i64> = Default::default();
+            let mut events: Vec<serde_json::Value> = Vec::new();
             for i in 0..state::journal_len() {
                 let Some(e) = state::journal_get(i) else { continue };
                 if e.kind == EntryKind::Activation || e.actor != address {
                     continue;
                 }
+                events.push(json!({
+                    "seq": e.seq,
+                    "channelId": e.channel_id,
+                    "kind": kind_str(&e.kind),
+                    "pointsDeltaMicro": e.points_delta_micro.to_string(),
+                    "amountMicro": e.amount_micro.to_string(),
+                    "blockTime": e.block_time,
+                    "signature": e.signature,
+                }));
                 let agg = acc.entry(e.channel_id.clone()).or_default();
                 agg.points_micro_signed += e.points_delta_micro as i128;
                 if is_money(&e.kind) {
@@ -385,6 +396,7 @@ pub fn handle(req: HttpRequest) -> HttpResponse {
                     }
                 }
             }
+            events.reverse(); // журнал идёт по seq вверх → отдаём новые сверху (как ленты UI)
             let rows: Vec<_> = acc
                 .iter()
                 .map(|(ch, a)| {
@@ -394,9 +406,9 @@ pub fn handle(req: HttpRequest) -> HttpResponse {
                     row
                 })
                 .collect();
-            json_response(200, json!({ "address": address, "rows": rows }))
+            json_response(200, json!({ "address": address, "rows": rows, "events": events }))
         }
-        // M2: спор по эскроу (табло скрыто до вердикта) и список споров.
+        // M2: спор по эскроу (табло открытое — решение владельца) и список споров канала.
         "/dispute" => {
             let Some(escrow) = query_param(&req.url, "escrow") else {
                 return json_response(400, json!({ "error": "нужен ?escrow=<адрес эскроу-аккаунта>" }));
@@ -511,6 +523,6 @@ pub fn handle(req: HttpRequest) -> HttpResponse {
                 }),
             )
         }
-        _ => json_response(404, json!({ "error": "unknown path", "paths": ["/export", "/export?channel=<id>", "/standing?channel=<id>&address=<addr>", "/leaderboard?channel=<id>[&since=<unix>][&limit=N]", "/status"] })),
+        _ => json_response(404, json!({ "error": "unknown path", "paths": ["/export", "/export?channel=<id>", "/standing?channel=<id>&address=<addr>", "/leaderboard?channel=<id>[&since=<unix>][&limit=N]", "/donor?address=<addr>", "/dispute?escrow=<addr>", "/disputes[?channel=<id>]", "/dispute-params?channel=<id>", "/status"] })),
     }
 }

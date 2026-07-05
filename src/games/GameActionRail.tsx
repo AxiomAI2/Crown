@@ -91,7 +91,7 @@ export function GameActionRail({
           <DialogHeader>
             <DialogTitle>{rulesFor?.name}</DialogTitle>
           </DialogHeader>
-          {rulesFor ? <rulesFor.Rules /> : null}
+          {rulesFor ? <rulesFor.Rules channelId={channel.id} /> : null}
         </DialogContent>
       </Dialog>
     </div>

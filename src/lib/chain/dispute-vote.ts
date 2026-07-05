@@ -60,6 +60,7 @@ export interface CanisterDisputeVote {
 export interface CanisterDisputeView {
   escrowAccount: string;
   channelId: string;
+  escrowTaskId: string | null; // hex-seed эскроу-PDA — ключ соединения с задачей сервера (task.escrowTaskId)
   status: string; // DISPUTED | RESOLVED (машина канистры)
   openedBy: string | null;
   openedAtMs: number | null;
@@ -78,6 +79,7 @@ export interface CanisterDisputeView {
 export function normalizeCanisterDispute(raw: {
   escrowAccount: string;
   channelId: string;
+  escrowTaskId?: string | null;
   status: string;
   openedBy: string | null;
   openedAtMs: number | null;
@@ -93,6 +95,7 @@ export function normalizeCanisterDispute(raw: {
   return {
     escrowAccount: raw.escrowAccount,
     channelId: raw.channelId,
+    escrowTaskId: raw.escrowTaskId ?? null,
     status: raw.status,
     openedBy: raw.openedBy,
     openedAtMs: raw.openedAtMs,

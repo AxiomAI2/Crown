@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
-// — Единицы денег (frontend/spec.md §4, ADR 0002) —
+// — Единицы денег (docs/design-system.md, ADR 0002) —
 // Внутри системы деньги — всегда micro-USDC (bigint, 6 знаков). `number`-USDC живёт
 // ТОЛЬКО на UI-границе. Конверсия — здесь и нигде больше.
 

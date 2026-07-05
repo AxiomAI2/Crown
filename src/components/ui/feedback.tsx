@@ -8,7 +8,7 @@ export function Skeleton({ className }: { className?: string }) {
   return <div className={cn("animate-pulse rounded bg-surface-raised", className)} />;
 }
 
-/** Пустое состояние — приглашение к действию (components.md §1). */
+/** Пустое состояние — приглашение к действию (docs/design-system.md). */
 export function EmptyState({
   title,
   description,

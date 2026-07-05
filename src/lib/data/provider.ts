@@ -30,14 +30,14 @@ import { ApiDataProvider } from "./api-provider";
 
 /**
  * Result<T> — асинхронный результат, который БРОСАЕТ Error при сбое (TanStack Query ловит).
- * (В mock-data.md записан как `Result<T> = T` ради читаемости сигнатур; на практике это Promise.)
+ * (В yellow-paper §11 записан как `Result<T> = T` ради читаемости сигнатур; на практике это Promise.)
  */
 export type Result<T> = Promise<T>;
 
 export type DataSource = "mock" | "api" | "chain" | "icp";
 
 /**
- * Единственный интерфейс доступа к данным (frontend/mock-data.md §1, CLAUDE.md §3).
+ * Единственный интерфейс доступа к данным (yellow-paper §11, CLAUDE.md §3).
  * Ни один компонент не зовёт fetch/RPC/Solana — только методы отсюда через хуки.
  */
 export interface DataProvider {

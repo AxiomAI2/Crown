@@ -1,7 +1,7 @@
 import { TransactionInstruction } from "@solana/web3.js";
 import { MEMO_PROGRAM_ID } from "./config";
 
-/** memo-атрибуция в донат-транзакции (crypto/spec.md §3): creator_id, donation_id, msg_ref. */
+/** memo-атрибуция в донат-транзакции (yellow-paper §3.1): creator_id, donation_id, msg_ref. */
 export interface MemoAttribution {
   c: string; // creator_id (channelId)
   d: string; // donation_id
