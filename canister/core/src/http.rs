@@ -44,13 +44,36 @@ fn json_response(status: u16, body: serde_json::Value) -> HttpResponse {
     }
 }
 
-/// Агрегат донора по каналу (свёртка журнала; только Donation-записи).
+/// Агрегат донора по каналу (свёртка журнала). С M2 в журнале есть спор-эффекты:
+/// очки — знаковая сумма ВСЕХ дельт с клампом ≥0 в конце (§4.4, как computePoints);
+/// totalDonated/donations — только денежные записи (Donation + GameDonation).
 #[derive(Default, Clone)]
 struct DonorAgg {
-    points_micro: u64,
+    points_micro_signed: i128,
     total_donated_micro: u64,
     donations: u64,
     first_block_time: Option<i64>,
+}
+
+impl DonorAgg {
+    fn points_micro(&self) -> u64 {
+        self.points_micro_signed.max(0) as u64
+    }
+}
+
+/// Тип записи для JSON-экспорта (стабильные имена — их читает verify-export и UI).
+fn kind_str(kind: &EntryKind) -> &'static str {
+    match kind {
+        EntryKind::Donation => "DONATION",
+        EntryKind::Activation => "ACTIVATION",
+        EntryKind::GameDonation => "GAME_DONATION",
+        EntryKind::DisputeWon => "DISPUTE_WON",
+        EntryKind::DisputeLost => "DISPUTE_LOST",
+    }
+}
+
+fn is_money(kind: &EntryKind) -> bool {
+    matches!(kind, EntryKind::Donation | EntryKind::GameDonation)
 }
 
 /// Свёртка журнала по каналу: адрес → агрегат. `since_block_time` — нижняя граница (для
@@ -59,7 +82,7 @@ fn fold_channel(channel_id: &str, since_block_time: Option<i64>) -> std::collect
     let mut acc: std::collections::BTreeMap<String, DonorAgg> = Default::default();
     for i in 0..state::journal_len() {
         let Some(e) = state::journal_get(i) else { continue };
-        if e.kind != EntryKind::Donation || e.channel_id != channel_id {
+        if e.kind == EntryKind::Activation || e.channel_id != channel_id {
             continue;
         }
         if let Some(since) = since_block_time {
@@ -68,14 +91,16 @@ fn fold_channel(channel_id: &str, since_block_time: Option<i64>) -> std::collect
             }
         }
         let agg = acc.entry(e.actor.clone()).or_default();
-        agg.points_micro += e.points_delta_micro;
-        agg.total_donated_micro += e.amount_micro;
-        agg.donations += 1;
-        agg.first_block_time = match (agg.first_block_time, e.block_time) {
-            (None, bt) => bt,
-            (cur, None) => cur,
-            (Some(a), Some(b)) => Some(a.min(b)),
-        };
+        agg.points_micro_signed += e.points_delta_micro as i128;
+        if is_money(&e.kind) {
+            agg.total_donated_micro += e.amount_micro;
+            agg.donations += 1;
+            agg.first_block_time = match (agg.first_block_time, e.block_time) {
+                (None, bt) => bt,
+                (cur, None) => cur,
+                (Some(a), Some(b)) => Some(a.min(b)),
+            };
+        }
     }
     acc
 }
@@ -83,7 +108,7 @@ fn fold_channel(channel_id: &str, since_block_time: Option<i64>) -> std::collect
 fn agg_json(address: &str, a: &DonorAgg) -> serde_json::Value {
     json!({
         "address": address,
-        "pointsMicro": a.points_micro.to_string(),
+        "pointsMicro": a.points_micro().to_string(),
         "totalDonatedMicro": a.total_donated_micro.to_string(),
         "donations": a.donations,
         "firstBlockTime": a.first_block_time,
@@ -153,22 +178,120 @@ fn param_fields(p: &crate::governance::DisputeParams) -> serde_json::Value {
     json!({
         "minReputationToDisputeMicro": p.min_reputation_to_dispute_micro,
         "minWeightToVoteMicro": p.min_weight_to_vote_micro,
-        "quorumCoefficientMilli": p.quorum_coefficient_milli,
+        "quorumMicro": p.quorum_micro,
         "disputeWindowSecs": p.dispute_window_secs,
         "votingWindowSecs": p.voting_window_secs,
         "dMaxMicro": p.d_max_micro.to_string(),
     })
 }
 
-/// UPDATE-путь (после upgrade шлюзом): запись governance-параметров подписью владельца.
-pub fn handle_update(req: HttpRequest) -> HttpResponse {
-    let path = req.url.split('?').next().unwrap_or("/");
-    if req.method != "POST" || path != "/dispute-params" {
-        return json_response(405, json!({ "error": "POST /dispute-params only" }));
+/// Спор-кейс → JSON. Табло и голоса ОТКРЫТЫ живьём — решение владельца 2026-07-05
+/// (спека прятала их до вердикта против стадности/прицельного подкупа, атака §8.5;
+/// риск принят и записан в migration-plan; конверты для крупных споров — мейннет-план).
+fn case_json(case: &crate::arbiter::DisputeCase) -> serde_json::Value {
+    let d = case.task.dispute.as_ref();
+    let (mut completed, mut not) = (0i128, 0i128);
+    if let Some(d) = d {
+        for v in &d.votes {
+            match v.choice {
+                crate::disputes::VoteChoice::Completed => completed += v.weight_micro,
+                crate::disputes::VoteChoice::NotCompleted => not += v.weight_micro,
+            }
+        }
+    }
+    json!({
+        "escrowAccount": case.escrow_account,
+        "channelId": case.channel_id,
+        "escrowTaskId": case.escrow.task_id_hex,
+        "amountMicro": case.escrow.amount_micro.to_string(),
+        "donor": case.escrow.donor,
+        "streamer": case.escrow.streamer,
+        "status": case.task.status.as_str(),
+        "openedBy": d.map(|d| d.by.clone()),
+        "openedAtMs": d.map(|d| d.opened_at_ms),
+        "votingEndsAtMs": d.map(|d| d.voting_ends_at_ms),
+        "quorumMicro": d.map(|d| d.quorum_micro.to_string()),
+        "votesCount": d.map(|d| d.votes.len()),
+        "tally": {
+            "completedMicro": completed.to_string(),
+            "notCompletedMicro": not.to_string(),
+        },
+        "votes": d.map(|d| d.votes.iter().map(|vt| json!({
+            "voter": vt.voter, "choice": vt.choice.as_str(),
+            "weightMicro": vt.weight_micro.to_string(), "atMs": vt.at_ms,
+        })).collect::<Vec<_>>()),
+        "markDisputedTx": case.mark_disputed_tx,
+        "resolveTx": case.resolve_tx,
+        "lastSendError": case.last_send_error,
+        "verdict": case.verdict.as_ref().map(|v| json!({
+            "outcome": v.outcome.as_str(),
+            "reason": v.reason.as_str(),
+            "tallyCompletedMicro": v.tally_completed_micro.to_string(),
+            "tallyNotCompletedMicro": v.tally_not_completed_micro.to_string(),
+            "finalizedAtMs": v.finalized_at_ms,
+        })),
+    })
+}
+
+fn now_ms() -> i64 {
+    (ic_cdk::api::time() / 1_000_000) as i64
+}
+
+/// UPDATE-путь (после upgrade шлюзом): записи подписями кошельков — governance-параметры,
+/// открытие спора, голос. Авторизация — подпись в теле, не caller.
+pub async fn handle_update(req: HttpRequest) -> HttpResponse {
+    let path = req.url.split('?').next().unwrap_or("/").to_string();
+    if req.method != "POST" {
+        return json_response(405, json!({ "error": "POST only" }));
     }
     let Ok(body) = serde_json::from_slice::<serde_json::Value>(&req.body) else {
         return json_response(400, json!({ "error": "тело не JSON" }));
     };
+    let field = |k: &str| body.get(k).and_then(serde_json::Value::as_str).map(str::to_string);
+
+    match path.as_str() {
+        "/dispute/open" => {
+            let (Some(escrow_account), Some(channel_id), Some(by), Some(signature)) =
+                (field("escrowAccount"), field("channelId"), field("by"), field("signature"))
+            else {
+                return json_response(400, json!({ "error": "нужны escrowAccount, channelId, by, signature" }));
+            };
+            match crate::arbiter::open_dispute(
+                crate::arbiter::OpenDisputeArgs { escrow_account, channel_id, by, signature_b58: signature },
+                now_ms(),
+            )
+            .await
+            {
+                Ok(case) => json_response(200, json!({ "ok": true, "dispute": case_json(&case) })),
+                Err(e) => json_response(403, json!({ "ok": false, "error": e })),
+            }
+        }
+        "/dispute/vote" => {
+            let (Some(escrow_account), Some(voter), Some(choice), Some(signature)) =
+                (field("escrowAccount"), field("voter"), field("choice"), field("signature"))
+            else {
+                return json_response(400, json!({ "error": "нужны escrowAccount, voter, choice, signature" }));
+            };
+            let choice = match choice.as_str() {
+                "completed" => crate::disputes::VoteChoice::Completed,
+                "not_completed" => crate::disputes::VoteChoice::NotCompleted,
+                _ => return json_response(400, json!({ "error": "choice: completed | not_completed" })),
+            };
+            match crate::arbiter::cast_vote(
+                &crate::arbiter::CastVoteArgs { escrow_account, voter, choice, signature_b58: signature },
+                now_ms(),
+            ) {
+                Ok(case) => json_response(200, json!({ "ok": true, "dispute": case_json(&case) })),
+                Err(e) => json_response(403, json!({ "ok": false, "error": e })),
+            }
+        }
+        "/dispute-params" => handle_params_update(&body),
+        _ => json_response(404, json!({ "error": "POST: /dispute-params, /dispute/open, /dispute/vote" })),
+    }
+}
+
+/// Запись governance-параметров (вынесено из handle_update при добавлении спор-путей).
+fn handle_params_update(body: &serde_json::Value) -> HttpResponse {
     let get_str = |k: &str| body.get(k).and_then(serde_json::Value::as_str).map(str::to_string);
     let get_u64 = |v: &serde_json::Value, k: &str| -> Option<u64> {
         let f = v.get(k)?;
@@ -178,7 +301,7 @@ pub fn handle_update(req: HttpRequest) -> HttpResponse {
         get_str("channelId"),
         get_str("owner"),
         get_str("signature"),
-        get_u64(&body, "version"),
+        get_u64(body, "version"),
         body.get("params"),
     ) else {
         return json_response(400, json!({ "error": "нужны channelId, owner, version, params, signature" }));
@@ -186,7 +309,7 @@ pub fn handle_update(req: HttpRequest) -> HttpResponse {
     let (Some(a), Some(b), Some(c), Some(d), Some(e), Some(f)) = (
         get_u64(p, "minReputationToDisputeMicro"),
         get_u64(p, "minWeightToVoteMicro"),
-        get_u64(p, "quorumCoefficientMilli"),
+        get_u64(p, "quorumMicro"),
         get_u64(p, "disputeWindowSecs"),
         get_u64(p, "votingWindowSecs"),
         get_u64(p, "dMaxMicro"),
@@ -196,7 +319,7 @@ pub fn handle_update(req: HttpRequest) -> HttpResponse {
     let params = crate::governance::DisputeParams {
         min_reputation_to_dispute_micro: a,
         min_weight_to_vote_micro: b,
-        quorum_coefficient_milli: c,
+        quorum_micro: c,
         dispute_window_secs: d,
         voting_window_secs: e,
         d_max_micro: f,
@@ -234,6 +357,25 @@ pub fn handle(req: HttpRequest) -> HttpResponse {
     let path = req.url.split('?').next().unwrap_or("/");
 
     match path {
+        // M2: спор по эскроу (табло скрыто до вердикта) и список споров.
+        "/dispute" => {
+            let Some(escrow) = query_param(&req.url, "escrow") else {
+                return json_response(400, json!({ "error": "нужен ?escrow=<адрес эскроу-аккаунта>" }));
+            };
+            match crate::arbiter::case_of(&escrow) {
+                Some(case) => json_response(200, case_json(&case)),
+                None => json_response(404, json!({ "error": "спор не найден" })),
+            }
+        }
+        "/disputes" => {
+            let channel = query_param(&req.url, "channel");
+            let rows: Vec<_> = crate::arbiter::list_cases()
+                .into_iter()
+                .filter(|c| channel.as_deref().is_none_or(|ch| ch == c.channel_id))
+                .map(|c| case_json(&c))
+                .collect();
+            json_response(200, json!({ "disputes": rows }))
+        }
         // M1: governance-параметры споров канала (чтение; запись — POST тем же путём).
         "/dispute-params" => {
             let Some(channel) = query_param(&req.url, "channel") else {
@@ -262,7 +404,7 @@ pub fn handle(req: HttpRequest) -> HttpResponse {
                 .unwrap_or(100)
                 .min(1000);
             let mut rows: Vec<(String, DonorAgg)> = fold_channel(&channel, since).into_iter().collect();
-            rows.sort_by(|a, b| b.1.points_micro.cmp(&a.1.points_micro).then_with(|| a.0.cmp(&b.0)));
+            rows.sort_by(|a, b| b.1.points_micro().cmp(&a.1.points_micro()).then_with(|| a.0.cmp(&b.0)));
             rows.truncate(limit);
             json_response(
                 200,
@@ -284,7 +426,7 @@ pub fn handle(req: HttpRequest) -> HttpResponse {
                 }
                 entries.push(json!({
                     "seq": e.seq,
-                    "kind": match e.kind { EntryKind::Donation => "DONATION", EntryKind::Activation => "ACTIVATION" },
+                    "kind": kind_str(&e.kind),
                     "signature": e.signature,
                     "channelId": e.channel_id,
                     "actor": e.actor,

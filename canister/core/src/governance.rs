@@ -31,8 +31,9 @@ pub struct DisputeParams {
     pub min_reputation_to_dispute_micro: u64,
     /// Порог веса присяжного (micro-очки; спека: дефолт 1 очко — пыль не голосует).
     pub min_weight_to_vote_micro: u64,
-    /// K в кворуме `max(1, ceil(K·√(сумма в USDC)))`, в тысячных (2000 = 2.0).
-    pub quorum_coefficient_milli: u64,
+    /// Кворум явки — ФИКСИРОВАННОЕ число micro-очков, задаёт сам стример (решение владельца
+    /// 2026-07-05: формулы от суммы нет; соберётся меньше — спор уходит стримеру по презумпции).
+    pub quorum_micro: u64,
     /// Окно «поднять спор» от «Готово», сек.
     pub dispute_window_secs: u64,
     /// Окно голосования, сек.
@@ -47,7 +48,7 @@ impl Default for DisputeParams {
         DisputeParams {
             min_reputation_to_dispute_micro: 1_000_000,
             min_weight_to_vote_micro: 1_000_000,
-            quorum_coefficient_milli: 2_000,
+            quorum_micro: 1_000_000, // «обычно 1» — один голос весом в очко уже решает
             dispute_window_secs: 120,
             voting_window_secs: 120,
             d_max_micro: 0,
@@ -104,11 +105,11 @@ pub fn build_params_message(channel_id: &str, owner: &str, version: u64, p: &Dis
         format!("version: {version}"),
         format!("minReputationToDisputeMicro: {}", p.min_reputation_to_dispute_micro),
         format!("minWeightToVoteMicro: {}", p.min_weight_to_vote_micro),
-        format!("quorumCoefficientMilli: {}", p.quorum_coefficient_milli),
+        format!("quorumMicro: {}", p.quorum_micro),
         format!("disputeWindowSecs: {}", p.dispute_window_secs),
         format!("votingWindowSecs: {}", p.voting_window_secs),
         format!("dMaxMicro: {}", p.d_max_micro),
-        "v: 1".to_string(),
+        "v: 2".to_string(),
     ]
     .join("\n")
 }
@@ -149,8 +150,8 @@ fn validate_bounds(p: &DisputeParams) -> Result<(), String> {
     if !(60..=30 * day).contains(&p.voting_window_secs) {
         return Err("votingWindowSecs: 60 сек … 30 дней".into());
     }
-    if !(1..=100_000).contains(&p.quorum_coefficient_milli) {
-        return Err("quorumCoefficientMilli: 1 … 100000 (0.001 … 100)".into());
+    if p.quorum_micro > 1_000_000_000_000_000 {
+        return Err("quorumMicro: не больше 1e15 (1 млрд очков)".into());
     }
     Ok(())
 }
@@ -240,12 +241,12 @@ mod tests {
         bs58::encode(sk.sign(msg.as_bytes()).to_bytes()).into_string()
     }
 
-    /// Пин канонического сообщения: TS-сторона (студия) обязана строить байт-в-байт эту строку.
+    /// Кросс-языковой пин: сообщение обязано байт-в-байт совпадать с TS-билдером —
+    /// сверяем с общей фикстурой testdata/golden/messages.json (её порождает `npm run golden`).
     #[test]
     fn canonical_message_pinned() {
         let msg = build_params_message("chan-1", "OWNER", 1, &DisputeParams::default());
-        let expected = "Standing: параметры споров канала.\n\nПодписывая, вы устанавливаете правила споров для своего канала.\nИзменения вступят после таймлока — идущие споры играются по прежним правилам.\n\nchannel: chan-1\nowner: OWNER\nversion: 1\nminReputationToDisputeMicro: 1000000\nminWeightToVoteMicro: 1000000\nquorumCoefficientMilli: 2000\ndisputeWindowSecs: 120\nvotingWindowSecs: 120\ndMaxMicro: 0\nv: 1";
-        assert_eq!(msg, expected);
+        assert_eq!(msg, crate::test_fixtures::canonical_message("disputeParams"));
     }
 
     #[test]

@@ -129,6 +129,30 @@ pub async fn get_signatures_since(
     Ok(pages.into_iter().flatten().rev().collect())
 }
 
+/// Инфо аккаунта (finalized): владелец-программа + данные base64. None = аккаунта нет.
+pub struct AccountInfo {
+    pub owner: String,
+    pub data_base64: String,
+}
+
+pub async fn get_account_info(url: &str, pubkey: &str) -> Result<Option<AccountInfo>, String> {
+    let res = rpc(
+        url,
+        "getAccountInfo",
+        json!([pubkey, { "encoding": "base64", "commitment": "finalized" }]),
+        16 * 1024,
+    )
+    .await?;
+    let value = &res["value"];
+    if value.is_null() {
+        return Ok(None);
+    }
+    Ok(Some(AccountInfo {
+        owner: value["owner"].as_str().unwrap_or_default().to_string(),
+        data_base64: value["data"][0].as_str().unwrap_or_default().to_string(),
+    }))
+}
+
 /// `getLatestBlockhash` (finalized) → base58-blockhash для сборки исходящей транзакции.
 pub async fn get_latest_blockhash(url: &str) -> Result<String, String> {
     let res = rpc(

@@ -27,14 +27,21 @@ pub struct Config {
     /// Имя тресхолд-ключа schnorr: локальная реплика — "dfx_test_key" (дефолт при None);
     /// mainnet ICP — "key_1" (гейт M5). Опционально — старые stable-байты декодятся в None.
     pub schnorr_key_name: Option<String>,
+    /// Program id эскроу-программы (M2): арбитр принимает споры только по аккаунтам,
+    /// которыми владеет ОНА (иначе подделка эскроу-данных тривиальна). None = споры выключены.
+    pub escrow_program: Option<String>,
 }
 
-/// Тип записи журнала. M0 индексирует ядро-донаты и активации; DISPUTE_* появятся в M2
-/// (споры переезжают в канистру), эскроу-игра идёт мимо трежери-пары и здесь не видна.
+/// Тип записи журнала. M0: ядро-донаты и активации из цепочки. M2: исходы споров пишет
+/// арбитр-модуль канистры (arbiter.rs) — GameDonation (донат дошёл стримеру через эскроу),
+/// DisputeWon/DisputeLost (±эффекты инициатору). Их подписи синтетические (`dispute:<id>:…`).
 #[derive(CandidType, Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
 pub enum EntryKind {
     Donation,
     Activation,
+    GameDonation,
+    DisputeWon,
+    DisputeLost,
 }
 
 /// Запись журнала — реконструкция из ончейн-транзакции (порт server ingest, без текстов:
@@ -52,8 +59,9 @@ pub struct JournalEntry {
     pub amount_micro: u64,
     pub fee_micro: u64,
     pub net_micro: u64,
-    /// Дельта репутации в micro-очках: донат = amount_micro 1:1 (ADR 0007), активация = 0.
-    pub points_delta_micro: u64,
+    /// Дельта репутации в micro-очках СО ЗНАКОМ: донат = amount_micro 1:1 (ADR 0007),
+    /// активация = 0, DisputeLost — отрицательная (единственный протокольный минус, §4.5).
+    pub points_delta_micro: i64,
     /// memo.d доната (для сверки с серверным журналом).
     pub donation_id: Option<String>,
     /// memo.m — хэш текста (сам текст — кожа, в канистре его нет).

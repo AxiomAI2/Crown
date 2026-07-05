@@ -9,6 +9,20 @@
 //! Инварианты слоёв: никаких текстов (только хэши, §3.1-7), донат-путь не трогаем (кость №1).
 //! Дальше: M0-live (mainnet ICP: SOL RPC canister + тресхолд-Ed25519), M2 — споры (disputes.rs).
 
+pub mod arbiter;
+
+/// Тестовые фикстуры кросс-языковых пинов (testdata/golden — порождает `npm run golden`).
+#[cfg(test)]
+pub mod test_fixtures {
+    pub fn canonical_message(key: &str) -> String {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../testdata/golden/messages.json");
+        let raw = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("нет {} ({e}) — сначала `npm run golden`", path.display()));
+        let v: serde_json::Value = serde_json::from_str(&raw).expect("messages.json не парсится");
+        v[key].as_str().unwrap_or_else(|| panic!("нет ключа {key}")).to_string()
+    }
+}
 pub mod disputes;
 pub mod donation;
 pub mod governance;
@@ -98,6 +112,16 @@ async fn test_sign_and_send(memo: String) -> Result<String, String> {
     signer::test_sign_and_send(memo).await
 }
 
+/// Перевод SOL с тресхолд-адреса (газовые деньги резолвера; деньги пользователей тут не ходят).
+/// Только контроллеры.
+#[ic_cdk::update]
+async fn withdraw_sol(to: String, lamports: u64) -> Result<String, String> {
+    if !ic_cdk::api::is_controller(&ic_cdk::api::msg_caller()) {
+        return Err("только контроллер канистры".into());
+    }
+    signer::send_sol(&to, lamports).await
+}
+
 /// Репутация донора на канале в micro-очках: свёртка журнала на лету (§4.4 — журнал
 /// единственный источник, никакого хранимого «числа»). Масштабы M0 — сотни записей.
 #[ic_cdk::query]
@@ -120,14 +144,16 @@ fn leaderboard(channel_id: String, limit: u32) -> Vec<(String, u64)> {
 }
 
 fn fold_donations(channel_id: &str) -> Vec<(String, u64)> {
-    let mut acc: std::collections::BTreeMap<String, u64> = Default::default();
+    // С M2 в журнале есть спор-эффекты со знаком: сумма знаковая, кламп ≥0 ОДИН раз в конце
+    // (та же семантика, что computePoints §4.4).
+    let mut acc: std::collections::BTreeMap<String, i128> = Default::default();
     for i in 0..state::journal_len() {
         let Some(e) = state::journal_get(i) else { continue };
-        if e.kind == state::EntryKind::Donation && e.channel_id == channel_id {
-            *acc.entry(e.actor).or_default() += e.points_delta_micro;
+        if e.kind != state::EntryKind::Activation && e.channel_id == channel_id {
+            *acc.entry(e.actor).or_default() += e.points_delta_micro as i128;
         }
     }
-    acc.into_iter().collect()
+    acc.into_iter().map(|(a, micro)| (a, micro.max(0) as u64)).collect()
 }
 
 #[ic_cdk::query]
@@ -149,11 +175,12 @@ fn http_request(req: http::HttpRequest) -> http::HttpResponse {
     http::handle(req)
 }
 
-/// UPDATE-путь HTTP-шлюза (POST /dispute-params): запись governance-параметров канала.
-/// Авторизация — НЕ caller, а ed25519-подпись владельца канала в теле (governance.rs).
+/// UPDATE-путь HTTP-шлюза: записи подписями кошельков — governance-параметры
+/// (/dispute-params), открытие спора (/dispute/open), голос (/dispute/vote).
+/// Авторизация — НЕ caller, а ed25519-подпись в теле (governance.rs / arbiter.rs).
 #[ic_cdk::update]
-fn http_request_update(req: http::HttpRequest) -> http::HttpResponse {
-    http::handle_update(req)
+async fn http_request_update(req: http::HttpRequest) -> http::HttpResponse {
+    http::handle_update(req).await
 }
 
 /// Governance-параметры споров канала: (effective на сейчас, полное состояние).

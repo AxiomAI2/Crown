@@ -30,6 +30,10 @@ pub async fn poll() {
 
     // Хозработа губернанса: дозревшие по таймлоку параметры каналов становятся действующими.
     crate::governance::promote_due(ic_cdk::api::time());
+    // Арбитр: споры с истёкшим голосованием финализируются (вердикт + журнал-эффекты),
+    // затем ретраятся ончейн-отправки (mark_disputed / resolve_dispute тресхолд-подписью).
+    crate::arbiter::finalize_due((ic_cdk::api::time() / 1_000_000) as i64);
+    crate::arbiter::send_pending_txs().await;
 
     state::STATUS.with(|s| {
         let mut st = s.borrow_mut();
@@ -96,7 +100,7 @@ fn build_entry(cfg: &Config, signature: &str, tx_json: &serde_json::Value) -> Op
             net_micro: u64::try_from(d.net_micro).ok()?,
             // Курс ADR 0007: 1 USDC = 1 очко ⇒ micro-очки == micro-USDC полной суммы
             // (паритет с сервером: pointsDelta = pointsForAmount(amount)).
-            points_delta_micro: u64::try_from(d.amount_micro).ok()?,
+            points_delta_micro: i64::try_from(d.amount_micro).ok()?,
             donation_id: Some(d.memo.d),
             msg_ref: d.memo.m,
             block_time: d.block_time,
@@ -134,6 +138,7 @@ mod tests {
             usdc_mint: "MINT".into(),
             poll_secs: 20,
             schnorr_key_name: None,
+            escrow_program: None,
         }
     }
 

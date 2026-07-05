@@ -9,9 +9,11 @@ type Config = record {
   poll_secs : nat64;
   // Имя тресхолд-ключа schnorr: null → "dfx_test_key" (локальная реплика); mainnet — "key_1".
   schnorr_key_name : opt text;
+  // Program id эскроу (M2): арбитр принимает споры только по аккаунтам этой программы.
+  escrow_program : opt text;
 };
 
-type EntryKind = variant { Donation; Activation };
+type EntryKind = variant { Donation; Activation; GameDonation; DisputeWon; DisputeLost };
 
 type JournalEntry = record {
   seq : nat64;
@@ -22,7 +24,7 @@ type JournalEntry = record {
   amount_micro : nat64;
   fee_micro : nat64;
   net_micro : nat64;
-  points_delta_micro : nat64;
+  points_delta_micro : int64;
   donation_id : opt text;
   msg_ref : opt text;
   block_time : opt int64;
@@ -62,7 +64,7 @@ type HttpResponse = record {
 type DisputeParams = record {
   min_reputation_to_dispute_micro : nat64;
   min_weight_to_vote_micro : nat64;
-  quorum_coefficient_milli : nat64;
+  quorum_micro : nat64;
   dispute_window_secs : nat64;
   voting_window_secs : nat64;
   d_max_micro : nat64;
@@ -103,6 +105,8 @@ service : (Config) -> {
   solana_address : () -> (TextResult);
   // M0-светофор контура подписи: живая memo-tx в devnet. Только контроллеры (тест-рычаг).
   test_sign_and_send : (text) -> (TextResult);
+  // Перевод SOL с тресхолд-адреса (газ резолвера; только контроллеры).
+  withdraw_sol : (text, nat64) -> (TextResult);
   // Governance-параметры споров канала: (действующие сейчас, полное состояние с pending).
   dispute_params : (text) -> (DisputeParams, ChannelParamsState) query;
   // Запись параметров: POST /dispute-params через шлюз (тело: channelId/owner/version/params/

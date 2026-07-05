@@ -1,0 +1,6 @@
+{
+  "_readme": "Канонические строки под подпись кошелька, порождены TS-билдерами. Rust-тесты (governance.rs, arbiter.rs) сверяют свои билдеры с этим файлом байт-в-байт.",
+  "disputeParams": "Standing: параметры споров канала.\n\nПодписывая, вы устанавливаете правила споров для своего канала.\nИзменения вступят после таймлока — идущие споры играются по прежним правилам.\n\nchannel: chan-1\nowner: OWNER\nversion: 1\nminReputationToDisputeMicro: 1000000\nminWeightToVoteMicro: 1000000\nquorumMicro: 1000000\ndisputeWindowSecs: 120\nvotingWindowSecs: 120\ndMaxMicro: 0\nv: 2",
+  "openDispute": "Standing: открытие спора по заданию-донату.\n\nПодписывая, вы оспариваете выполнение задания. Денег это не стоит,\nно проигранный ложный спор снимет 50 очков вашей репутации.\n\nescrow: ESCROW\nchannel: chan-1\nby: BY\nv: 2",
+  "vote": "Standing: голос в споре по заданию-донату.\n\nПодписывая, вы голосуете весом своей репутации на этом канале.\n\nescrow: ESCROW\nchannel: chan-1\nvoter: VOTER\nchoice: not_completed\nv: 1"
+}

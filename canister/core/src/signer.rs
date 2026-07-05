@@ -90,6 +90,50 @@ pub async fn sign(message: Vec<u8>) -> Result<Vec<u8>, String> {
     Ok(out.signature)
 }
 
+/// Перевод SOL с тресхолд-адреса (System Transfer). Операционный рычаг контроллера:
+/// заправка/возврат газовых денег резолвера; деньги ПОЛЬЗОВАТЕЛЕЙ здесь не ходят никогда.
+pub async fn send_sol(to_b58: &str, lamports: u64) -> Result<String, String> {
+    let cfg = crate::state::config();
+    let from = threshold_pubkey().await?;
+    let to: [u8; 32] = bs58::decode(to_b58)
+        .into_vec()
+        .map_err(|e| format!("to base58: {e}"))?
+        .try_into()
+        .map_err(|_| "to: не 32 байта".to_string())?;
+
+    let blockhash_b58 = crate::sol_rpc::get_latest_blockhash(&cfg.rpc_url).await?;
+    let mut blockhash = [0u8; 32];
+    let n = bs58::decode(&blockhash_b58)
+        .onto(&mut blockhash)
+        .map_err(|e| format!("blockhash decode: {e}"))?;
+    if n != 32 {
+        return Err(format!("blockhash {n} байт"));
+    }
+
+    // System Program Transfer: instruction index 2 (u32 LE) + lamports (u64 LE).
+    let mut data = 2u32.to_le_bytes().to_vec();
+    data.extend_from_slice(&lamports.to_le_bytes());
+    let message = crate::sol_tx::build_message(
+        &from,
+        &blockhash,
+        &[crate::sol_tx::Instruction {
+            program_id: [0u8; 32], // System Program = 32 нулевых байта
+            accounts: vec![
+                crate::sol_tx::AccountMeta { pubkey: from, is_signer: true, is_writable: true },
+                crate::sol_tx::AccountMeta { pubkey: to, is_signer: false, is_writable: true },
+            ],
+            data,
+        }],
+    );
+    let signature = sign(message.clone()).await?;
+    let tx = crate::sol_tx::assemble_tx(&signature, &message)?;
+    crate::sol_rpc::send_transaction(
+        &cfg.rpc_url,
+        &base64::engine::general_purpose::STANDARD.encode(tx),
+    )
+    .await
+}
+
 /// M0-светофор: подписать и отправить в devnet ЖИВУЮ memo-транзакцию от тресхолд-адреса.
 /// Полный контур будущего резолвера: blockhash из цепи → сборка → тресхолд-подпись → send.
 pub async fn test_sign_and_send(memo: String) -> Result<String, String> {
