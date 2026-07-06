@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { RankBadge } from "./rank-badge";
 import { Skeleton } from "@/components/ui/feedback";
 import { useLeaderboard } from "@/lib/data/hooks";
 import type { Address } from "@/lib/data/types";
@@ -78,7 +77,13 @@ export function RealmRoll({
                     👑
                   </span>
                 ) : (
-                  <RankBadge points={e.points} size={24} />
+                  // Tier dot — colored by this realm's own tier (creator-defined; no global rank).
+                  <span className="grid h-6 w-6 flex-none place-items-center" aria-hidden>
+                    <span
+                      className="h-2.5 w-2.5 rounded-pill"
+                      style={{ background: e.tier?.color ?? "var(--text-faint)" }}
+                    />
+                  </span>
                 )}
                 <span className="min-w-0 flex-1 truncate text-small text-fg">
                   {e.displayName ?? shortAddress(e.donor)}

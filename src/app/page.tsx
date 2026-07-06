@@ -57,10 +57,34 @@ function Home() {
     if (as) dev.setAddress(demoAddress(as));
   }, [address, dev.available]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Show the one-line value prop only once we KNOW the visitor is a guest (session resolved, no address) —
+  // avoids a flash for signed-in users while the session loads.
+  const isGuest = Boolean(session.data) && !address;
+
   return (
     <div className="flex flex-col gap-6">
+      {isGuest ? <GuestIntro /> : null}
       {/* The personal court is moved into "Personal Space" (header → /space); here everyone sees the realms showcase. */}
       <RealmsShowcase />
+    </div>
+  );
+}
+
+/**
+ * Guest-only value line (no marketing hero). One sentence answers "what is this and why care", plus the
+ * loop in muted micro-copy. "Reign" carries the antique-gold status accent (reputation register — not the
+ * bright money gold). Hidden the moment a wallet is connected.
+ */
+function GuestIntro() {
+  return (
+    <div className="flex flex-col gap-1.5 pt-1">
+      <p className="max-w-3xl text-body text-fg">
+        Crown a streamer with USDC and build your <span className="text-status">Reign</span> — reputation
+        inside their community that&apos;s earned, never bought or sold.
+      </p>
+      <p className="text-small text-fg-faint">
+        Crown&nbsp;→ earn Reign&nbsp;→ climb from Squire to King.
+      </p>
     </div>
   );
 }

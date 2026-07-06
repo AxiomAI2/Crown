@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { RankBadge } from "@/components/domain/rank-badge";
+import { Monogram } from "@/components/domain/header-actions";
 import { useDevControls, useDonorOverview, useSession } from "@/lib/data/hooks";
 import { demoAddress } from "@/lib/data/demo-seed";
 import { fromMicro, shortAddress } from "@/lib/utils";
@@ -38,7 +38,6 @@ export function CrownWallet() {
 function IdentityMenu({ address, onDisconnect }: { address: string; onDisconnect: () => void }) {
   const [open, setOpen] = useState(false);
   const overview = useDonorOverview(address);
-  const points = overview.data?.topStanding?.points ?? 0;
 
   // Esc closes the menu.
   useEffect(() => {
@@ -57,7 +56,7 @@ function IdentityMenu({ address, onDisconnect }: { address: string; onDisconnect
         aria-expanded={open}
         className="flex h-9 items-center gap-2 rounded-full border border-border bg-surface pl-1 pr-3 transition-colors hover:border-border-strong"
       >
-        <RankBadge points={points} size={26} />
+        <Monogram name={address} size="sm" />
         <span className="mono text-small text-fg-muted">{shortAddress(address)}</span>
       </button>
 
@@ -74,7 +73,7 @@ function IdentityMenu({ address, onDisconnect }: { address: string; onDisconnect
             className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-lg border border-border bg-surface shadow-xl shadow-black/40"
           >
             <div className="flex items-center gap-3 border-b border-border px-3 py-3">
-              <RankBadge points={points} size={34} />
+              <Monogram name={address} size="md" />
               <div className="flex min-w-0 flex-col">
                 <span className="mono text-small text-fg">{shortAddress(address)}</span>
                 <span className="text-caption text-fg-faint">

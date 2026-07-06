@@ -341,9 +341,10 @@ export function useDevControls() {
     failMode: dev?.__getFailMode() ?? false,
     setAddress: (address: Address | null) => {
       dev?.__setAddress(address);
-      // Switching identity (sign in/out) in dev — drop the cache immediately, so the previous identity's data doesn't linger
-      // until the refetch (the same principle as in ChainWalletBridge for a real wallet).
-      qc.clear();
+      // Switching identity (sign in/out) in dev — INVALIDATE, not qc.clear(): in TanStack v5 clear() removes
+      // queries without refetching active observers, so mounted screens freeze on skeletons forever
+      // (same rule as ChainWalletBridge, wallet-provider.tsx). invalidate refetches everything in background.
+      void qc.invalidateQueries();
     },
     setFailMode: (on: boolean) => {
       dev?.__setFailMode(on);

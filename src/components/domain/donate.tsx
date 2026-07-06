@@ -298,19 +298,27 @@ export function DonateWidget({
   );
 }
 
-/** Crown finality — the signature moment: the 97/3 amounts split apart, the "stamp", the switch to --money. */
+/** Crown finality — the signature moment. The PAYOFF is Reign earned: the reward is the hero (big, formatted),
+ *  not the fee split (already shown in the preview + confirm). Money is one quiet line for transparency. */
 export function FinalityMoment({ result }: { result: DonationResult }) {
+  const gain = pointsForAmount(result.donation.amount);
   return (
-    <div className="animate-stamp flex flex-col items-center gap-3 rounded-lg border border-money bg-money-bg p-5 text-center">
-      <div className="flex w-full items-center justify-between text-small">
-        <span className="text-fg-muted">To streamer</span>
-        <Amount micro={result.donation.netToStreamer} variant="money" />
+    <div className="animate-stamp flex flex-col items-center gap-3 rounded-lg border border-money bg-money-bg p-6 text-center">
+      <span className="text-4xl leading-none" aria-hidden>
+        👑
+      </span>
+      <div className="flex flex-col items-center gap-1">
+        <span className="font-display text-[2.75rem] font-semibold leading-none text-money">
+          +{formatPoints(gain)}
+        </span>
+        <span className="text-caption uppercase tracking-wide text-status">Reign earned</span>
       </div>
-      <div className="flex w-full items-center justify-between text-small">
-        <span className="text-fg-muted">To platform</span>
-        <Amount micro={result.donation.feeAmount} variant="money" />
-      </div>
-      <p className="text-h3 text-money">Done. Funds sent to the streamer.</p>
+      <p className="text-small text-fg-muted">
+        You now hold <span className="mono text-fg">{formatPoints(result.standing.points)}</span> Reign in this realm.
+      </p>
+      <p className="text-caption text-fg-faint">
+        <Amount micro={result.donation.netToStreamer} /> reached the streamer · funds are final.
+      </p>
     </div>
   );
 }
@@ -341,10 +349,6 @@ function DoneView({
             <TierBadge tier={result.standing.tier} />
           </div>
         ) : null}
-        <p className="text-small text-fg-muted">
-          Your Reign is counted:{" "}
-          <span className="mono text-status">{result.standing.points}</span> Reign.
-        </p>
         {hadText ? (
           <p className="rounded border border-border bg-surface p-3 text-small text-fg-muted">
             Your message is with the streamer for review (HELD). Funds and Reign are already counted —

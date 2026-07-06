@@ -6,7 +6,6 @@ import { Amount } from "@/components/domain/amount";
 import { CumulativeAreaChart, DailyBars, RangeTabs, type ChartRange } from "@/components/domain/area-chart";
 import { CreateChannelForm } from "@/components/domain/create-channel-form";
 import { DonationHistory } from "@/components/domain/donation-history";
-import { RankBadge } from "@/components/domain/rank-badge";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import {
@@ -275,13 +274,23 @@ function TopPatronRow({ e, rank }: { e: LeaderboardEntry; rank: number }) {
   return (
     <div className="flex items-center gap-3 rounded-lg border border-border bg-surface p-3">
       <span className="w-4 flex-none text-center text-caption text-fg-faint">{rank}</span>
-      <RankBadge points={e.points} size={34} />
+      {/* Tier medallion — this realm's own tier (creator-defined; no global rank). */}
+      <span
+        className="grid h-[34px] w-[34px] flex-none place-items-center rounded-full border font-display text-small"
+        style={{
+          borderColor: e.tier?.color ?? "var(--border)",
+          color: e.tier?.color ?? "var(--text-faint)",
+        }}
+        aria-hidden
+      >
+        {(e.tier?.name ?? "—").slice(0, 1).toUpperCase()}
+      </span>
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-small text-fg">
           {rank === 1 ? "👑 " : ""}
           {e.displayName ?? shortAddress(e.donor)}
         </span>
-        <span className="text-caption text-fg-faint">{e.tier?.name ?? "New"}</span>
+        <span className="text-caption text-fg-faint">{e.tier?.name ?? "No tier"}</span>
       </div>
       <div className="flex flex-col items-end leading-tight">
         <span className="mono text-small text-money">{money(e.totalDonated)}</span>

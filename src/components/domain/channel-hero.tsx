@@ -154,8 +154,10 @@ export function ChannelHero({
                   👑
                 </span>
                 <div className="flex min-w-0 flex-col">
-                  <span className="text-caption uppercase tracking-wide text-status">The Crown</span>
-                  <span className="truncate text-fg" title={`The Crown: ${topPatron}`}>
+                  <span className="text-caption uppercase tracking-wide text-status">
+                    The Crown · top supporter
+                  </span>
+                  <span className="truncate text-fg" title={`The Crown — top supporter: ${topPatron}`}>
                     {topPatron}
                   </span>
                 </div>
