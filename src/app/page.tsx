@@ -399,10 +399,6 @@ function RealmCard({ realm }: { realm: ChannelCard }) {
           <div className="text-caption text-fg-faint">Crowned</div>
           <div className="mono text-money">{usd(amount)}</div>
         </div>
-        <div className="text-right">
-          <div className="text-caption text-fg-faint">Supporters</div>
-          <div className="mono text-fg">{realm.donorsCount.toLocaleString("en-US")}</div>
-        </div>
       </div>
     </div>
   );
