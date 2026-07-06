@@ -1,15 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { CrownLogo } from "@/components/crown-logo";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Monogram } from "@/components/domain/header-actions";
 import { AppHeader } from "@/components/layout/app-header";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { CHANNEL_PLATFORMS, platformDef } from "@/lib/channel-links";
 import { CheckIcon } from "@/components/ui/icons";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
-import { SearchBar } from "@/components/ui/search-bar";
+import { ExpandingSearch } from "@/components/ui/expanding-search";
 import { SortToggle, type RealmSort } from "@/components/domain/realm-filters";
 import { demoAddress } from "@/lib/data/dev-identity";
 import { useDevControls, useDiscovery, useSession } from "@/lib/data/hooks";
@@ -166,27 +165,17 @@ function RealmsShowcase() {
 
   return (
     <section className="flex flex-col gap-5">
-      {/* One header line: title + count on the left, the search pill on the right — all sharing the underline. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-border pb-4">
-        <div className="flex items-baseline gap-3">
-          <h2 className="text-h3 text-fg">The realms</h2>
-          {hasRealms ? (
-            <span className="text-small text-fg-faint">
-              {visible.length === realms.length ? `${realms.length}` : `${visible.length} of ${realms.length}`}
-            </span>
-          ) : null}
-        </div>
-        {/* Search — grows on focus (width + gold glow). */}
-        {hasRealms ? (
-          <SearchBar
-            className="w-full sm:w-64 sm:focus-within:w-96"
+      {/* Search only — the expanding magnifier (no title, no divider). */}
+      {hasRealms ? (
+        <div className="flex justify-end">
+          <ExpandingSearch
             value={query}
             onChange={setQuery}
             placeholder="Search realms…"
             label="Search realms"
           />
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {isLoading ? (
         <CardGridSkeleton />
@@ -347,29 +336,51 @@ function FilterGroup({
   );
 }
 
-/** Tiny crowned-trend sparkline (last ~14 days). Dim gold (currentColor), faint area — momentum, not a chart. */
+/**
+ * Crowned-trend sparkline — the CUMULATIVE last-~14-days curve (monotonic growth, never a jagged daily plot),
+ * a smooth Catmull-Rom bezier with a gold gradient fade. Full-width, dim gold; renders nothing without activity.
+ */
 function Sparkline({ values, className }: { values: number[]; className?: string }) {
-  const max = Math.max(0, ...values);
-  if (values.length < 2 || max <= 0) return null;
-  const W = 64;
-  const H = 20;
-  const PAD = 2;
-  const step = W / (values.length - 1);
-  const pts = values.map((v, i) => [i * step, H - PAD - (v / max) * (H - PAD * 2)] as const);
-  const line = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-  const area = `0,${H} ${line} ${W},${H}`;
+  const gid = "spark" + useId().replace(/:/g, "");
+  let run = 0;
+  const cum = values.map((v) => (run += Math.max(0, v))); // running total → a clean upward line
+  const max = cum[cum.length - 1] ?? 0;
+  if (cum.length < 2 || max <= 0) return null;
+  const W = 100;
+  const H = 32;
+  const PAD = 3;
+  const step = W / (cum.length - 1);
+  const pts = cum.map((v, i) => [i * step, H - PAD - (v / max) * (H - PAD * 2)] as const);
+  const f = (n: number) => n.toFixed(2);
+  let line = `M ${f(pts[0]![0])},${f(pts[0]![1])}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i]!;
+    const p1 = pts[i]!;
+    const p2 = pts[i + 1]!;
+    const p3 = pts[i + 2] ?? p2;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+    const c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+    const c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    line += ` C ${f(c1x)},${f(c1y)} ${f(c2x)},${f(c2y)} ${f(p2[0])},${f(p2[1])}`;
+  }
+  const area = `${line} L ${W},${H} L 0,${H} Z`;
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
-      width={W}
-      height={H}
       preserveAspectRatio="none"
-      className={cn("flex-none overflow-visible text-money-dim", className)}
+      className={cn("text-money-dim", className)}
       aria-hidden
     >
-      <polygon points={area} fill="currentColor" opacity={0.12} />
-      <polyline
-        points={line}
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="currentColor" stopOpacity="0.26" />
+          <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${gid})`} stroke="none" />
+      <path
+        d={line}
         fill="none"
         stroke="currentColor"
         strokeWidth={1.5}
@@ -455,21 +466,25 @@ function RealmCard({ realm }: { realm: ChannelCard }) {
         </div>
       )}
 
-      {/* Bottom block — air instead of a divider. «The Crown» (top supporter) sits quietly above the money. */}
-      <div className="mt-auto flex flex-col gap-3">
-        {topName ? (
-          <div className="flex items-center gap-1.5 text-[11px] leading-none text-fg-faint" title="The Crown — top supporter">
-            <CrownLogo size={11} className="flex-none text-money-dim" />
-            <Monogram name={top!.displayName?.trim() || top!.address} avatarUrl={top!.avatarUrl} size="xs" />
-            <span className="min-w-0 truncate">{topName}</span>
-          </div>
-        ) : null}
+      {/* Bottom block — air instead of a divider. A full-width crowned-trend curve, then the money and «The Crown». */}
+      <div className="mt-auto flex flex-col gap-3 pt-1">
+        {realm.spark ? <Sparkline values={realm.spark} className="-mb-1 h-8 w-full" /> : null}
         <div className="flex items-end justify-between gap-3">
-          <div className="flex flex-col gap-0.5">
+          <div className="flex min-w-0 flex-col gap-1">
             <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-fg-faint">Crowned</span>
             <span className="mono text-h3 leading-none text-money">{usd(amount)}</span>
           </div>
-          {realm.spark ? <Sparkline values={realm.spark} /> : null}
+          {topName ? (
+            <div className="flex min-w-0 max-w-[54%] items-center gap-2" title={`The Crown — top supporter: ${topName}`}>
+              <Monogram name={top!.displayName?.trim() || top!.address} avatarUrl={top!.avatarUrl} size="sm" />
+              <div className="flex min-w-0 flex-col items-start leading-tight">
+                <span className="text-[9px] font-semibold uppercase tracking-[0.09em] text-money-dim">
+                  The Crown
+                </span>
+                <span className="min-w-0 truncate text-small text-fg">{topName}</span>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQueries } from "@tanstack/react-query";
+import { ExpandingSearch } from "@/components/ui/expanding-search";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import type { EscrowTask, TaskOutcome } from "@/games/escrow-task/types";
 import { useData } from "@/lib/data/context";
@@ -75,7 +76,11 @@ export default function AdminGamesPage() {
   }, [taskQs.map((q) => q.dataUpdatedAt).join(","), handleById]);
 
   const [filter, setFilter] = useState<StatusFilter>("all");
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
   const visible = rows.filter((r) => {
+    // Search across realm handle, task text and supporter address.
+    if (q && !`@${r.handle} ${r.task.text} ${r.task.donor}`.toLowerCase().includes(q)) return false;
     if (filter === "all") return true;
     if (filter === "resolved") return r.task.status === "RESOLVED";
     if (filter === "disputed") return !!r.task.dispute;
@@ -94,7 +99,17 @@ export default function AdminGamesPage() {
             status charts are on the Dashboard.
           </p>
         </div>
-        {rows.length > 0 ? <FilterToggle value={filter} onChange={setFilter} /> : null}
+        {rows.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterToggle value={filter} onChange={setFilter} />
+            <ExpandingSearch
+              value={query}
+              onChange={setQuery}
+              placeholder="Search tasks…"
+              label="Search tasks"
+            />
+          </div>
+        ) : null}
       </div>
 
       {loading ? (

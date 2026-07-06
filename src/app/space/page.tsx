@@ -10,6 +10,7 @@ import { ModerationQueue } from "@/components/domain/moderation-queue";
 import { RealmBlocklist } from "@/components/domain/realm-blocklist";
 import { RealmDashboard } from "@/components/domain/realm-dashboard";
 import { RealmGamesSettings } from "@/components/domain/realm-games-settings";
+import { RealmWidgets } from "@/components/domain/realm-widgets";
 import { CrownLogo } from "@/components/crown-logo";
 import { AppHeader } from "@/components/layout/app-header";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
@@ -30,6 +31,7 @@ type SectionKey =
   | "realm-dashboard"
   | "realm-queue"
   | "realm-games"
+  | "realm-widgets"
   | "realm-customization"
   | "realm-blocklist"
   | "settings";
@@ -39,6 +41,7 @@ const REALM_OWNED: { key: SectionKey; label: string }[] = [
   { key: "realm-dashboard", label: "Dashboard" },
   { key: "realm-queue", label: "Moderation queue" },
   { key: "realm-games", label: "Mini-games" },
+  { key: "realm-widgets", label: "Widgets" },
   { key: "realm-customization", label: "Customization" },
   { key: "realm-blocklist", label: "Blocklist" },
 ];
@@ -57,6 +60,9 @@ const TAB_ALIAS: Record<string, SectionKey> = {
   "realm-queue": "realm-queue",
   games: "realm-games",
   "realm-games": "realm-games",
+  widgets: "realm-widgets",
+  "realm-widgets": "realm-widgets",
+  overlays: "realm-widgets",
   blocklist: "realm-blocklist",
   "realm-blocklist": "realm-blocklist",
   settings: "settings",
@@ -162,6 +168,7 @@ export default function SpacePage() {
           {section === "realm-dashboard" ? <RealmDashboard /> : null}
           {section === "realm-queue" ? <ModerationQueue /> : null}
           {section === "realm-games" ? <RealmGamesSettings /> : null}
+          {section === "realm-widgets" ? <RealmWidgets /> : null}
           {section === "realm-customization" ? <ChannelSettingsEditor title="Customization" /> : null}
           {section === "realm-blocklist" ? <RealmBlocklist /> : null}
           {section === "settings" ? <SettingsSection address={address} /> : null}
