@@ -9,6 +9,7 @@ import { channelHue, cn } from "@/lib/utils";
 
 // Monogram sizes (letter-based fallback avatar + deterministic hue from name/address).
 const MONO_SIZES = {
+  xs: "h-5 w-5 text-[10px]",
   sm: "h-7 w-7 text-small",
   md: "h-9 w-9 text-body",
   lg: "h-14 w-14 text-h3",

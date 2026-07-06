@@ -11,7 +11,7 @@
  */
 
 /** A game identifier. Extended by a union when a new game is added. */
-export type GameId = "escrow-task";
+export type GameId = "escrow-task" | "roulette" | "battles";
 
 /**
  * Module readiness. `building` — the game is still being built: visible in docs/dev, but NOT offered to realms for

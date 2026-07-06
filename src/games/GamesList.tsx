@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { LockIcon } from "@/components/ui/icons";
-import { GAME_PANELS } from "./panels";
+import { GAME_ICONS, GAME_PANELS } from "./panels";
 import { GAMES } from "./registry";
 import type { GameModule } from "./types";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,7 @@ export function GamesList({ enabledGames }: { enabledGames: string[] }) {
     <>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3">
         {GAMES.map((game) => {
-          const Icon = GAME_PANELS[game.id]?.Icon ?? LockIcon;
+          const Icon = GAME_PANELS[game.id]?.Icon ?? GAME_ICONS[game.id] ?? LockIcon;
           const enabledHere = enabledGames.includes(game.id);
           const building = game.status === "building";
           const status = enabledHere

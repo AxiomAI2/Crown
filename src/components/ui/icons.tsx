@@ -104,7 +104,7 @@ export function CopyIcon({ className }: IconProps) {
 export function CheckIcon({ className }: IconProps) {
   return (
     <svg {...stroke} className={className}>
-      <path d="M20 6 9 17l-5-5" />
+      <path d="M5 12.5 10 17.5 19 7" />
     </svg>
   );
 }
@@ -201,6 +201,32 @@ export function TargetIcon({ className }: IconProps) {
       <circle cx="12" cy="12" r="9" />
       <circle cx="12" cy="12" r="5" />
       <circle cx="12" cy="12" r="1.4" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** Roulette wheel — the roulette mini-game. */
+export function RouletteIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="3.2" />
+      <path d="M12 3v3.8M12 17.2V21M3 12h3.8M17.2 12H21M5.64 5.64l2.68 2.68M15.68 15.68l2.68 2.68M18.36 5.64l-2.68 2.68M8.32 15.68l-2.68 2.68" />
+      <circle cx="12" cy="12" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** Crossed swords — the battles mini-game. */
+export function SwordsIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5" />
+      <line x1="13" y1="19" x2="19" y2="13" />
+      <line x1="16" y1="16" x2="20" y2="20" />
+      <polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5" />
+      <line x1="5" y1="14" x2="9" y2="18" />
+      <line x1="7" y1="17" x2="4" y2="20" />
     </svg>
   );
 }

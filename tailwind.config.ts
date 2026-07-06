@@ -44,6 +44,10 @@ const config: Config = {
         },
         warn: "var(--warn)",
         info: "var(--info)",
+        success: {
+          DEFAULT: "var(--success)",
+          bg: "var(--success-bg)",
+        },
       },
       fontFamily: {
         display: ["var(--font-body)", "Inter", "system-ui", "sans-serif"],

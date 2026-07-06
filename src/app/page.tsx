@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { CrownLogo } from "@/components/crown-logo";
+import { Monogram } from "@/components/domain/header-actions";
 import { AppHeader } from "@/components/layout/app-header";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { CHANNEL_PLATFORMS, platformDef } from "@/lib/channel-links";
@@ -12,7 +14,7 @@ import { SortToggle, type RealmSort } from "@/components/domain/realm-filters";
 import { demoAddress } from "@/lib/data/dev-identity";
 import { useDevControls, useDiscovery, useSession } from "@/lib/data/hooks";
 import type { ChannelCard, ChannelLinkPlatform } from "@/lib/data/types";
-import { channelHue, cn, fromMicro } from "@/lib/utils";
+import { channelHue, cn, fromMicro, shortAddress } from "@/lib/utils";
 
 /** Whole-dollar format for aggregates: "$12,480". */
 function usd(micro: bigint): string {
@@ -80,6 +82,20 @@ function RealmsShowcase() {
     const present = new Set<ChannelLinkPlatform>();
     for (const c of realms) for (const l of c.links ?? []) present.add(l.platform);
     return CHANNEL_PLATFORMS.map((p) => p.key).filter((k) => present.has(k));
+  }, [realms]);
+
+  // How many realms use each platform (deduped per realm) — a small count in the filter list.
+  const platformCounts = useMemo(() => {
+    const m = new Map<ChannelLinkPlatform, number>();
+    for (const c of realms) {
+      const seen = new Set<ChannelLinkPlatform>();
+      for (const l of c.links ?? []) {
+        if (seen.has(l.platform)) continue;
+        seen.add(l.platform);
+        m.set(l.platform, (m.get(l.platform) ?? 0) + 1);
+      }
+    }
+    return m;
   }, [realms]);
 
   const q = query.trim().toLowerCase();
@@ -150,19 +166,27 @@ function RealmsShowcase() {
 
   return (
     <section className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border pb-3">
-        <h2 className="text-h3 text-fg">The realms</h2>
+      {/* One header line: title + count on the left, the search pill on the right — all sharing the underline. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-border pb-4">
+        <div className="flex items-baseline gap-3">
+          <h2 className="text-h3 text-fg">The realms</h2>
+          {hasRealms ? (
+            <span className="text-small text-fg-faint">
+              {visible.length === realms.length ? `${realms.length}` : `${visible.length} of ${realms.length}`}
+            </span>
+          ) : null}
+        </div>
+        {/* Search — grows on focus (width + gold glow). */}
         {hasRealms ? (
-          <span className="text-small text-fg-faint">
-            {visible.length === realms.length ? `${realms.length}` : `${visible.length} of ${realms.length}`}
-          </span>
+          <SearchBar
+            className="w-full sm:w-64 sm:focus-within:w-96"
+            value={query}
+            onChange={setQuery}
+            placeholder="Search realms…"
+            label="Search realms"
+          />
         ) : null}
       </div>
-
-      {/* Search on top — a pill that GROWS on focus (widens + gold glow). */}
-      {hasRealms ? (
-        <SearchBar value={query} onChange={setQuery} placeholder="Search realms…" label="Search realms" />
-      ) : null}
 
       {isLoading ? (
         <CardGridSkeleton />
@@ -179,6 +203,7 @@ function RealmsShowcase() {
             liveOnly={liveOnly}
             onLiveOnly={setLiveOnly}
             platforms={availablePlatforms}
+            counts={platformCounts}
             selected={platforms}
             onToggle={togglePlatform}
             onClearPlatforms={() => setPlatforms(new Set())}
@@ -189,7 +214,7 @@ function RealmsShowcase() {
           ) : (
             <div
               className={cn(
-                "grid gap-4 sm:grid-cols-2 xl:grid-cols-3",
+                "grid gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:gap-5 2xl:grid-cols-4",
                 leaving ? "animate-list-out" : "enter-stagger",
               )}
               onAnimationEnd={(e) => {
@@ -214,6 +239,7 @@ function FiltersPanel({
   liveOnly,
   onLiveOnly,
   platforms,
+  counts,
   selected,
   onToggle,
   onClearPlatforms,
@@ -223,6 +249,7 @@ function FiltersPanel({
   liveOnly: boolean;
   onLiveOnly: (v: boolean) => void;
   platforms: ChannelLinkPlatform[];
+  counts: Map<ChannelLinkPlatform, number>;
   selected: Set<ChannelLinkPlatform>;
   onToggle: (p: ChannelLinkPlatform) => void;
   onClearPlatforms: () => void;
@@ -242,7 +269,7 @@ function FiltersPanel({
           className={cn(
             "flex w-fit items-center gap-2 rounded-lg border px-3 py-2 text-small transition-colors",
             liveOnly
-              ? "border-danger text-danger"
+              ? "border-money-dim bg-money-bg/60 text-money"
               : "border-border text-fg-muted hover:border-border-strong hover:text-fg",
           )}
         >
@@ -273,14 +300,15 @@ function FiltersPanel({
                   onClick={() => onToggle(p)}
                   className={cn(
                     "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-small transition-colors",
-                    active ? "text-money" : "text-fg-muted hover:bg-surface hover:text-fg",
+                    active ? "bg-money-bg/60 text-money" : "text-fg-muted hover:bg-surface hover:text-fg",
                   )}
                 >
-                  <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 flex-none" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 flex-none overflow-visible" aria-hidden="true">
                     <path d={def.iconPath} />
                   </svg>
-                  <span className="flex-1 text-left">{def.label}</span>
-                  {active ? <CheckIcon className="h-4 w-4 flex-none" /> : null}
+                  <span className="flex-1 truncate text-left">{def.label}</span>
+                  <span className="mono text-caption text-fg-faint">{counts.get(p) ?? 0}</span>
+                  {active ? <CheckIcon className="h-3.5 w-3.5 flex-none text-money" /> : null}
                 </button>
               );
             })}
@@ -319,11 +347,51 @@ function FilterGroup({
   );
 }
 
+/** Tiny crowned-trend sparkline (last ~14 days). Dim gold (currentColor), faint area — momentum, not a chart. */
+function Sparkline({ values, className }: { values: number[]; className?: string }) {
+  const max = Math.max(0, ...values);
+  if (values.length < 2 || max <= 0) return null;
+  const W = 64;
+  const H = 20;
+  const PAD = 2;
+  const step = W / (values.length - 1);
+  const pts = values.map((v, i) => [i * step, H - PAD - (v / max) * (H - PAD * 2)] as const);
+  const line = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const area = `0,${H} ${line} ${W},${H}`;
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      width={W}
+      height={H}
+      preserveAspectRatio="none"
+      className={cn("flex-none overflow-visible text-money-dim", className)}
+      aria-hidden
+    >
+      <polygon points={area} fill="currentColor" opacity={0.12} />
+      <polyline
+        points={line}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
 function RealmCard({ realm }: { realm: ChannelCard }) {
   const hue = channelHue(realm.handle);
   const amount = realm.totalDonated;
+  const top = realm.topSupporter;
+  const topName = top ? top.displayName?.trim() || shortAddress(top.address) : null;
   return (
-    <div className="relative flex flex-col gap-4 rounded-lg border border-border bg-surface p-5 transition-all duration-200 ease-ease hover:-translate-y-0.5 hover:border-money-dim hover:shadow-[0_8px_28px_-10px_rgba(228,179,76,0.30)]">
+    <div
+      className="group relative flex flex-col gap-4 rounded-lg border border-border p-5 transition-all duration-200 ease-ease hover:-translate-y-px hover:border-money-dim hover:shadow-[0_6px_20px_-12px_rgba(0,0,0,0.65)]"
+      // Near-flat surface with a faint top light — cards catch the same glow as the header, not flat boxes.
+      style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.025), transparent 42%), var(--surface)" }}
+    >
       {/* Stretched link: the whole card is clickable into the realm; the social icons sit on top (z-20). */}
       <Link
         href={`/c/${realm.handle}`}
@@ -351,7 +419,7 @@ function RealmCard({ realm }: { realm: ChannelCard }) {
           <div className="flex items-center gap-2">
             <span className="mono truncate text-fg">@{realm.handle}</span>
             {realm.isLive ? (
-              <span className="inline-flex flex-none items-center gap-1 rounded-full border border-danger px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger">
+              <span className="inline-flex flex-none items-center gap-1 rounded-full border border-danger/35 bg-danger/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-danger">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-danger" aria-hidden />
                 Live
               </span>
@@ -387,10 +455,21 @@ function RealmCard({ realm }: { realm: ChannelCard }) {
         </div>
       )}
 
-      <div className="mt-auto flex items-end justify-between gap-2 border-t border-border pt-4">
-        <div>
-          <div className="text-caption text-fg-faint">Crowned</div>
-          <div className="mono text-money">{usd(amount)}</div>
+      {/* Bottom block — air instead of a divider. «The Crown» (top supporter) sits quietly above the money. */}
+      <div className="mt-auto flex flex-col gap-3">
+        {topName ? (
+          <div className="flex items-center gap-1.5 text-[11px] leading-none text-fg-faint" title="The Crown — top supporter">
+            <CrownLogo size={11} className="flex-none text-money-dim" />
+            <Monogram name={top!.displayName?.trim() || top!.address} avatarUrl={top!.avatarUrl} size="xs" />
+            <span className="min-w-0 truncate">{topName}</span>
+          </div>
+        ) : null}
+        <div className="flex items-end justify-between gap-3">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-fg-faint">Crowned</span>
+            <span className="mono text-h3 leading-none text-money">{usd(amount)}</span>
+          </div>
+          {realm.spark ? <Sparkline values={realm.spark} /> : null}
         </div>
       </div>
     </div>

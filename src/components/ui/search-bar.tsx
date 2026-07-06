@@ -3,9 +3,9 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Persistent pill search bar (magnifier + input). Idle it's a compact centered pill; on focus it GROWS —
- * widens (max-width transition), lifts a touch taller, and blooms a soft gold glow — for a lively "opening"
- * feel. Controlled: value + onChange.
+ * Pill search bar (magnifier + input). Focus blooms a soft gold glow. Width is caller-controlled via
+ * `className` (e.g. `w-full sm:w-64 sm:focus-within:w-96`) so it can sit inline in a header AND still GROW
+ * on focus — the width transition animates. Controlled: value + onChange.
  */
 export function SearchBar({
   value,
@@ -21,14 +21,8 @@ export function SearchBar({
   className?: string;
 }) {
   return (
-    <div
-      className={cn(
-        // The GROW: max-width animates from xl → 3xl on focus (centered). duration-300 ease-out = smooth bloom.
-        "mx-auto w-full max-w-xl transition-[max-width] duration-300 ease-out focus-within:max-w-3xl",
-        className,
-      )}
-    >
-      <div className="flex items-center gap-2.5 rounded-full border border-border bg-surface px-4 py-2.5 transition-all duration-300 ease-out focus-within:scale-[1.01] focus-within:border-money-dim focus-within:py-3 focus-within:shadow-[0_12px_44px_-12px_rgba(228,179,76,0.32)]">
+    <div className={cn("w-full transition-[width,max-width] duration-300 ease-out", className)}>
+      <div className="flex items-center gap-2.5 rounded-full border border-border bg-surface px-4 py-2.5 transition-all duration-300 ease-out focus-within:border-money-dim focus-within:shadow-[0_10px_38px_-12px_rgba(228,179,76,0.32)]">
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -36,7 +30,7 @@ export function SearchBar({
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="h-4 w-4 shrink-0 text-fg-faint transition-colors"
+          className="h-4 w-4 shrink-0 text-fg-faint"
           aria-hidden="true"
         >
           <circle cx="11" cy="11" r="8" />

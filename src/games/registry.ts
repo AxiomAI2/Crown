@@ -1,4 +1,6 @@
+import { battles } from "./battles/manifest";
 import { escrowTask } from "./escrow-task/manifest";
+import { roulette } from "./roulette/manifest";
 import type { GameId, GameModule } from "./types";
 
 /**
@@ -6,7 +8,7 @@ import type { GameId, GameModule } from "./types";
  * (realm page, studio) renders games by ITERATING this registry rather than hardcoding each one — a new game
  * appears in the UI automatically.
  */
-export const GAMES: readonly GameModule[] = [escrowTask];
+export const GAMES: readonly GameModule[] = [escrowTask, roulette, battles];
 
 export function getGame(id: GameId): GameModule | undefined {
   return GAMES.find((g) => g.id === id);

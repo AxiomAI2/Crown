@@ -267,6 +267,8 @@ export interface ChannelCard {
   donorsCount: number;
   totalDonated: MicroUSDC; // total crown volume (from the leaderboard)
   crowned7d?: MicroUSDC; // crown volume over the last 7 days (showcase sort / momentum). Computed by mock; real providers may omit.
+  spark?: number[]; // daily crowned (USDC) over the last ~14 days — for a card sparkline. Computed by mock; real providers may omit.
+  topSupporter?: { address: Address; displayName?: string; avatarUrl?: string }; // «The Crown» — the #1 supporter (same identity gate as the leaderboard).
   isLive?: boolean; // realm currently «live» — mock-simulated; real providers have no liveness source yet.
   activated: boolean; // ACTIVE → checkmark; BASIC is shown, but without a checkmark and without crowns-with-text
 }

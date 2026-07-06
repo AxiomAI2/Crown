@@ -598,11 +598,26 @@ export class MockDataProvider implements DataProvider {
     await this.gate("listChannels");
     // Crown volume over the last 7 days per realm (showcase sort / momentum). One pass over the ledger
     // (creator = channelId); the window uses the same store clock that ages demo crowns.
-    const weekAgo = Date.parse(this.now()) - 7 * 86_400_000;
+    const now = Date.parse(this.now());
+    const weekAgo = now - 7 * 86_400_000;
     const crowned7dByChannel = new Map<string, bigint>();
+    // Daily crowned (USDC) over the last 14 days per realm — a small momentum sparkline on each card.
+    const SPARK_DAYS = 14;
+    const sparkStart = now - SPARK_DAYS * 86_400_000;
+    const sparkByChannel = new Map<string, number[]>();
     for (const e of this.ledger) {
-      if (e.type !== "DONATION" || Date.parse(e.ts) < weekAgo) continue;
-      crowned7dByChannel.set(e.creator, (crowned7dByChannel.get(e.creator) ?? 0n) + e.amount);
+      if (e.type !== "DONATION") continue;
+      const t = Date.parse(e.ts);
+      if (t >= weekAgo) crowned7dByChannel.set(e.creator, (crowned7dByChannel.get(e.creator) ?? 0n) + e.amount);
+      if (t >= sparkStart) {
+        const idx = Math.min(SPARK_DAYS - 1, Math.max(0, Math.floor((t - sparkStart) / 86_400_000)));
+        let arr = sparkByChannel.get(e.creator);
+        if (!arr) {
+          arr = new Array(SPARK_DAYS).fill(0);
+          sparkByChannel.set(e.creator, arr);
+        }
+        arr[idx] = (arr[idx] ?? 0) + Number(e.amount) / 1_000_000;
+      }
     }
     const items: ChannelCard[] = [...this.channelsById.values()]
       // We also show BASIC (without activation) — activation only unlocks crown-with-text, not the listing itself.
@@ -630,6 +645,10 @@ export class MockDataProvider implements DataProvider {
           donorsCount: board.length,
           totalDonated: board.reduce((s, e) => s + e.totalDonated, 0n),
           crowned7d,
+          spark: sparkByChannel.get(c.id),
+          topSupporter: top
+            ? { address: top.donor, displayName: top.displayName, avatarUrl: top.avatarUrl }
+            : undefined,
           isLive,
           activated: c.status === "ACTIVE",
         };

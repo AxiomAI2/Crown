@@ -39,6 +39,8 @@
   --danger-bg: #2a1512;
   --warn: #e0a94b;
   --info: #6e8bff;
+  --success: #46b581; /* confirmation / done — the one deliberate green (avatar accept, success ticks) */
+  --success-bg: #10281d;
 
   /* Space, rhythm, shape */
   --space-1: 4px;

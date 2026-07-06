@@ -58,9 +58,9 @@ function IdentityMenu({ address, onDisconnect }: { address: string; onDisconnect
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex h-9 items-center gap-2 rounded-full border border-border bg-surface pl-1 pr-3 transition-colors hover:border-border-strong"
+        className="flex h-9 items-center gap-2 rounded-full border border-border bg-surface pl-1.5 pr-3 transition-colors hover:border-border-strong"
       >
-        <Monogram name={monoName} avatarUrl={avatarUrl} size="sm" />
+        <Monogram name={monoName} avatarUrl={avatarUrl} size="xs" />
         <span className="mono text-small text-fg-muted">{shortAddress(address)}</span>
       </button>
 

@@ -1,7 +1,7 @@
 import type { ComponentType } from "react";
 import { EscrowTaskHub, EscrowTaskRail, EscrowTaskRules } from "./escrow-task/EscrowTaskPanel";
 import type { GameId } from "./types";
-import { TargetIcon } from "@/components/ui/icons";
+import { RouletteIcon, SwordsIcon, TargetIcon } from "@/components/ui/icons";
 
 /**
  * Registry of game SCREENS (UI), separate from the data manifest (`registry.ts`). Each game provides surfaces:
@@ -26,4 +26,14 @@ export interface GameUI {
 
 export const GAME_PANELS: Partial<Record<GameId, GameUI>> = {
   "escrow-task": { Rail: EscrowTaskRail, Hub: EscrowTaskHub, Rules: EscrowTaskRules, Icon: TargetIcon },
+};
+
+/**
+ * Catalog icons for games that aren't playable yet (`building`) — just the icon, so we don't breed empty
+ * Rail/Hub/Rules stubs for a game that has no screens. Playable games take their icon from GAME_PANELS above;
+ * the catalog (GamesList) falls back here, then to a padlock.
+ */
+export const GAME_ICONS: Partial<Record<GameId, ComponentType<{ className?: string }>>> = {
+  roulette: RouletteIcon,
+  battles: SwordsIcon,
 };
