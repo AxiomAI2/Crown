@@ -414,7 +414,7 @@ function BarList({
         <div key={r.key} className="flex items-center gap-3">
           <div className="flex w-24 flex-none items-center gap-1.5 text-small text-fg-muted">
             {r.iconPath ? (
-              <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5 flex-none" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5 flex-none overflow-visible" aria-hidden="true">
                 <path d={r.iconPath} />
               </svg>
             ) : null}

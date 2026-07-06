@@ -208,7 +208,7 @@ function PlatformFilterMenu({
                     active ? "text-money" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
                   )}
                 >
-                  <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 flex-none" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 flex-none overflow-visible" aria-hidden="true">
                     <path d={def.iconPath} />
                   </svg>
                   <span className="flex-1 text-left">{def.label}</span>

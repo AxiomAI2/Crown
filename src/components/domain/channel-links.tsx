@@ -26,7 +26,7 @@ export function PlatformIcon({
   return (
     <svg
       viewBox="0 0 24 24"
-      className={className}
+      className={cn("overflow-visible", className)}
       fill="currentColor"
       style={brand ? { color: def.color } : undefined}
       aria-hidden="true"

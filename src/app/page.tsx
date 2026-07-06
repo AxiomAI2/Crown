@@ -7,7 +7,7 @@ import { SiteFooter } from "@/components/layout/site-footer";
 import { CHANNEL_PLATFORMS, platformDef } from "@/lib/channel-links";
 import { CheckIcon } from "@/components/ui/icons";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
-import { ExpandingSearch } from "@/components/ui/expanding-search";
+import { SearchBar } from "@/components/ui/search-bar";
 import { SortToggle, type RealmSort } from "@/components/domain/realm-filters";
 import { demoAddress } from "@/lib/data/dev-identity";
 import { useDevControls, useDiscovery, useSession } from "@/lib/data/hooks";
@@ -162,16 +162,14 @@ function RealmsShowcase() {
                 onClear={() => setPlatforms(new Set())}
               />
             ) : null}
-
-            <ExpandingSearch
-              value={query}
-              onChange={setQuery}
-              placeholder="Search realms…"
-              label="Search realms"
-            />
           </div>
         ) : null}
       </div>
+
+      {/* Primary catalog search — a persistent pill bar (bobounty-style) spanning the width, above the grid. */}
+      {hasRealms ? (
+        <SearchBar value={query} onChange={setQuery} placeholder="Search realms…" label="Search realms" />
+      ) : null}
 
       {isLoading ? (
         <CardGridSkeleton />
@@ -311,7 +309,7 @@ function PlatformFilterMenu({
                     active ? "text-money" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
                   )}
                 >
-                  <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 flex-none" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 flex-none overflow-visible" aria-hidden="true">
                     <path d={def.iconPath} />
                   </svg>
                   <span className="flex-1 text-left">{def.label}</span>
@@ -385,7 +383,7 @@ function RealmCard({ realm }: { realm: ChannelCard }) {
                 onClick={(e) => e.stopPropagation()}
                 className="grid h-7 w-7 place-items-center rounded-md border border-transparent bg-surface-2 text-fg-faint transition-colors hover:bg-surface-raised hover:text-fg"
               >
-                <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5 overflow-visible" aria-hidden="true">
                   <path d={def.iconPath} />
                 </svg>
               </a>

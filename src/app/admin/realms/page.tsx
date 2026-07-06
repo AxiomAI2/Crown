@@ -74,7 +74,7 @@ export default function AdminRealmsPage() {
                             key={l.platform}
                             viewBox="0 0 24 24"
                             fill="currentColor"
-                            className="h-3.5 w-3.5"
+                            className="h-3.5 w-3.5 overflow-visible"
                             aria-hidden="true"
                           >
                             <title>{def.label}</title>
