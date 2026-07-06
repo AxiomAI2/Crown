@@ -71,6 +71,9 @@ export function DonateWidget({
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<DonationResult | null>(null);
   const [blockDismissed, setBlockDismissed] = useState(false);
+  // Captured at confirm time: did the sent crown carry a message? The success view's "message HELD" notice reads
+  // this, not live `withText` — onSuccess clears the form (withText → false), so a live read would always be false.
+  const [sentHadText, setSentHadText] = useState(false);
   const donate = useDonate(channel.id);
   // Whether the donor is blocked on this realm (for the banner): my block + reason.
   const myBlock = useMyBlock(channel.id, session.address).data;
@@ -96,13 +99,22 @@ export function DonateWidget({
   // Whether there's enough USDC in the wallet (chain only — where balance is known). amountNum and balance are both in USDC.
   const balance = session.address ? balanceQ.data : undefined;
   const insufficient = balance != null && amountValid && amountNum > balance;
+  // A blocked donor can't crown WITH a message (the server rejects it). Gate it HERE so the block is caught before
+  // the confirm/sign step instead of after the signature; crowning without text stays allowed (see the banner).
+  const blockedFromText = withText && !!myBlock;
   const canDonate =
-    connected && amountValid && meetsMin && textOk && !(withText && isBasic) && !insufficient;
+    connected &&
+    amountValid &&
+    meetsMin &&
+    textOk &&
+    !(withText && isBasic) &&
+    !blockedFromText &&
+    !insufficient;
   const softWarn = withText && SOFT_WORDS.some((w) => text.toLowerCase().includes(w));
   const amountError = overMax
     ? `Max ${formatPoints(MAX_DONATION_USDC)} USDC per crown`
     : amountPositive && !meetsMin
-      ? "Below realm minimum"
+      ? `Below realm minimum — ${Number(min) / 1_000_000} USDC`
       : insufficient
         ? "Not enough USDC in wallet"
         : undefined;
@@ -116,11 +128,13 @@ export function DonateWidget({
     setOpen(true);
   }
   function confirm() {
+    const hadText = withText; // capture before onSuccess resets the form (below) — the success view reads this
     donate.mutate(
       { amountUSDC: amountNum, text: withText ? text.trim() : undefined },
       {
         onSuccess: (r) => {
           setResult(r);
+          setSentHadText(hadText);
           // Crown sent → clear the form right away (especially the message text) so it doesn't linger in the field.
           setAmount("");
           setText("");
@@ -186,21 +200,46 @@ export function DonateWidget({
           placeholder="0.00"
           value={amount}
           onChange={(e) => setAmount(sanitizeAmount(e.target.value))}
+          onKeyDown={(e) => {
+            // Enter submits (opens confirm) when the amount is valid — the main flow shouldn't require the mouse.
+            if (e.key === "Enter" && canDonate) {
+              e.preventDefault();
+              openFlow();
+            }
+          }}
           error={amountError}
           className="bg-[var(--bg)]"
         />
-        <div className="grid grid-cols-4 gap-2">
-          {PRESETS.map((p) => (
-            <Button
-              key={p}
-              variant="secondary"
-              size="sm"
-              className="w-full bg-[var(--bg)]"
-              onClick={() => setAmount(String(p))}
+        {balance != null ? (
+          <div className="flex items-center justify-between text-caption text-fg-faint">
+            <span>
+              Balance: <span className="mono text-fg-muted">{balance.toFixed(2)}</span> USDC
+            </span>
+            <button
+              type="button"
+              onClick={() => setAmount(sanitizeAmount(String(balance)))}
+              className="rounded px-1 text-fg-muted transition-colors hover:text-fg"
             >
-              ${p}
-            </Button>
-          ))}
+              Max
+            </button>
+          </div>
+        ) : null}
+        <div className="grid grid-cols-4 gap-2">
+          {PRESETS.map((p) => {
+            const selected = amount !== "" && amountNum === p;
+            return (
+              <Button
+                key={p}
+                variant={selected ? "primary" : "secondary"}
+                size="sm"
+                aria-pressed={selected}
+                className={cn("w-full", !selected && "bg-[var(--bg)]")}
+                onClick={() => setAmount(String(p))}
+              >
+                ${p}
+              </Button>
+            );
+          })}
         </div>
       </div>
 
@@ -228,11 +267,17 @@ export function DonateWidget({
               value={text}
               onChange={(e) => setText(e.target.value)}
               helper={
-                softWarn
-                  ? "This contains a word the streamer's filter may flag (doesn't block)."
-                  : "Text stays private until shown — the streamer decides whether to publish it."
+                blockedFromText
+                  ? "You're blocked from messages on this realm — uncheck to crown without text."
+                  : softWarn
+                    ? "This contains a word the streamer's filter may flag (doesn't block)."
+                    : "Text stays private until shown — the streamer decides whether to publish it."
               }
-              className={cn("bg-[var(--bg)]", softWarn && "border-warn")}
+              className={cn(
+                "bg-[var(--bg)]",
+                softWarn && "border-warn",
+                blockedFromText && "border-danger",
+              )}
             />
           ) : null}
         </>
@@ -264,14 +309,25 @@ export function DonateWidget({
       >
         <DialogContent>
           {result ? (
-            <DoneView result={result} hadText={withText} onClose={() => setOpen(false)} />
+            <DoneView result={result} hadText={sentHadText} onClose={() => setOpen(false)} />
           ) : (
             <>
               <DialogHeader>
-                <DialogTitle>Confirm</DialogTitle>
-                <DialogDescription>Crowns are final. No refunds.</DialogDescription>
+                <DialogTitle>Confirm crown</DialogTitle>
+                <DialogDescription>
+                  Crowning <span className="mono text-fg">@{channel.handle}</span> · crowns are final, no
+                  refunds.
+                </DialogDescription>
               </DialogHeader>
               <FeeSplit amount={micro} />
+              {withText ? (
+                <div className="flex flex-col gap-1">
+                  <span className="text-caption uppercase tracking-wide text-fg-faint">Your message</span>
+                  <p className="whitespace-pre-wrap break-words rounded border border-border bg-surface p-3 text-small text-fg">
+                    {text.trim()}
+                  </p>
+                </div>
+              ) : null}
               {donate.isPending ? (
                 <p className="text-small text-fg-muted">
                   Sign in your wallet and wait for on-chain finality (~15–30s) — “Done” appears once the crown

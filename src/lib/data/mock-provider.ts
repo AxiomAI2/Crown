@@ -192,6 +192,7 @@ export class MockDataProvider implements DataProvider {
           ...defaultChannelConfig(id),
           description: dc.description,
           nameMode: "allow_display_names", // supporter names are visible in the leaderboard/feed
+          enabledGames: dc.enabledGames ?? [], // mini-games the demo realm opts into (defaultChannelConfig leaves this [])
           updatedAt: createdAt,
         },
       ]);
@@ -798,11 +799,17 @@ export class MockDataProvider implements DataProvider {
         (max, d) => (max && max > d.ts ? max : d.ts),
         undefined,
       );
+      // Position in THIS realm's leaderboard (ranked by Reign) — for the trophy page: "#N" and, at #1,
+      // "The Crown of @realm". The board is the same one the leaderboard/rail show (dedup via cache).
+      const board = this.computeLeaderboard(channelId, "all_time");
+      const idx = board.findIndex((e) => e.donor === address);
       standings.push({
         channelId,
         handle: ch.handle,
         channelName: this.profiles.get(ch.ownerAddress)?.displayName,
         tier: s.tier,
+        rank: idx >= 0 ? idx + 1 : undefined,
+        supporters: board.length,
         points: s.points,
         totalDonated: s.totalDonated,
         donationCount: myDonations.length,

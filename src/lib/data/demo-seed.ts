@@ -40,6 +40,8 @@ export interface DemoChannel {
   description: string;
   links: DemoLink[];
   donations: DemoDonation[];
+  /** Mini-games turned on for this realm — ids from the `src/games` registry (e.g. "escrow-task"). Omitted = none. */
+  enabledGames?: string[];
 }
 
 /** Supporter names by label — shown in the leaderboard/feed if the realm allows display names. */
@@ -143,6 +145,7 @@ export const DEMO_CHANNELS: DemoChannel[] = [
     avatar: "https://i.pravatar.cc/300?img=12",
     bio: "Hardcore, no saves. Beat it or delete my account (not).",
     description: "Soulslikes at zero damage. Watch me suffer.",
+    enabledGames: ["escrow-task"],
     links: [
       { platform: "twitch", url: "twitch.tv/raidboss" },
       { platform: "kick", url: "kick.com/raidboss" },
@@ -186,6 +189,7 @@ export const DEMO_CHANNELS: DemoChannel[] = [
     avatar: "https://i.pravatar.cc/300?img=33",
     bio: "Writing open source, live. Rust, TypeScript, and too much coffee.",
     description: "Live coding and viewer PR reviews.",
+    enabledGames: ["escrow-task"],
     links: [
       { platform: "youtube", url: "youtube.com/@devbyte" },
       { platform: "telegram", url: "t.me/devbyte" },
@@ -247,6 +251,7 @@ export const DEMO_CHANNELS: DemoChannel[] = [
     avatar: "https://i.pravatar.cc/300?img=13",
     bio: "Any% speedruns and world-record attempts every weekend.",
     description: "Speedrunning classics. WR or bust.",
+    enabledGames: ["escrow-task"],
     links: [
       { platform: "twitch", url: "twitch.tv/flashrun" },
       { platform: "x", url: "x.com/flashrun" },
@@ -266,6 +271,7 @@ export const DEMO_CHANNELS: DemoChannel[] = [
     avatar: "https://i.pravatar.cc/300?img=15",
     bio: "Blitz, puzzles and viewer games. GM guest streams monthly.",
     description: "Chess — blitz & puzzles with chat.",
+    enabledGames: ["escrow-task"],
     links: [
       { platform: "twitch", url: "twitch.tv/rooknroll" },
       { platform: "youtube", url: "youtube.com/@rooknroll" },
@@ -358,6 +364,7 @@ export const DEMO_CHANNELS: DemoChannel[] = [
     avatar: "https://i.pravatar.cc/300?img=31",
     bio: "80s and 90s classics on original hardware. CRT and all.",
     description: "Retro gaming on real hardware.",
+    enabledGames: ["escrow-task"],
     links: [
       { platform: "twitch", url: "twitch.tv/retroarcade" },
       { platform: "x", url: "x.com/retroarcade" },
@@ -413,6 +420,7 @@ export const DEMO_CHANNELS: DemoChannel[] = [
     avatar: "https://i.pravatar.cc/300?img=52",
     bio: "Solving puzzles in the fewest bytes possible. Regex crimes included.",
     description: "Competitive coding & code golf.",
+    enabledGames: ["escrow-task"],
     links: [
       { platform: "youtube", url: "youtube.com/@codegolf" },
       { platform: "telegram", url: "t.me/codegolf" },

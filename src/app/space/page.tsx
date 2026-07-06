@@ -7,8 +7,6 @@ import { ChannelSettingsEditor } from "@/components/domain/channel-settings-edit
 import { ChannelStatusBanner } from "@/components/domain/channel-status";
 import { CreateChannelForm } from "@/components/domain/create-channel-form";
 import { ModerationQueue } from "@/components/domain/moderation-queue";
-import { PersonalDashboard } from "@/components/domain/personal-dashboard";
-import { ProfileForm } from "@/components/domain/profile-form";
 import { RealmBlocklist } from "@/components/domain/realm-blocklist";
 import { RealmDashboard } from "@/components/domain/realm-dashboard";
 import { RealmGamesSettings } from "@/components/domain/realm-games-settings";
@@ -27,7 +25,6 @@ import { useDevControls, useMyChannel, useSession } from "@/lib/data/hooks";
 import { cn } from "@/lib/utils";
 
 type SectionKey =
-  | "holdings-dashboard"
   | "realm-create"
   | "realm-dashboard"
   | "realm-queue"
@@ -48,9 +45,7 @@ const REALM_NONE: { key: SectionKey; label: string }[] = [{ key: "realm-create",
 
 // Deep-link aliases (including legacy ?tab values).
 const TAB_ALIAS: Record<string, SectionKey> = {
-  holdings: "holdings-dashboard",
-  "holdings-dashboard": "holdings-dashboard",
-  dashboard: "holdings-dashboard",
+  dashboard: "realm-dashboard",
   create: "realm-create",
   "realm-create": "realm-create",
   realm: "realm-dashboard",
@@ -78,7 +73,7 @@ export default function SpacePage() {
   const myChannelQ = useMyChannel();
   const hasRealm = !!myChannelQ.data;
   const realmKnown = !myChannelQ.isLoading;
-  const [section, setSection] = useState<SectionKey>("holdings-dashboard");
+  const [section, setSection] = useState<SectionKey>("realm-dashboard");
   const { collapsed, toggle } = useRailCollapsed("space-rail");
   const searchParams = useSearchParams();
 
@@ -147,7 +142,6 @@ export default function SpacePage() {
               <ChannelStatusBanner />
             </div>
           ) : null}
-          {section === "holdings-dashboard" ? <PersonalDashboard address={address} /> : null}
           {section === "realm-create" ? <CreateChannelForm /> : null}
           {section === "realm-dashboard" ? <RealmDashboard /> : null}
           {section === "realm-queue" ? <ModerationQueue /> : null}
@@ -232,14 +226,6 @@ function SpaceSidebar({
           collapsed && "md:hidden",
         )}
       >
-        {/* My Holdings */}
-        <div className="mb-2 flex flex-col gap-0.5">
-          <div className="px-3 pb-1 pt-1 text-caption uppercase tracking-wide text-fg-faint">
-            My Holdings
-          </div>
-          {item({ key: "holdings-dashboard", label: "Dashboard" }, true)}
-        </div>
-
         {/* My Realm — Create realm while there is no realm; after creation Dashboard + Customization */}
         <div className="mb-2 flex flex-col gap-0.5">
           <div className="px-3 pb-1 pt-1 text-caption uppercase tracking-wide text-fg-faint">
@@ -268,10 +254,15 @@ function SettingsSection({ address }: { address: string }) {
         <div className="flex flex-col gap-1 border-b border-border pb-3">
           <h2 className="text-h2 text-fg">Profile</h2>
           <p className="text-small text-fg-faint">
-            Public identity: your name, avatar and links are visible in the feed and leaderboard.
+            Your public identity (name, avatar, links) lives on your profile page.
           </p>
         </div>
-        <ProfileForm />
+        <Link
+          href="/me"
+          className="inline-flex h-10 w-fit items-center rounded-lg border border-border px-4 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
+        >
+          Edit your profile →
+        </Link>
       </section>
 
       <section className="flex flex-col gap-4">

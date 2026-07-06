@@ -4,17 +4,14 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Amount } from "./amount";
 import { ChannelLinkButtons } from "./channel-links";
-import { inputsFromLinks, LinkEditor, type LinkInputs, linksFromInputs } from "./link-editor";
 import { OpenCycles } from "./open-cycles";
+import { ProfileForm } from "./profile-form";
 import { TierBadge } from "./standing";
 import { CumulativeAreaChart, RangeTabs, type ChartRange } from "./area-chart";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -29,11 +26,10 @@ import {
 } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { useCopied } from "@/components/ui/use-copied";
 import { explorerTxUrl } from "@/lib/chain/addresses";
-import { useDonorOverview, useProfile, useUpdateProfile } from "@/lib/data/hooks";
+import { useDonorOverview, useProfile } from "@/lib/data/hooks";
 import type { DonorChannelStanding, DonorOverview, DonorPointEvent } from "@/lib/data/types";
 import {
   channelHue,
@@ -165,42 +161,9 @@ function ProfileBio({ bio }: { bio: string }) {
   );
 }
 
-/** Pencil → dialog for editing your own profile (name, about, links). Same form as /me/profile. */
-function ProfileEditDialog({ address }: { address: string }) {
-  const profileQ = useProfile(address || null);
-  const update = useUpdateProfile();
+/** Pencil → dialog holding the single profile editor (ProfileForm: name, avatar, about, links). */
+function ProfileEditDialog() {
   const [open, setOpen] = useState(false);
-  const [displayName, setDisplayName] = useState("");
-  const [bio, setBio] = useState("");
-  const [linkInputs, setLinkInputs] = useState<LinkInputs>([]);
-
-  // Prefill from the profile; re-read on open (in case it was edited in another tab).
-  useEffect(() => {
-    const p = profileQ.data;
-    if (p && open) {
-      setDisplayName(p.displayName ?? "");
-      setBio(p.bio ?? "");
-      setLinkInputs(inputsFromLinks(p.links));
-    }
-  }, [profileQ.data, open]);
-
-  function save() {
-    update.mutate(
-      {
-        displayName: displayName.trim() || undefined,
-        bio: bio.trim() || undefined,
-        links: linksFromInputs(linkInputs),
-      },
-      {
-        onSuccess: () => {
-          toast({ variant: "success", title: "Profile saved" });
-          setOpen(false);
-        },
-        onError: (e) => toast({ variant: "error", title: "Error", description: String(e) }),
-      },
-    );
-  }
-
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -221,35 +184,7 @@ function ProfileEditDialog({ address }: { address: string }) {
             The profile is optional.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-4">
-          <Input
-            label="Name"
-            maxLength={40}
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-          />
-          <Textarea
-            label="About"
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-            maxLength={280}
-            showCount
-          />
-          <div className="flex flex-col gap-2">
-            <span className="text-small text-fg-muted">Links</span>
-            <LinkEditor value={linkInputs} onChange={setLinkInputs} />
-          </div>
-        </div>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="ghost" disabled={update.isPending}>
-              Cancel
-            </Button>
-          </DialogClose>
-          <Button onClick={save} loading={update.isPending}>
-            Save
-          </Button>
-        </DialogFooter>
+        <ProfileForm onDone={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
   );
@@ -304,6 +239,15 @@ function PositionRow({ s }: { s: DonorChannelStanding }) {
       href={`/c/${s.handle}`}
       className="group flex items-center gap-3 border-b border-border py-3"
     >
+      {/* Rank in this realm — the brag: 👑 at the top ("The Crown"), else #N. */}
+      <span
+        className={cn(
+          "mono w-8 shrink-0 text-center",
+          s.rank === 1 ? "text-base" : "text-small text-fg-faint",
+        )}
+      >
+        {s.rank === 1 ? "👑" : s.rank ? `#${s.rank}` : "—"}
+      </span>
       <div
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-display text-small"
         style={{ backgroundColor: `hsl(${hue} 45% 20%)`, color: `hsl(${hue} 70% 72%)` }}
@@ -311,8 +255,24 @@ function PositionRow({ s }: { s: DonorChannelStanding }) {
         {name.replace(/^@/, "")[0]?.toUpperCase() ?? "?"}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate font-display text-fg transition-colors group-hover:text-status">{name}</div>
-        <div className="mono truncate text-small text-fg-faint">@{s.handle}</div>
+        <div className="flex items-center gap-2">
+          <span className="truncate font-display text-fg transition-colors group-hover:text-status">
+            {name}
+          </span>
+          {s.rank === 1 ? (
+            <span className="inline-flex flex-none items-center rounded-pill border border-money-dim bg-money-bg/40 px-1.5 py-0.5 text-caption font-semibold uppercase tracking-wide text-money">
+              The Crown
+            </span>
+          ) : null}
+        </div>
+        <div className="mono truncate text-small text-fg-faint">
+          @{s.handle}
+          {s.rank && s.supporters ? (
+            <span>
+              {" · "}#{s.rank} of {s.supporters}
+            </span>
+          ) : null}
+        </div>
       </div>
       <div className="hidden shrink-0 sm:block">
         {s.tier ? <TierBadge tier={s.tier} /> : null}
@@ -508,7 +468,7 @@ function DonorDashboard({
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <CopyIconButton value={overview.address} title="Copy address" />
-              {editable ? <ProfileEditDialog address={overview.address} /> : null}
+              {editable ? <ProfileEditDialog /> : null}
             </div>
           </div>
 

@@ -15,10 +15,11 @@ import { toast } from "@/components/ui/toast";
 import { useProfile, useSession, useUpdateProfile } from "@/lib/data/hooks";
 
 /**
- * Profile editor (public identity): name, avatar (URL), "about", social links. Self-contained —
- * pulls its own session/profile. Used in /me/profile and in the personal space (Settings).
+ * The single profile editor (public identity): name, avatar (URL), "about", social links. Self-contained —
+ * pulls its own session/profile. The one place to edit a profile — rendered in the /me pencil dialog.
+ * `onDone` fires after a successful save (e.g. to close the dialog).
  */
-export function ProfileForm() {
+export function ProfileForm({ onDone }: { onDone?: () => void }) {
   const address = useSession().data?.address ?? null;
   const profileQ = useProfile(address);
   const update = useUpdateProfile();
@@ -54,7 +55,10 @@ export function ProfileForm() {
         links: linksFromInputs(linkInputs),
       },
       {
-        onSuccess: () => toast({ variant: "success", title: "Profile saved" }),
+        onSuccess: () => {
+          toast({ variant: "success", title: "Profile saved" });
+          onDone?.();
+        },
         onError: (e) => toast({ variant: "error", title: "Error", description: String(e) }),
       },
     );

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { Amount } from "./amount";
 import { Monogram } from "./header-actions";
 import { TierBadge } from "./standing";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
@@ -128,7 +129,17 @@ export function Leaderboard({
                   </span>
                   {e.tier ? <TierBadge tier={e.tier} /> : null}
                 </div>
-                <span className="mono shrink-0 text-small text-fg-muted">{formatPoints(e.points)}</span>
+                {/* Both metrics, each with its UNIT — so Reign isn't misread as dollars, and whichever
+                    column the list is sorted by (Reign / amount) is visible, not hidden. */}
+                <div className="flex shrink-0 flex-col items-end leading-tight">
+                  <span className="mono text-small text-status">
+                    {formatPoints(e.points)}
+                    <span className="ml-1 text-caption font-normal text-fg-faint">Reign</span>
+                  </span>
+                  <span className="text-caption text-fg-faint">
+                    <Amount micro={e.totalDonated} /> crowned
+                  </span>
+                </div>
               </Link>
             </li>
           ))}

@@ -296,6 +296,8 @@ export interface DonorChannelStanding {
   handle: string;
   channelName?: string; // realm owner's name (their profile), if set
   tier?: Tier; // undefined → below the first tier's threshold
+  rank?: number; // position in THIS realm's leaderboard (1-based, by Reign); 1 = "The Crown" (top supporter)
+  supporters?: number; // total supporters in this realm — for "#2 of 40". Computed by mock; real providers may omit.
   points: Points; // local Reign in THIS realm
   totalDonated: MicroUSDC; // crowned to this realm
   donationCount: number;

@@ -38,9 +38,9 @@ export function RealmRoll({
   return (
     <div className="flex flex-col gap-3 p-4">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-caption uppercase tracking-wide text-fg-faint">Realm roll</h3>
+        <h3 className="text-caption uppercase tracking-wide text-fg-faint">Supporters</h3>
         <Link
-          href={`/c/${handle}/donors`}
+          href={`/c/${handle}/supporters`}
           className="text-caption text-fg-faint transition-colors hover:text-fg"
         >
           View all →

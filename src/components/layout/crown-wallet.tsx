@@ -82,10 +82,7 @@ function IdentityMenu({ address, onDisconnect }: { address: string; onDisconnect
               </div>
             </div>
             <MenuLink href="/me" onClick={() => setOpen(false)}>
-              My reign
-            </MenuLink>
-            <MenuLink href="/me/profile" onClick={() => setOpen(false)}>
-              Profile settings
+              My profile &amp; Reign
             </MenuLink>
             <button
               type="button"

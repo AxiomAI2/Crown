@@ -1,40 +1,8 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import Link from "next/link";
-import { useParams } from "next/navigation";
-import { Leaderboard } from "@/components/domain/leaderboard";
-import { AppHeader } from "@/components/layout/app-header";
-import { EmptyState, Skeleton } from "@/components/ui/feedback";
-import { useChannel, useSession } from "@/lib/data/hooks";
-
-/** Realm supporters page: leaderboard with sorting (standing / amount / tier), click a row → profile. */
-export default function DonorsPage() {
-  const params = useParams<{ handle: string }>();
-  const handle = params.handle;
-  const channelQ = useChannel(handle);
-  const channel = channelQ.data;
-  const sessionQ = useSession();
-  const address = sessionQ.data?.address ?? null;
-
-  return (
-    <>
-      <AppHeader />
-      <main className="mx-auto flex max-w-content flex-col gap-6 px-4 py-8">
-        <div className="flex flex-col gap-1">
-          <Link href={`/c/${handle}`} className="w-fit text-small text-fg-faint hover:text-fg">
-            ← Realm @{handle}
-          </Link>
-          <h1 className="text-display-l text-fg">Supporters</h1>
-        </div>
-
-        {channelQ.isLoading ? (
-          <Skeleton className="h-64 w-full rounded-lg" />
-        ) : !channel ? (
-          <EmptyState title="Realm not found" description={`Realm @${handle} doesn't exist.`} />
-        ) : (
-          <Leaderboard channelId={channel.id} currentAddress={address} />
-        )}
-      </main>
-    </>
-  );
+// Renamed to /supporters (one name for this surface: rail label "Supporters", page title, URL).
+// Kept as a redirect so old links/bookmarks to /donors don't 404.
+export default async function DonorsRedirect({ params }: { params: Promise<{ handle: string }> }) {
+  const { handle } = await params;
+  redirect(`/c/${handle}/supporters`);
 }

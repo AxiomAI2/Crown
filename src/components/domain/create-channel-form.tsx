@@ -9,11 +9,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { useData } from "@/lib/data/context";
 import { DEFAULT_TIERS } from "@/lib/data/fixtures";
-import { useSession } from "@/lib/data/hooks";
+import { useProfile, useSession } from "@/lib/data/hooks";
+import { DataError } from "@/lib/data/provider";
 import type { Perk } from "@/lib/data/types";
 import { cn, isLikelyBase58Address } from "@/lib/utils";
 
-const HANDLE_RE = /^[a-z0-9-]{3,32}$/;
+// Must match the server's canonical rule (mock-provider.createChannel): a–z, 0–9, underscore. The client
+// used to allow hyphens, so hyphenated handles passed the form and were rejected server-side at submit.
+const HANDLE_RE = /^[a-z0-9_]{3,32}$/;
 const STEPS = ["Profile", "Address", "Tiers"] as const;
 
 interface TierDraft {
@@ -50,6 +53,17 @@ export function CreateChannelForm() {
     })),
   );
   const [submitting, setSubmitting] = useState(false);
+  // Handle availability, checked inline on the Address step (not left to surface as a toast at submit).
+  // null = unknown/not-yet-checked, false = free, true = taken.
+  const [handleTaken, setHandleTaken] = useState<boolean | null>(null);
+  const [checkingHandle, setCheckingHandle] = useState(false);
+  // The realm name IS the owner's profile name (one name per wallet, types.ts §ChannelConfig). We seed the
+  // form from the existing profile so a returning user edits their real name consciously instead of blanking
+  // or silently overwriting it. `profileTouched` stops the seed from clobbering something they already typed.
+  const profileQ = useProfile(address);
+  const profile = profileQ.data ?? null;
+  const [profileTouched, setProfileTouched] = useState(false);
+  const [seeded, setSeeded] = useState(false);
 
   useEffect(() => {
     if (address && !payout) setPayout(address);
@@ -61,9 +75,50 @@ export function CreateChannelForm() {
   const avatarValid = avatar === "" || /^https?:\/\//i.test(avatar) || /^data:image\//i.test(avatar);
   const previewName = displayName.trim() || (handle ? `@${handle}` : "?");
 
+  // Seed the profile fields once, when the existing profile loads and the user hasn't typed yet.
+  useEffect(() => {
+    if (seeded || profileTouched || !profile) return;
+    if (profile.displayName) setDisplayName(profile.displayName);
+    if (profile.avatarUrl) setAvatarUrl(profile.avatarUrl);
+    setSeeded(true);
+  }, [seeded, profileTouched, profile]);
+
+  // Debounced availability probe. The server stays authoritative (submit re-checks); this is only inline UX.
+  useEffect(() => {
+    if (!handleValid) {
+      setHandleTaken(null);
+      setCheckingHandle(false);
+      return;
+    }
+    const h = handle.trim().toLowerCase();
+    let cancelled = false;
+    setCheckingHandle(true);
+    setHandleTaken(null);
+    const timer = setTimeout(async () => {
+      try {
+        const existing = await provider.getChannel(h);
+        if (!cancelled) setHandleTaken(existing !== null);
+      } catch {
+        // Probe failed — don't hard-block; let the server decide at submit.
+        if (!cancelled) setHandleTaken(null);
+      } finally {
+        if (!cancelled) setCheckingHandle(false);
+      }
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [handle, handleValid, provider]);
+
   const isLast = step === STEPS.length - 1;
-  const canNext = step === 0 ? avatarValid : step === 1 ? handleValid && payoutValid : true;
-  const canSubmit = handleValid && payoutValid && avatarValid && !submitting;
+  const canNext =
+    step === 0
+      ? avatarValid
+      : step === 1
+        ? handleValid && payoutValid && !checkingHandle && handleTaken !== true
+        : true;
+  const canSubmit = handleValid && payoutValid && avatarValid && handleTaken !== true && !submitting;
 
   const setTier = (i: number, patch: Partial<TierDraft>) =>
     setTiers((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
@@ -84,11 +139,36 @@ export function CreateChannelForm() {
   async function submit() {
     if (!canSubmit) return;
     setSubmitting(true);
+
+    // Step A — create the realm. This is the ONLY failure that means "realm not created".
+    let channel;
     try {
-      const channel = await provider.createChannel({ handle, payoutAddress: payout.trim() });
-      if (displayName.trim() || avatar) {
+      channel = await provider.createChannel({ handle, payoutAddress: payout.trim() });
+    } catch (e) {
+      if (e instanceof DataError && e.code === "HANDLE_TAKEN") {
+        // Someone grabbed it between the inline check and submit — surface it on the Handle step, not a dead toast.
+        setHandleTaken(true);
+        setStep(1);
+      }
+      toast({
+        variant: "error",
+        title: "Couldn't create realm",
+        description: e instanceof Error ? e.message : String(e),
+      });
+      setSubmitting(false);
+      return;
+    }
+
+    // The realm now EXISTS. Everything below is optional setup: a failure here is partial, never "not created".
+    const nextName = displayName.trim();
+    const profileChanged =
+      (nextName !== "" && nextName !== (profile?.displayName ?? "")) ||
+      (avatar !== "" && avatar !== (profile?.avatarUrl ?? ""));
+    try {
+      // Only write the profile when the name/avatar actually changed — never silently re-stamp the personal profile.
+      if (profileChanged) {
         await provider.updateProfile({
-          displayName: displayName.trim() || undefined,
+          displayName: nextName || undefined,
           avatarUrl: avatar || undefined,
         });
       }
@@ -102,10 +182,11 @@ export function CreateChannelForm() {
       qc.invalidateQueries();
       toast({ variant: "success", title: "Realm created", description: `@${handle} — status BASIC.` });
     } catch (e) {
+      qc.invalidateQueries(); // the realm is real — make sure the app reflects it
       toast({
-        variant: "error",
-        title: "Couldn't create realm",
-        description: e instanceof Error ? e.message : String(e),
+        variant: "info",
+        title: "Realm created — finish setup in Space",
+        description: `@${handle} is live, but some settings didn't save: ${e instanceof Error ? e.message : String(e)}`,
       });
     } finally {
       setSubmitting(false);
@@ -131,12 +212,22 @@ export function CreateChannelForm() {
             label="Display name"
             placeholder="My Realm"
             value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            helper="Shown across the app."
+            onChange={(e) => {
+              setProfileTouched(true);
+              setDisplayName(e.target.value);
+            }}
+            helper="Your public name across the app — this is your profile name (one name per wallet), not a realm-only label."
           />
           <div className="flex flex-col gap-1.5">
             <span className="text-small text-fg-muted">Avatar</span>
-            <AvatarEditor name={previewName} value={avatarUrl} onChange={setAvatarUrl} />
+            <AvatarEditor
+              name={previewName}
+              value={avatarUrl}
+              onChange={(v) => {
+                setProfileTouched(true);
+                setAvatarUrl(v);
+              }}
+            />
           </div>
           <Textarea
             label="Description"
@@ -153,11 +244,23 @@ export function CreateChannelForm() {
         <section className="flex flex-col gap-4">
           <Input
             label="Handle"
-            placeholder="my-realm"
+            placeholder="my_realm"
             value={handle}
             onChange={(e) => setHandle(e.target.value.toLowerCase())}
-            helper={`Your realm's public URL: /c/${handle.trim() || "your-handle"} — a–z, 0–9, hyphen; 3–32 chars. This is a name, not a wallet.`}
-            error={handle !== "" && !handleValid ? "3–32 lowercase letters, digits or hyphens (not a wallet address)" : undefined}
+            helper={
+              checkingHandle
+                ? "Checking availability…"
+                : handleValid && handleTaken === false
+                  ? `Available — your realm's public URL: /c/${handle.trim()}`
+                  : `Your realm's public URL: /c/${handle.trim() || "your-handle"} — a–z, 0–9, underscore; 3–32 chars. This is a name, not a wallet.`
+            }
+            error={
+              handle !== "" && !handleValid
+                ? "3–32 lowercase letters, digits or underscores (not a wallet address)"
+                : handleTaken === true
+                  ? `@${handle} is already taken — pick another`
+                  : undefined
+            }
           />
           <Input
             label="Payout wallet address"
