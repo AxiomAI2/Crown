@@ -5,10 +5,9 @@ import { useEffect, useRef, useState } from "react";
 import { Amount } from "./amount";
 import { ChannelLinkButtons } from "./channel-links";
 import { HeaderActions, Monogram } from "./header-actions";
-import { CrownLogo } from "@/components/crown-logo";
 import { useProfile } from "@/lib/data/hooks";
 import type { Channel, ChannelConfig } from "@/lib/data/types";
-import { channelHue, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const HEADER_H = 60; // высота глобальной шапки (--header-h): относительно неё считаем «свёрнуто».
 
@@ -16,28 +15,20 @@ function monthYear(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
-/** Гербовый градиент баннера из детерминированного оттенка канала — приглушённый (чёрный+золото). */
-function bannerStyle(seed: string): React.CSSProperties {
-  const h = channelHue(seed);
-  return {
-    backgroundImage: `linear-gradient(135deg, hsl(${h} 38% 13%) 0%, hsl(${h} 26% 7%) 55%, #000 100%)`,
-  };
-}
-
-/** Мелкая метка-факт в стат-строке героя (подпись + значение). */
-function Stat({ label, children }: { label: string; children: React.ReactNode }) {
+/** Подпись + значение в правом числовом кластере hero. */
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <span className="flex items-baseline gap-1.5">
+    <div className="flex flex-col gap-0.5">
       <span className="text-caption uppercase tracking-wide text-fg-faint">{label}</span>
-      <span className="text-fg">{children}</span>
-    </span>
+      {children}
+    </div>
   );
 }
 
 /**
- * Hero двора (стриминг-стиль): гербовый баннер, аватар внахлёст, имя/@handle, описание, соц-ссылки и
- * стат-строка (Crowned · 👑 The Crown · since). При скролле, когда имя уходит под глобальную
- * шапку, появляется липкая компактная плашка с кнопкой Crown (якорь к карточке доната #crown).
+ * Hero двора — единая панель: слева личность (аватар, имя/@handle, описание, соц-ссылки), справа числовой
+ * кластер (Crowned · 👑 The Crown · Since). Мягкий золотой акцент для «дорогого» вида. Баннера нет.
+ * При скролле, когда имя уходит под глобальную шапку, всплывает липкая компактная плашка с кнопкой Crown.
  */
 export function ChannelHero({
   channel,
@@ -53,6 +44,7 @@ export function ChannelHero({
 }) {
   const ownerProfile = useProfile(channel.ownerAddress);
   const name = ownerProfile.data?.displayName?.trim() || `@${channel.handle}`;
+  const avatarUrl = ownerProfile.data?.avatarUrl;
   const links = ownerProfile.data?.links ?? [];
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -73,7 +65,7 @@ export function ChannelHero({
 
   return (
     <>
-      {/* Липкая компактная плашка — fixed-оверлей под глобальной шапкой; ширина = левая колонка. */}
+      {/* Липкая компактная плашка — fixed-оверлей под глобальной шапкой. */}
       <div
         aria-hidden={!collapsed}
         className={cn(
@@ -81,9 +73,9 @@ export function ChannelHero({
           collapsed ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-2 opacity-0",
         )}
       >
-        <div className="mx-auto max-w-content px-4 lg:pr-[calc(360px+1.5rem)]">
+        <div className="px-4 lg:px-6">
           <div className="flex h-[54px] items-center gap-3 border-b border-border bg-[var(--bg)] px-4 shadow-sm">
-            <Monogram name={name} size="sm" />
+            <Monogram name={name} avatarUrl={avatarUrl} size="sm" />
             <span className="min-w-0 flex-1 truncate font-display text-fg">{name}</span>
             <a
               href="#crown"
@@ -95,71 +87,83 @@ export function ChannelHero({
         </div>
       </div>
 
-      <header className="flex flex-col">
-        {/* Баннер + действия */}
-        <div className="relative">
-          <div
-            className="relative h-28 w-full overflow-hidden rounded-xl border border-border sm:h-36"
-            style={bannerStyle(channel.handle)}
-          >
-            <CrownLogo
-              size={132}
-              className="absolute -right-3 bottom-1 text-status opacity-[0.08]"
-            />
-          </div>
-          <div className="absolute right-3 top-3">
-            <HeaderActions payoutAddress={channel.payoutAddress} />
-          </div>
-          <Monogram
-            name={name}
-            size="xl"
-            className="absolute -bottom-9 left-4 ring-4 ring-[var(--bg)] sm:left-6"
-          />
+      <header className="relative overflow-hidden p-5 sm:p-6">
+        {/* Мягкий золотой акцент (только намёк — дисциплина золота). */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-70"
+          style={{ background: "radial-gradient(circle, var(--money-bg), transparent 70%)" }}
+        />
+        {/* Действия — в углу панели. */}
+        <div className="absolute right-4 top-4 z-10">
+          <HeaderActions payoutAddress={channel.payoutAddress} />
         </div>
 
-        {/* Личность — под баннером, с отступом сверху под нахлёст аватара */}
-        <div className="flex flex-col gap-3 pt-12 sm:pt-14">
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <Link
-              href="/"
-              className="w-fit text-caption uppercase tracking-wide text-fg-faint transition-colors hover:text-fg-muted"
-            >
-              Realm
-            </Link>
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h1 ref={titleRef} className="text-display-l leading-tight text-fg">
-                {name}
-              </h1>
-              <span className="mono text-fg-faint">@{channel.handle}</span>
+        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+          {/* Личность */}
+          <div className="flex min-w-0 items-start gap-4">
+            <Monogram name={name} avatarUrl={avatarUrl} size="xl" className="flex-none" />
+            <div className="flex min-w-0 flex-col gap-1.5 pr-10 lg:pr-0">
+              <div className="flex flex-col gap-0.5">
+                <Link
+                  href="/"
+                  className="w-fit text-caption uppercase tracking-wide text-fg-faint transition-colors hover:text-fg-muted"
+                >
+                  Realm
+                </Link>
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <h1 ref={titleRef} className="text-h1 leading-tight text-fg">
+                    {name}
+                  </h1>
+                  <span className="mono text-fg-faint">@{channel.handle}</span>
+                </div>
+              </div>
+              {config?.description?.trim() ? (
+                <p className="line-clamp-2 max-w-md whitespace-pre-wrap break-words text-small text-fg-muted">
+                  {config.description}
+                </p>
+              ) : null}
+              {links.length > 0 ? <ChannelLinkButtons links={links} variant="pill" /> : null}
             </div>
           </div>
 
-          {config?.description?.trim() ? (
-            <p className="max-w-2xl whitespace-pre-wrap break-words text-fg-muted">
-              {config.description}
-            </p>
-          ) : null}
-
-          {links.length > 0 ? <ChannelLinkButtons links={links} variant="pill" /> : null}
-
-          {/* Стат-строка */}
-          <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border pt-3 text-small">
+          {/* Числовой кластер — заполняет правую часть панели. */}
+          <div className="flex flex-none flex-wrap items-end gap-x-7 gap-y-4 border-t border-border pt-5 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
             {totalDonated !== undefined ? (
-              <Stat label="Crowned">
-                <Amount micro={totalDonated} className="text-fg" />
-              </Stat>
+              <Fact label="Crowned">
+                <Amount
+                  micro={totalDonated}
+                  variant="money"
+                  className="text-[2rem] font-semibold leading-none"
+                />
+              </Fact>
             ) : null}
+
             {topPatron ? (
-              <span className="flex items-center gap-1.5">
-                <span aria-hidden>👑</span>
-                <span className="truncate text-status" title={`The Crown: ${topPatron}`}>
-                  {topPatron}
+              <div className="flex items-center gap-2.5">
+                <span
+                  className="grid h-10 w-10 flex-none place-items-center rounded-full text-lg"
+                  style={{
+                    background:
+                      "radial-gradient(circle at 40% 30%, var(--money-bright), var(--money) 65%, #b98a2e)",
+                    boxShadow: "0 0 16px rgba(228,179,76,0.22)",
+                  }}
+                  aria-hidden
+                >
+                  👑
                 </span>
-              </span>
+                <div className="flex min-w-0 flex-col">
+                  <span className="text-caption uppercase tracking-wide text-status">The Crown</span>
+                  <span className="truncate text-fg" title={`The Crown: ${topPatron}`}>
+                    {topPatron}
+                  </span>
+                </div>
+              </div>
             ) : null}
-            <Stat label="Since">
+
+            <Fact label="Since">
               <span className="text-fg-muted">{monthYear(channel.createdAt)}</span>
-            </Stat>
+            </Fact>
           </div>
         </div>
       </header>

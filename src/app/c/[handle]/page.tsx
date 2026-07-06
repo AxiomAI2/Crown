@@ -2,12 +2,11 @@
 
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { ChannelAbout } from "@/components/domain/channel-about";
 import { ChannelFeed } from "@/components/domain/channel-feed";
 import { ChannelHero } from "@/components/domain/channel-hero";
+import { RealmInfo } from "@/components/domain/realm-info";
 import { RealmRoll } from "@/components/domain/realm-roll";
 import { ReignStrip } from "@/components/domain/reign-strip";
-import { TierLadder } from "@/components/domain/standing";
 import { ChannelGames } from "@/games/ChannelGames";
 import { GameActionRail } from "@/games/GameActionRail";
 import { useEscrowTasks } from "@/games/escrow-task/hooks";
@@ -60,7 +59,7 @@ export default function ChannelPage() {
   return (
     <>
       <AppHeader />
-      <main className="mx-auto max-w-content px-4 pb-10 pt-4">
+      <main className="w-full px-4 pb-10 pt-4 lg:px-6">
         {channelQ.isLoading ? (
           <Skeleton className="h-64 w-full rounded-xl" />
         ) : channelQ.error ? (
@@ -73,50 +72,37 @@ export default function ChannelPage() {
             description="This realm is suspended. If this is a mistake, contact support."
           />
         ) : (
-          <div className="flex flex-col gap-6">
-            <ChannelHero
-              channel={channel}
-              config={configQ.data}
-              donorsCount={stats?.donors}
-              totalDonated={stats?.total}
-              topPatron={topPatron}
-            />
+          // Вся страница — ОДИН блок: внешняя рамка, внутри плоские секции через тонкие разделители (без
+          // «островов»). Единственная выпуклая карточка внутри — донат-виджет (действие).
+          <div className="mx-auto w-full max-w-[1200px] overflow-hidden rounded-2xl border border-border bg-surface">
+            {/* Секция: hero */}
+            <div className="border-b border-border">
+              <ChannelHero
+                channel={channel}
+                config={configQ.data}
+                donorsCount={stats?.donors}
+                totalDonated={stats?.total}
+                topPatron={topPatron}
+              />
+            </div>
 
-            {/* Ниже героя: слева Reign + вкладки, справа закреплённый рейл (Crown + Realm roll).
-                На мобиле — поток: Reign → Crown → Realm roll → вкладки. */}
-            <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[1fr_360px] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-6 lg:gap-y-6">
-              <div className="min-w-0 lg:col-start-1 lg:row-start-1">
-                <ReignStrip standing={standingQ.data} loading={standingQ.isLoading} />
-              </div>
+            {/* Секция: твой Reign (полоса на всю ширину). */}
+            <div className="border-b border-border">
+              <ReignStrip standing={standingQ.data} loading={standingQ.isLoading} />
+            </div>
 
-              <aside
-                id="crown"
-                className="rail-pinned-right flex scroll-mt-20 flex-col gap-6 lg:col-start-2 lg:row-span-2 lg:row-start-1"
-              >
-                {configQ.data && sessionQ.data ? (
-                  <GameActionRail
-                    channel={channel}
-                    config={configQ.data}
-                    session={sessionQ.data}
-                    standing={standingQ.data}
-                    standingLoading={standingQ.isLoading}
-                    handle={handle}
-                    enabledGames={enabledGames}
-                  />
-                ) : (
-                  <Skeleton className="h-72 w-full rounded-lg" />
-                )}
-                <RealmRoll channelId={channel.id} handle={handle} currentAddress={address} />
-              </aside>
-
-              <div className="min-w-0 lg:col-start-1 lg:row-start-2">
+            {/* Тело: слева живая лента, справа сайдбар (Crown → лидерборд → справочник). Разделены
+                вертикальной волосяной линией; секции сайдбара — горизонтальными. Всё в общей рамке. */}
+            <div className="flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_340px]">
+              {/* Центр: активность. Табы — только когда есть игры (Games ↔ Feed); иначе просто Feed. */}
+              <div className="min-w-0 p-4 sm:p-5">
                 <Tabs value={activeTab} onValueChange={setTabState} className="flex flex-col gap-3">
-                  <TabsList className="w-full">
-                    {hasGames ? <TabsTrigger value="games">Games</TabsTrigger> : null}
-                    <TabsTrigger value="feed">Feed</TabsTrigger>
-                    <TabsTrigger value="ranks">Ranks</TabsTrigger>
-                    <TabsTrigger value="about">About</TabsTrigger>
-                  </TabsList>
+                  {hasGames ? (
+                    <TabsList className="w-full">
+                      <TabsTrigger value="games">Games</TabsTrigger>
+                      <TabsTrigger value="feed">Feed</TabsTrigger>
+                    </TabsList>
+                  ) : null}
 
                   {hasGames ? (
                     <TabsContent value="games">
@@ -143,20 +129,40 @@ export default function ChannelPage() {
                       />
                     )}
                   </TabsContent>
-
-                  <TabsContent value="ranks">
-                    {configQ.data ? (
-                      <TierLadder tiers={configQ.data.tiers} currentTierName={standingQ.data?.tier?.name} />
-                    ) : (
-                      <Skeleton className="h-40 w-full" />
-                    )}
-                  </TabsContent>
-
-                  <TabsContent value="about">
-                    <ChannelAbout channel={channel} config={configQ.data} />
-                  </TabsContent>
                 </Tabs>
               </div>
+
+              {/* Сайдбар: действие Crown → лидерборд → справочник двора, секции через разделители. */}
+              <aside
+                id="crown"
+                className="flex scroll-mt-20 flex-col border-t border-border lg:border-l lg:border-t-0"
+              >
+                <div className="p-4">
+                  {configQ.data && sessionQ.data ? (
+                    <GameActionRail
+                      channel={channel}
+                      config={configQ.data}
+                      session={sessionQ.data}
+                      standing={standingQ.data}
+                      standingLoading={standingQ.isLoading}
+                      handle={handle}
+                      enabledGames={enabledGames}
+                    />
+                  ) : (
+                    <Skeleton className="h-72 w-full rounded-lg" />
+                  )}
+                </div>
+                <div className="border-t border-border">
+                  <RealmRoll channelId={channel.id} handle={handle} currentAddress={address} />
+                </div>
+                <div className="border-t border-border">
+                  <RealmInfo
+                    channel={channel}
+                    config={configQ.data}
+                    currentTierName={standingQ.data?.tier?.name}
+                  />
+                </div>
+              </aside>
             </div>
           </div>
         )}

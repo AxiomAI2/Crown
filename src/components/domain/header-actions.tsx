@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { CheckIcon, CopyIcon } from "@/components/ui/icons";
 import { toast } from "@/components/ui/toast";
 import { useCopied } from "@/components/ui/use-copied";
@@ -14,29 +15,47 @@ const MONO_SIZES = {
   xl: "h-20 w-20 text-display-l",
 } as const;
 
-/** Аватар-монограмма: первая буква имени на фоне детерминированного оттенка (channelHue). */
+/**
+ * Аватар: если задан `avatarUrl` — картинка (object-cover, с фолбэком на монограмму при ошибке загрузки);
+ * иначе первая буква имени на фоне детерминированного оттенка (channelHue).
+ */
 export function Monogram({
   name,
   size = "md",
+  avatarUrl,
   className,
 }: {
   name: string;
   size?: keyof typeof MONO_SIZES;
+  avatarUrl?: string;
   className?: string;
 }) {
+  const [broken, setBroken] = useState(false);
   const ch = (name.replace(/^@/, "")[0] ?? "?").toUpperCase();
   const hue = channelHue(name);
+  const showImg = !!avatarUrl && !broken;
   return (
     <div
       className={cn(
-        "grid flex-none place-items-center rounded-full font-display font-semibold",
+        "relative grid flex-none place-items-center overflow-hidden rounded-full font-display font-semibold",
         MONO_SIZES[size],
         className,
       )}
       style={{ backgroundColor: `hsl(${hue} 45% 20%)`, color: `hsl(${hue} 70% 72%)` }}
       aria-hidden
     >
-      {ch}
+      {showImg ? (
+        // Аватары — произвольные внешние URL, next/image требует allowlist хостов → обычный <img>.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={avatarUrl}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={() => setBroken(true)}
+        />
+      ) : (
+        ch
+      )}
     </div>
   );
 }

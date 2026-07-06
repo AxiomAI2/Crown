@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/layout/app-header";
+import { SiteFooter } from "@/components/layout/site-footer";
 import { CHANNEL_PLATFORMS, platformDef } from "@/lib/channel-links";
 import { CheckIcon } from "@/components/ui/icons";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
@@ -29,6 +30,7 @@ export default function HomePage() {
       <main className="mx-auto w-full max-w-content px-4 py-8 sm:py-10">
         <Home />
       </main>
+      <SiteFooter />
     </>
   );
 }

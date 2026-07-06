@@ -22,7 +22,7 @@ export function ReignStrip({
   const { rank, next, progress, toNext } = rankProgress(points);
 
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-border bg-surface p-4">
+    <div className="flex items-center gap-4 p-4">
       <RankBadge points={points} size={48} />
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex items-baseline justify-between gap-3">

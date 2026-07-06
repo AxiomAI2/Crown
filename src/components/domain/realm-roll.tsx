@@ -37,7 +37,7 @@ export function RealmRoll({
   const top = (data ?? []).slice(0, TOP_N);
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
+    <div className="flex flex-col gap-3 p-4">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-caption uppercase tracking-wide text-fg-faint">Realm roll</h3>
         <Link
