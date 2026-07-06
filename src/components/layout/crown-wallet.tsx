@@ -38,6 +38,10 @@ export function CrownWallet() {
 function IdentityMenu({ address, onDisconnect }: { address: string; onDisconnect: () => void }) {
   const [open, setOpen] = useState(false);
   const overview = useDonorOverview(address);
+  // Identity for the avatar: the connected profile's name/avatar, not the raw address — otherwise the monogram is
+  // a random letter+hue derived from the wallet string ("B" on olive). Fall back to the address when there's no profile.
+  const monoName = overview.data?.displayName?.trim() || address;
+  const avatarUrl = overview.data?.avatarUrl;
 
   // Esc closes the menu.
   useEffect(() => {
@@ -56,7 +60,7 @@ function IdentityMenu({ address, onDisconnect }: { address: string; onDisconnect
         aria-expanded={open}
         className="flex h-9 items-center gap-2 rounded-full border border-border bg-surface pl-1 pr-3 transition-colors hover:border-border-strong"
       >
-        <Monogram name={address} size="sm" />
+        <Monogram name={monoName} avatarUrl={avatarUrl} size="sm" />
         <span className="mono text-small text-fg-muted">{shortAddress(address)}</span>
       </button>
 
@@ -73,9 +77,12 @@ function IdentityMenu({ address, onDisconnect }: { address: string; onDisconnect
             className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-lg border border-border bg-surface shadow-xl shadow-black/40"
           >
             <div className="flex items-center gap-3 border-b border-border px-3 py-3">
-              <Monogram name={address} size="md" />
+              <Monogram name={monoName} avatarUrl={avatarUrl} size="md" />
               <div className="flex min-w-0 flex-col">
-                <span className="mono text-small text-fg">{shortAddress(address)}</span>
+                {overview.data?.displayName?.trim() ? (
+                  <span className="truncate text-small text-fg">{overview.data.displayName}</span>
+                ) : null}
+                <span className="mono text-caption text-fg-faint">{shortAddress(address)}</span>
                 <span className="text-caption text-fg-faint">
                   {overview.data ? `$${Math.round(fromMicro(overview.data.totalDonated)).toLocaleString("en-US")} crowned` : "…"}
                 </span>

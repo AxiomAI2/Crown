@@ -16,7 +16,7 @@ const CREATE_HREF = "/space?tab=realm-create";
 const FACTS = [
   { figure: "97%", label: "of every crown is yours", accent: true },
   { figure: "3%", label: "flat fee — nothing hidden", accent: false },
-  { figure: "$0", label: "to open your realm", accent: false },
+  { figure: "$2", label: "one-time to activate your realm", accent: false },
 ];
 
 const STEPS = [
