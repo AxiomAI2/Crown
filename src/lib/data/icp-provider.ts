@@ -112,7 +112,7 @@ export class IcpDataProvider extends ChainDataProvider {
     if (!ICP_CANISTER_URL) {
       throw new DataError(
         "NOT_CONFIGURED",
-        "Режим icp требует NEXT_PUBLIC_ICP_CANISTER_URL (runbook «Канистры ICP»).",
+        "icp mode requires NEXT_PUBLIC_ICP_CANISTER_URL (runbook \"ICP canisters\").",
       );
     }
     let res: Response;
@@ -121,10 +121,10 @@ export class IcpDataProvider extends ChainDataProvider {
     } catch {
       throw new DataError(
         "NETWORK",
-        "Канистра недоступна — поднят ли локальный стенд? (runbook «Канистры ICP»)",
+        "The canister is unreachable — is the local stand up? (runbook \"ICP canisters\")",
       );
     }
-    if (!res.ok) throw new DataError("BAD_RESPONSE", `Канистра ответила HTTP ${res.status}`);
+    if (!res.ok) throw new DataError("BAD_RESPONSE", `The canister responded HTTP ${res.status}`);
     return (await res.json()) as T;
   }
 
@@ -353,19 +353,19 @@ export class IcpDataProvider extends ChainDataProvider {
     return (async () => {
       const w = this.wallet;
       if (!w?.publicKey || !w.signMessage)
-        throw new DataError("NO_SIGN", "Кошелёк не умеет подписывать сообщения.");
+        throw new DataError("NO_SIGN", "This wallet cannot sign messages.");
       const me = w.publicKey.toBase58();
 
       const info = await this.getDisputeParams(channelId);
       if (!info.owner)
         throw new DataError(
           "NOT_OWNER",
-          "Канал не активирован ончейн — канистра не знает владельца (правила менять нельзя).",
+          "The realm isn't activated on-chain — the canister doesn't know the owner (rules can't be changed).",
         );
       if (info.owner !== me)
         throw new DataError(
           "NOT_OWNER",
-          `Правила меняет только владелец канала (плательщик активации ${info.owner.slice(0, 8)}…) — подключён другой кошелёк.`,
+          `Only the realm owner can change the rules (activation payer ${info.owner.slice(0, 8)}…) — a different wallet is connected.`,
         );
 
       const version = info.version + 1;
@@ -397,14 +397,14 @@ export class IcpDataProvider extends ChainDataProvider {
       } catch {
         throw new DataError(
           "NETWORK",
-          "Канистра недоступна — поднят ли локальный стенд? (runbook «Канистры ICP»)",
+          "The canister is unreachable — is the local stand up? (runbook \"ICP canisters\")",
         );
       }
       const body = (await res.json()) as { ok: boolean; error?: string };
       if (!res.ok || !body.ok)
         throw new DataError(
           "BAD_RESPONSE",
-          `Канистра отвергла запись: ${body.error ?? `HTTP ${res.status}`}`,
+          `The canister rejected the write: ${body.error ?? `HTTP ${res.status}`}`,
         );
       return this.getDisputeParams(channelId);
     })();
@@ -548,10 +548,10 @@ export class IcpDataProvider extends ChainDataProvider {
           `${ICP_CANISTER_URL}/dispute?escrow=${encodeURIComponent(escrowAccount)}`,
         );
       } catch {
-        throw new DataError("NETWORK", "Канистра недоступна (runbook «Канистры ICP»)");
+        throw new DataError("NETWORK", "The canister is unreachable (runbook \"ICP canisters\")");
       }
       if (res.status === 404) return null; // спора по этому эскроу нет
-      if (!res.ok) throw new DataError("BAD_RESPONSE", `Канистра ответила HTTP ${res.status}`);
+      if (!res.ok) throw new DataError("BAD_RESPONSE", `The canister responded HTTP ${res.status}`);
       return normalizeCanisterDispute(
         (await res.json()) as Parameters<typeof normalizeCanisterDispute>[0],
       );
@@ -577,7 +577,7 @@ export class IcpDataProvider extends ChainDataProvider {
 
       const w = this.wallet;
       if (!w?.publicKey || !w.signMessage)
-        throw new DataError("NO_SIGN", "Кошелёк не умеет подписывать сообщения.");
+        throw new DataError("NO_SIGN", "This wallet cannot sign messages.");
       const me = w.publicKey.toBase58();
 
       const post = async (path: string, body: Record<string, unknown>) => {
@@ -588,7 +588,7 @@ export class IcpDataProvider extends ChainDataProvider {
         });
         const out = (await res.json()) as { ok: boolean; error?: string };
         if (!res.ok || !out.ok)
-          throw new DataError("BAD_RESPONSE", `Канистра: ${out.error ?? `HTTP ${res.status}`}`);
+          throw new DataError("BAD_RESPONSE", `Canister: ${out.error ?? `HTTP ${res.status}`}`);
       };
 
       if (req.op === "raiseDispute") {

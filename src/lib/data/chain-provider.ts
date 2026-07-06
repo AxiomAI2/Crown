@@ -187,7 +187,7 @@ export class ChainDataProvider implements DataProvider {
         this.api.__setToken(null);
       }
       // 2. Свежий SIWS: серверный nonce + подпись кошельком.
-      if (!w.signMessage) throw new DataError("NO_SIGN", "Кошелёк не умеет подписывать сообщения.");
+      if (!w.signMessage) throw new DataError("NO_SIGN", "This wallet cannot sign messages.");
       const { message } = await this.api.authNonce(address);
       let sig: Uint8Array;
       try {
@@ -242,7 +242,7 @@ export class ChainDataProvider implements DataProvider {
   }
   async connect(): Result<Session> {
     const w = this.wallet;
-    if (!w) throw new DataError("NO_WALLET", "Кошелёк не подключён.");
+    if (!w) throw new DataError("NO_WALLET", "Wallet is not connected.");
     if (!w.connected) await w.connect();
     await this.ensureAuth(); // настоящий SIWS: серверный nonce + проверка подписи на бэкенде
     return this.api.getSession();
@@ -260,11 +260,11 @@ export class ChainDataProvider implements DataProvider {
 
   async createDonation(input: DonationInput): Result<DonationResult> {
     const w = this.wallet;
-    if (!w?.publicKey || !w.sendTransaction) throw new DataError("NO_WALLET", "Подключи кошелёк.");
+    if (!w?.publicKey || !w.sendTransaction) throw new DataError("NO_WALLET", "Connect your wallet.");
     if (!DEVNET_USDC_MINT || !TREASURY_OWNER) {
       throw new DataError(
         "NOT_CONFIGURED",
-        "Не заданы NEXT_PUBLIC_DEVNET_USDC_MINT и NEXT_PUBLIC_TREASURY_OWNER.",
+        "NEXT_PUBLIC_DEVNET_USDC_MINT and NEXT_PUBLIC_TREASURY_OWNER are not set.",
       );
     }
     // Префлайт текста ДО подписи/отправки: деньги ончейн необратимы (§4.2), поэтому запрещёнку
@@ -277,8 +277,8 @@ export class ChainDataProvider implements DataProvider {
         throw new DataError(
           reason === "blocklist" ? "BLOCKED" : "TEXT_BLOCKED",
           reason === "blocklist"
-            ? "Этот кошелёк заблокирован на канале для донатов-с-сообщениями. Задонатить можно без текста."
-            : "Сообщение не прошло модерацию (запрещённый/жёсткий контент). Убери его или задонать без текста.",
+            ? "This wallet is blocked from message Crowns on this realm. You can still Crown without text."
+            : "The message didn't pass moderation (prohibited/harsh content). Remove it or Crown without text.",
         );
     }
 
@@ -286,7 +286,7 @@ export class ChainDataProvider implements DataProvider {
     const list = await this.api.listChannels();
     const card = list.items.find((c) => c.channelId === input.channelId);
     const channel = card ? await this.api.getChannel(card.handle) : null;
-    if (!channel) throw new DataError("NO_CHANNEL", "Канал не найден или не активирован.");
+    if (!channel) throw new DataError("NO_CHANNEL", "Realm not found or not activated.");
     this.assertPayoutAttested(channel); // H1: payout валиден только с подписью владельца — сервер не истина
 
     const amountMicro = toMicro(input.amountUSDC);
@@ -321,7 +321,7 @@ export class ChainDataProvider implements DataProvider {
     if (!ingest.ok) {
       throw new DataError(
         "DONATION_PENDING",
-        ingest.reason ?? "Донат пока не финализирован в сети — обнови страницу чуть позже.",
+        ingest.reason ?? "The Crown isn't finalized on-chain yet — refresh the page a little later.",
       );
     }
 
@@ -392,13 +392,13 @@ export class ChainDataProvider implements DataProvider {
   async attestPayout(channelId: string): Result<Channel> {
     const mine = await this.api.getMyChannel();
     if (!mine || mine.id !== channelId)
-      throw new DataError("NOT_OWNER", "Подписать адрес выплат может только владелец канала.");
+      throw new DataError("NOT_OWNER", "Only the realm owner can sign the payout address.");
     return this.api.attestPayout(channelId, await this.signPayoutAttestation(mine.payoutAddress));
   }
   private async signPayoutAttestation(payout: string): Promise<string> {
     const w = this.wallet;
     if (!w?.publicKey || !w.signMessage)
-      throw new DataError("NO_SIGN", "Кошелёк не умеет подписывать сообщения.");
+      throw new DataError("NO_SIGN", "This wallet cannot sign messages.");
     const msg = buildPayoutAttestationMessage(w.publicKey.toBase58(), payout);
     return toBase64(await w.signMessage(new TextEncoder().encode(msg)));
   }
@@ -414,7 +414,7 @@ export class ChainDataProvider implements DataProvider {
     )
       throw new DataError(
         "PAYOUT_UNATTESTED",
-        "Канал не подтвердил адрес выплат подписью владельца — отправка денег заблокирована (защита от подмены адреса).",
+        "The realm hasn't confirmed its payout address with the owner's signature — sending money is blocked (protection against address swapping).",
       );
   }
   /**
@@ -424,11 +424,11 @@ export class ChainDataProvider implements DataProvider {
    */
   async activateChannel(id: string): Result<Channel> {
     const w = this.wallet;
-    if (!w?.publicKey || !w.sendTransaction) throw new DataError("NO_WALLET", "Подключи кошелёк.");
+    if (!w?.publicKey || !w.sendTransaction) throw new DataError("NO_WALLET", "Connect your wallet.");
     if (!DEVNET_USDC_MINT || !TREASURY_OWNER) {
       throw new DataError(
         "NOT_CONFIGURED",
-        "Не заданы NEXT_PUBLIC_DEVNET_USDC_MINT и NEXT_PUBLIC_TREASURY_OWNER.",
+        "NEXT_PUBLIC_DEVNET_USDC_MINT and NEXT_PUBLIC_TREASURY_OWNER are not set.",
       );
     }
     await this.ensureAuth(); // владелец активирует свой канал → нужна проверенная личность для getMyChannel
@@ -451,10 +451,10 @@ export class ChainDataProvider implements DataProvider {
     // иначе сбор уплачен, а канал не активирован. Блокирующе: пользователь ждёт на экране активации.
     const res = await this.ingestWithRetry(() => this.api.ingestActivation(signature));
     if (!res.ok)
-      throw new DataError("ACTIVATION_FAILED", res.reason ?? "Сбор активации не принят.");
+      throw new DataError("ACTIVATION_FAILED", res.reason ?? "Activation fee was not accepted.");
 
     const channel = await this.api.getMyChannel();
-    if (!channel) throw new DataError("NO_CHANNEL", "Канал не найден после активации.");
+    if (!channel) throw new DataError("NO_CHANNEL", "Realm not found after activation.");
     return channel;
   }
   updateChannelConfig(id: string, p: ConfigPatch): Result<ChannelConfig> {
@@ -516,7 +516,7 @@ export class ChainDataProvider implements DataProvider {
   /** Собрать tx из инструкций, подписать подключённым кошельком, дождаться confirmed. Вернуть подпись. */
   private async sendTx(ixs: TransactionInstruction[]): Promise<string> {
     const w = this.wallet;
-    if (!w?.publicKey || !w.sendTransaction) throw new DataError("NO_WALLET", "Подключи кошелёк.");
+    if (!w?.publicKey || !w.sendTransaction) throw new DataError("NO_WALLET", "Connect your wallet.");
     const tx = new Transaction().add(...ixs);
     tx.feePayer = w.publicKey;
     const latest = await this.connection.getLatestBlockhash();
@@ -535,18 +535,18 @@ export class ChainDataProvider implements DataProvider {
       payload: { taskId },
     })) as { escrowTaskId?: string } | null;
     if (!task?.escrowTaskId)
-      throw new DataError("NO_ESCROW", "У задания нет ончейн-эскроу (создано не в chain-режиме?).");
+      throw new DataError("NO_ESCROW", "This task has no on-chain escrow (was it created outside chain mode?).");
     return fromHex(task.escrowTaskId);
   }
 
   async gameAction(req: GameRequest): Result<unknown> {
     if (req.gameId !== "escrow-task") return this.api.gameAction(req);
     const w = this.wallet;
-    if (!w?.publicKey) throw new DataError("NO_WALLET", "Подключи кошелёк.");
+    if (!w?.publicKey) throw new DataError("NO_WALLET", "Connect your wallet.");
     if (!ESCROW_PROGRAM_ID || !DEVNET_USDC_MINT) {
       throw new DataError(
         "NOT_CONFIGURED",
-        "Не задан адрес эскроу-программы или USDC-mint (NEXT_PUBLIC_ESCROW_PROGRAM_ID/USDC).",
+        "The escrow program address or USDC mint is not set (NEXT_PUBLIC_ESCROW_PROGRAM_ID/USDC).",
       );
     }
     const programId = new PublicKey(ESCROW_PROGRAM_ID);
@@ -557,7 +557,7 @@ export class ChainDataProvider implements DataProvider {
       case "create": {
         const amountStr = String(p.amount ?? "");
         if (!/^\d+$/.test(amountStr) || BigInt(amountStr) <= 0n)
-          throw new DataError("BAD_AMOUNT", "Нужна положительная сумма (micro-USDC).");
+          throw new DataError("BAD_AMOUNT", "A positive amount is required (micro-USDC).");
         // Рычаги канала ДО подписи/отправки (паритет с серверным create): эскроу необратим — BELOW_MIN/
         // TOO_LONG после fund заморозили бы деньги до таймаута возврата. Сервер проверит ещё раз (истина там).
         const text = typeof p.text === "string" ? p.text.trim() : "";
@@ -565,9 +565,9 @@ export class ChainDataProvider implements DataProvider {
         const minTask =
           cfg.minDonationWithText > cfg.minDonation ? cfg.minDonationWithText : cfg.minDonation;
         if (BigInt(amountStr) < minTask)
-          throw new DataError("BELOW_MIN", "Сумма ниже минимума канала для заданий.");
+          throw new DataError("BELOW_MIN", "Amount is below the realm minimum for tasks.");
         if (text.length > cfg.messageMaxLen)
-          throw new DataError("TOO_LONG", "Текст задания превышает лимит канала.");
+          throw new DataError("TOO_LONG", "Task text exceeds the realm limit.");
         // §10-порог ДО подписи (паритет с серверным create): эскроу необратим — отказ LOW_REP ПОСЛЕ
         // fund заморозил бы деньги донора до таймаута возврата (yellow-paper §18.3-5, закрыто).
         if (cfg.minReputationToTask > 0) {
@@ -575,7 +575,7 @@ export class ChainDataProvider implements DataProvider {
           if ((st?.points ?? 0) < cfg.minReputationToTask)
             throw new DataError(
               "LOW_REP",
-              `Задания на этом канале доступны с ${cfg.minReputationToTask} очков репутации — набери их обычными донатами.`,
+              `Tasks on this realm start at ${cfg.minReputationToTask} Reign — build it up with regular Crowns.`,
             );
         }
         // Модерация ДО подписи/отправки: деньги ончейн необратимы — запрещёнку ловим заранее, иначе
@@ -588,15 +588,15 @@ export class ChainDataProvider implements DataProvider {
             throw new DataError(
               reason === "blocklist" ? "BLOCKED" : "TEXT_BLOCKED",
               reason === "blocklist"
-                ? "Кошелёк заблокирован на канале для сообщений."
-                : "Текст задания не прошёл модерацию (запрещённый/опасный контент).",
+                ? "This wallet is blocked from messages on this realm."
+                : "The task text didn't pass moderation (prohibited/dangerous content).",
             );
         }
         // channelId → payout-адрес стримера (через оффчейн-бэкенд, как в createDonation).
         const list = await this.api.listChannels();
         const card = list.items.find((c) => c.channelId === req.channelId);
         const channel = card ? await this.api.getChannel(card.handle) : null;
-        if (!channel) throw new DataError("NO_CHANNEL", "Канал не найден или не активирован.");
+        if (!channel) throw new DataError("NO_CHANNEL", "Realm not found or not activated.");
         this.assertPayoutAttested(channel); // H1: эскроу-fund — тоже деньги на payout, та же проверка
         const rawMs = typeof p.executionMs === "number" ? p.executionMs : 24 * 3600 * 1000;
         // Клампим окно сдачи к executionMin (тот же пол, что и machine.createTask; executionMin > grace, ESC-17)

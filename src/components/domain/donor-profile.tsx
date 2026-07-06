@@ -50,17 +50,38 @@ const DONATIONS = ["crown", "crowns", "crowns"] as const;
 const CHANNELS = ["realm", "realms", "realms"] as const;
 const POINTS = ["Reign", "Reign", "Reign"] as const;
 
-/** Profile avatar: monogram with a stable color derived from name/address (no images — §profile). */
-export function ProfileAvatar({ name, address }: { name?: string; address: string }) {
+/** Profile avatar: the donor's uploaded avatar if set, else a monogram with a stable color from name/address. */
+export function ProfileAvatar({
+  name,
+  address,
+  avatarUrl,
+}: {
+  name?: string;
+  address: string;
+  avatarUrl?: string;
+}) {
+  const [broken, setBroken] = useState(false);
   const seed = name?.trim() || address;
   const initial = seed.replace(/^@/, "").slice(0, 1).toUpperCase();
   const hue = channelHue(seed);
+  const showImg = !!avatarUrl && !broken;
   return (
     <div
-      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full font-display text-h3"
+      className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full font-display text-h3"
       style={{ backgroundColor: `hsl(${hue} 45% 20%)`, color: `hsl(${hue} 70% 72%)` }}
     >
-      {initial}
+      {showImg ? (
+        // Avatars are arbitrary external/data URLs; next/image needs a host allowlist → plain <img>.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={avatarUrl}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={() => setBroken(true)}
+        />
+      ) : (
+        initial
+      )}
     </div>
   );
 }
@@ -458,7 +479,7 @@ function DonorDashboard({
         {/* Identity card — modeled on the realm header (label + large name + meta with counters). */}
         <div className="flex flex-col gap-4 rounded-lg border border-border bg-[var(--bg)] p-4">
           <div className="flex items-start gap-4">
-            <ProfileAvatar name={name} address={overview.address} />
+            <ProfileAvatar name={name} address={overview.address} avatarUrl={overview.avatarUrl} />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <span className="text-caption uppercase tracking-wide text-fg-faint">Profile</span>
               <h1 className="text-display-l leading-tight text-fg">{name}</h1>

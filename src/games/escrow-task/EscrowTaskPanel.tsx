@@ -415,45 +415,52 @@ export function EscrowTaskRules({ channelId }: { channelId?: string }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <h3 className="text-h3 text-fg">Как работает</h3>
+        <h3 className="text-h3 text-fg">How it works</h3>
         <ol className="text-small flex list-inside list-decimal flex-col gap-1 text-fg-muted">
-          <li>Зритель донатит с заданием — деньги замораживаются в эскроу.</li>
-          <li>Стример выполняет задание и жмёт «Готово» (доказательство — сам стрим/VOD).</li>
+          <li>A viewer crowns with a task — the money is frozen in escrow.</li>
           <li>
-            Окно оспаривания {fmtWindow(disputeWindow)}: если никто не спорит — деньги уходят
-            стримеру.
+            The streamer delivers the task and hits &quot;Done&quot; (the proof is the stream/VOD
+            itself).
           </li>
           <li>
-            Считаешь, что не выполнено? С репутацией{" "}
+            {fmtWindow(disputeWindow)} dispute window: if no one disputes, the money goes to the
+            streamer.
+          </li>
+          <li>
+            Think it wasn&apos;t delivered? With Reign{" "}
             {minRepPts != null ? (
               <span className="mono">≥ {formatPoints(minRepPts)}</span>
             ) : (
-              "≥ порога"
+              "≥ the threshold"
             )}{" "}
-            поднимаешь спор → голосование {fmtWindow(votingWindow)}
+            you raise a dispute → {fmtWindow(votingWindow)} voting
             {quorumPts != null ? (
               <>
                 {" "}
-                (кворум явки — <span className="mono">{formatPoints(quorumPts)}</span> очков; не
-                соберётся — деньги уйдут стримеру)
+                (turnout quorum — <span className="mono">{formatPoints(quorumPts)}</span> Reign; if
+                it&apos;s not met, the money goes to the streamer)
               </>
             ) : null}
             .
           </li>
-          <li>Комьюнити решило «не выполнил» → 100% назад донору; «выполнил» → стримеру.</li>
+          <li>
+            Community decides &quot;not delivered&quot; → 100% back to the supporter;
+            &quot;delivered&quot; → to the streamer.
+          </li>
         </ol>
       </div>
       <div className="flex flex-col gap-2">
-        <h3 className="text-h3 text-fg">Почему это честно</h3>
+        <h3 className="text-h3 text-fg">Why it&apos;s fair</h3>
         <ul className="text-small flex list-inside list-disc flex-col gap-1 text-fg-muted">
           <li>
-            Приза нет: деньги либо стримеру за дело, либо назад донору — выиграть чужое нельзя (не
-            пари).
+            There&apos;s no prize: the money either goes to the streamer for the work or back to the
+            supporter — you can&apos;t win someone else&apos;s money (not a bet).
           </li>
           <li>
-            Голос взвешен репутацией на момент спора — накрутить «под спор» задним числом нельзя.
+            A vote is weighted by Reign at the time of the dispute — you can&apos;t farm it after the
+            fact just for the vote.
           </li>
-          <li>Жюри не платят, а поднявший ложный спор рискует своей репутацией.</li>
+          <li>The jury isn&apos;t paid, and whoever raises a false dispute risks their own Reign.</li>
         </ul>
       </div>
     </div>
@@ -482,9 +489,9 @@ function TaskModeration({
       reports?: number;
       hidden?: boolean;
     };
-  const title = "Пожаловаться на задание";
+  const title = "Report this task";
   const description =
-    "Выбери причину — жалоба уйдёт стримеру и оператору. При нескольких жалобах текст задания авто-скрывается.";
+    "Pick a reason — the report goes to the streamer and the operator. With several reports the task text is auto-hidden.";
   if (isManager)
     return (
       <ModerationMenu
@@ -525,7 +532,7 @@ export function TaskFeedRow({
 }) {
   const final = task.resolution ?? null;
   const status = final
-    ? `Итог: ${outcomeLabel(final.outcome)}${final.claimed ? " · забрано" : ""}`
+    ? `Result: ${outcomeLabel(final.outcome)}${final.claimed ? " · claimed" : ""}`
     : STATUS_LABEL[task.status];
   const name = shortAddress(task.donor);
   // Тот же лёгкий ряд-с-аватаром, что у обычного доната (DonationCard variant="row" avatar). Задание-специфика
@@ -544,7 +551,7 @@ export function TaskFeedRow({
               {name}
             </Link>
             <span className="text-caption shrink-0 rounded-pill border border-money px-2 py-0.5 text-money">
-              Задание
+              Task
             </span>
             <span className="text-caption shrink-0 rounded-pill border border-border px-2 py-0.5 text-fg-faint">
               {status}
@@ -556,9 +563,9 @@ export function TaskFeedRow({
         {isTextPublic(task) ? (
           <p className="text-body break-words text-fg">{collapseWhitespace(task.text)}</p>
         ) : task.operatorBlocked ? (
-          <p className="text-small italic text-fg-faint">[снято оператором платформы]</p>
+          <p className="text-small italic text-fg-faint">[removed by the platform operator]</p>
         ) : (
-          <p className="text-small italic text-fg-faint">[не показано]</p>
+          <p className="text-small italic text-fg-faint">[hidden]</p>
         )}
         {/* Был спор → одна компактная строка-ссылка на табло (голоса/вердикт там, ленту не грузим). */}
         {task.dispute ? (
@@ -566,8 +573,8 @@ export function TaskFeedRow({
             href={`/c/${handle}/dispute/${encodeURIComponent(task.id)}`}
             className="text-caption self-start text-fg-muted transition-colors hover:text-info"
           >
-            Спор · {task.dispute.votes.length}{" "}
-            {plural(task.dispute.votes.length, ["голос", "голоса", "голосов"])} →
+            Dispute · {task.dispute.votes.length}{" "}
+            {plural(task.dispute.votes.length, ["vote", "votes", "votes"])} →
           </Link>
         ) : null}
         <div className="text-caption flex flex-wrap items-center gap-2 text-fg-faint">
@@ -579,8 +586,8 @@ export function TaskFeedRow({
                 target="_blank"
                 rel="noreferrer"
                 className="flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
-                title="Эскроу в блокчейн-эксплорере"
-                aria-label="Эскроу в блокчейн-эксплорере"
+                title="Escrow in the blockchain explorer"
+                aria-label="Escrow in the blockchain explorer"
               >
                 <ExternalLinkIcon className="h-4 w-4" />
               </a>
@@ -649,7 +656,7 @@ function TaskCard({
           </Link>
           <span className="text-caption shrink-0 rounded-pill border border-border px-2 py-0.5 text-fg-faint">
             {final
-              ? `Итог: ${outcomeLabel(final.outcome)}${final.claimed ? " · забрано" : ""}`
+              ? `Result: ${outcomeLabel(final.outcome)}${final.claimed ? " · claimed" : ""}`
               : STATUS_LABEL[task.status]}
           </span>
         </div>
@@ -659,9 +666,9 @@ function TaskCard({
       {canSeeText ? (
         <p className="text-body break-words text-fg">{collapseWhitespace(task.text)}</p>
       ) : task.operatorBlocked ? (
-        <p className="text-body italic text-fg-faint">[снято оператором платформы]</p>
+        <p className="text-body italic text-fg-faint">[removed by the platform operator]</p>
       ) : (
-        <p className="text-body italic text-fg-faint">[не показано]</p>
+        <p className="text-body italic text-fg-faint">[hidden]</p>
       )}
 
       {cd ? <CanisterDisputeBlock cd={cd} now={now} /> : null}
@@ -675,14 +682,14 @@ function TaskCard({
           href={`/c/${handle}/dispute/${encodeURIComponent(task.id)}`}
           className="text-small self-start text-info hover:underline"
         >
-          Участники и голоса ({task.dispute.votes.length}) →
+          Participants and votes ({task.dispute.votes.length}) →
         </Link>
       ) : null}
 
       <div className="text-small flex flex-wrap items-center gap-2 text-fg-faint">
         <span title={task.createdAt}>{timeAgo(task.createdAt)}</span>
         {!final && due ? (
-          <span>· готово к разрешению: {outcomeLabel(due.outcome)}</span>
+          <span>· ready to resolve: {outcomeLabel(due.outcome)}</span>
         ) : !final && deadlineLabel(task, now) ? (
           <span className="mono">· {deadlineLabel(task, now)}</span>
         ) : null}
@@ -694,8 +701,8 @@ function TaskCard({
               target="_blank"
               rel="noreferrer"
               className="flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
-              title="Эскроу в блокчейн-эксплорере"
-              aria-label="Эскроу в блокчейн-эксплорере"
+              title="Escrow in the blockchain explorer"
+              aria-label="Escrow in the blockchain explorer"
             >
               <ExternalLinkIcon className="h-4 w-4" />
             </a>
@@ -713,18 +720,18 @@ function TaskCard({
             size="sm"
             variant="ghost"
             disabled={pending}
-            onClick={() => run("setTextState", { taskId: id, state: "HIDDEN" }, "Текст скрыт")}
+            onClick={() => run("setTextState", { taskId: id, state: "HIDDEN" }, "Text hidden")}
           >
-            Скрыть текст
+            Hide text
           </Button>
         ) : isStreamer && !isTextPublic(task) && !task.operatorBlocked && !due && !final ? (
           <Button
             size="sm"
             variant="secondary"
             disabled={pending}
-            onClick={() => run("setTextState", { taskId: id, state: "SHOWN" }, "Текст показан")}
+            onClick={() => run("setTextState", { taskId: id, state: "SHOWN" }, "Text shown")}
           >
-            Показать текст
+            Show text
           </Button>
         ) : null}
         {isStreamer && task.status === "PENDING" && !due ? (
@@ -735,18 +742,18 @@ function TaskCard({
               size="sm"
               variant="secondary"
               disabled={pending}
-              onClick={() => run("accept", { taskId: id }, "Принято — текст показан")}
+              onClick={() => run("accept", { taskId: id }, "Accepted — text shown")}
             >
-              Принять
+              Accept
             </Button>
             <Button
               size="sm"
               variant="ghost"
               disabled={pending}
               // Отказ = скрыть из фронтенда (без ончейн-tx/газа). Эскроу вернётся донору сам по таймеру.
-              onClick={() => run("hide", { taskId: id }, "Отклонено — вернётся донору по таймеру")}
+              onClick={() => run("hide", { taskId: id }, "Rejected — refunds to the supporter on the timer")}
             >
-              Отклонить
+              Reject
             </Button>
           </>
         ) : null}
@@ -756,9 +763,9 @@ function TaskCard({
             size="sm"
             variant="money"
             disabled={pending}
-            onClick={() => run("markDone", { taskId: id }, "Отмечено «Готово»")}
+            onClick={() => run("markDone", { taskId: id }, "Marked as Done")}
           >
-            Готово
+            Done
           </Button>
         ) : null}
 
@@ -767,9 +774,9 @@ function TaskCard({
             size="sm"
             variant="ghost"
             disabled={pending}
-            onClick={() => run("cancel", { taskId: id }, "Отменено")}
+            onClick={() => run("cancel", { taskId: id }, "Canceled")}
           >
-            Отменить
+            Cancel
           </Button>
         ) : null}
 
@@ -781,9 +788,9 @@ function TaskCard({
             size="sm"
             variant="secondary"
             disabled={pending}
-            onClick={() => run("raiseDispute", { taskId: id }, "Спор поднят")}
+            onClick={() => run("raiseDispute", { taskId: id }, "Dispute raised")}
           >
-            Оспорить
+            Dispute
           </Button>
         ) : null}
 
@@ -799,17 +806,17 @@ function TaskCard({
               size="sm"
               variant="secondary"
               disabled={pending}
-              onClick={() => run("vote", { taskId: id, choice: "completed" }, "Голос учтён")}
+              onClick={() => run("vote", { taskId: id, choice: "completed" }, "Vote counted")}
             >
-              Голос: выполнил
+              Vote: delivered
             </Button>
             <Button
               size="sm"
               variant="ghost"
               disabled={pending}
-              onClick={() => run("vote", { taskId: id, choice: "not_completed" }, "Голос учтён")}
+              onClick={() => run("vote", { taskId: id, choice: "not_completed" }, "Vote counted")}
             >
-              Голос: не выполнил
+              Vote: not delivered
             </Button>
           </>
         ) : null}
@@ -821,17 +828,17 @@ function TaskCard({
               size="sm"
               variant="secondary"
               disabled={pending}
-              onClick={() => run("vote", { taskId: id, choice: "completed" }, "Голос учтён")}
+              onClick={() => run("vote", { taskId: id, choice: "completed" }, "Vote counted")}
             >
-              Голос: выполнил
+              Vote: delivered
             </Button>
             <Button
               size="sm"
               variant="ghost"
               disabled={pending}
-              onClick={() => run("vote", { taskId: id, choice: "not_completed" }, "Голос учтён")}
+              onClick={() => run("vote", { taskId: id, choice: "not_completed" }, "Vote counted")}
             >
-              Голос: не выполнил
+              Vote: not delivered
             </Button>
           </>
         ) : null}
@@ -841,9 +848,9 @@ function TaskCard({
             size="sm"
             variant="money"
             disabled={pending}
-            onClick={() => run("claim", { taskId: id }, "Забрано")}
+            onClick={() => run("claim", { taskId: id }, "Claimed")}
           >
-            Забрать
+            Claim
           </Button>
         ) : null}
       </div>
@@ -873,14 +880,15 @@ function CanisterDisputeBlock({ cd, now }: { cd: CanisterDisputeView; now: numbe
     <div className="flex flex-col gap-2">
       <div className="text-caption flex flex-wrap items-center gap-x-3 text-fg-faint">
         <span>
-          Спор решается канистрой — исход подпишет тресхолд-резолвер, площадка не участвует.
+          The dispute is resolved by the canister — a threshold resolver signs the outcome; the
+          platform does not take part.
         </span>
         {!cd.verdict && cd.votingEndsAtMs ? (
           <span className="mono">
-            голосование ·{" "}
+            voting ·{" "}
             {now <= cd.votingEndsAtMs
               ? until(new Date(cd.votingEndsAtMs).toISOString(), now)
-              : "ждёт вердикта"}
+              : "awaiting verdict"}
           </span>
         ) : null}
       </div>
@@ -888,7 +896,7 @@ function CanisterDisputeBlock({ cd, now }: { cd: CanisterDisputeView; now: numbe
       {cd.verdict ? (
         <div className="text-small flex flex-wrap items-center gap-x-3 text-fg-muted">
           <span>
-            Вердикт:{" "}
+            Verdict:{" "}
             <span
               style={{
                 color: cd.verdict.outcome === "to_streamer" ? "var(--money)" : "var(--danger)",
@@ -904,10 +912,10 @@ function CanisterDisputeBlock({ cd, now }: { cd: CanisterDisputeView; now: numbe
               rel="noreferrer"
               className="text-info hover:underline"
             >
-              подпись резолвера ↗
+              resolver signature ↗
             </a>
           ) : (
-            <span className="text-fg-faint">исполняется на цепочке…</span>
+            <span className="text-fg-faint">executing on-chain…</span>
           )}
         </div>
       ) : null}
@@ -940,17 +948,17 @@ function DisputeTally({ dispute }: { dispute: TaskDispute }) {
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col items-start">
           <span className="text-small" style={{ color: "var(--money)" }}>
-            Выполнил
+            Delivered
           </span>
-          <span className="mono text-small text-fg">{completed} очков</span>
-          <span className="text-caption text-fg-faint">{cVotes} голос(ов)</span>
+          <span className="mono text-small text-fg">{completed} pts</span>
+          <span className="text-caption text-fg-faint">{cVotes} vote(s)</span>
         </div>
         <div className="flex flex-col items-end">
           <span className="text-small" style={{ color: "var(--danger)" }}>
-            Не выполнил
+            Not delivered
           </span>
-          <span className="mono text-small text-fg">{not} очков</span>
-          <span className="text-caption text-fg-faint">{nVotes} голос(ов)</span>
+          <span className="mono text-small text-fg">{not} pts</span>
+          <span className="text-caption text-fg-faint">{nVotes} vote(s)</span>
         </div>
       </div>
       <div className="flex h-2 overflow-hidden rounded-pill bg-surface-raised">
@@ -959,13 +967,13 @@ function DisputeTally({ dispute }: { dispute: TaskDispute }) {
       </div>
       <div className="text-caption flex flex-wrap items-center justify-between gap-x-3 text-fg-faint">
         <span className="mono">
-          вес {total} / кворум {dispute.quorum}
-          {quorumMet ? "" : " · кворум не собран"}
+          weight {total} / quorum {dispute.quorum}
+          {quorumMet ? "" : " · quorum not reached"}
         </span>
         <span>
-          сейчас ведёт:{" "}
+          leading now:{" "}
           <span style={{ color: lead === "to_streamer" ? "var(--money)" : "var(--danger)" }}>
-            {lead === "to_streamer" ? "стримеру" : "возврат донору"}
+            {lead === "to_streamer" ? "to streamer" : "refund to supporter"}
           </span>
         </span>
       </div>

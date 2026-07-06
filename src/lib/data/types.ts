@@ -170,6 +170,7 @@ export interface Donation {
   ts: Iso;
   message?: MessageRef;
   donorName?: string; // supporter's nickname from the light profile (display only; not written to the ledger)
+  donorAvatarUrl?: string; // supporter's avatar from the light profile (display only; same gate as donorName)
 }
 
 // — Bans and blocks —
@@ -220,6 +221,7 @@ export interface LeaderboardEntry {
   rank: number;
   donor: Address;
   displayName?: string;
+  avatarUrl?: string; // donor's profile avatar (same public-identity gate as displayName)
   points: Points;
   tier?: Tier; // undefined → below the first tier's threshold
   totalDonated: MicroUSDC;
@@ -320,6 +322,8 @@ export interface DonorPointEvent {
 
 export interface DonorOverview {
   address: Address;
+  displayName?: string; // donor's own profile name (for the profile header)
+  avatarUrl?: string; // donor's own profile avatar (for the profile header)
   totalDonated: MicroUSDC; // sum across all realms (money is aggregatable)
   donationCount: number;
   channelsSupported: number;

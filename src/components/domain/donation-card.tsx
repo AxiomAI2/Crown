@@ -89,7 +89,7 @@ export function DonationCard({
   if (variant === "row" && avatar) {
     return (
       <div className="flex gap-3 border-b border-border py-3.5">
-        <Monogram name={name} size="md" />
+        <Monogram name={name} avatarUrl={donation.donorAvatarUrl} size="md" />
         <div className="flex min-w-0 flex-1 flex-col gap-1">{body}</div>
       </div>
     );

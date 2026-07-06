@@ -78,13 +78,13 @@ function Home() {
  */
 function GuestIntro() {
   return (
-    <div className="flex flex-col gap-1.5 pt-1">
-      <p className="max-w-3xl text-body text-fg">
-        Crown a streamer with USDC and build your <span className="text-status">Reign</span> — reputation
-        inside their community that&apos;s earned, never bought or sold.
+    <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface px-5 py-4 sm:px-6 sm:py-5">
+      <p className="max-w-3xl text-h3 leading-snug text-fg">
+        Crown a streamer with USDC — build <span className="text-status">Reign</span>, reputation you
+        earn inside their community.
       </p>
-      <p className="text-small text-fg-faint">
-        Crown&nbsp;→ earn Reign&nbsp;→ climb the realm&apos;s tiers.
+      <p className="text-small text-fg-muted">
+        Crown&nbsp;→ earn Reign&nbsp;→ climb the realm&apos;s tiers. Earned, never bought or sold.
       </p>
     </div>
   );

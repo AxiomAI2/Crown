@@ -754,14 +754,14 @@ export class MockDataProvider implements DataProvider {
       const totalDonated = events
         .filter((e) => e.type === "DONATION")
         .reduce((s, e) => s + e.amount, 0n);
+      // addresses_only OR blocked → we do not return public identity (name/avatar); the UI shows a short address.
+      const showIdentity = cfg.nameMode === "allow_display_names" && !blocked.has(donor);
+      const prof = showIdentity ? this.profiles.get(donor) : undefined;
       entries.push({
         rank: 0,
         donor,
-        // addresses_only OR blocked → we do not return a name, the UI shows a short address.
-        displayName:
-          cfg.nameMode === "allow_display_names" && !blocked.has(donor)
-            ? this.profiles.get(donor)?.displayName
-            : undefined,
+        displayName: prof?.displayName,
+        avatarUrl: prof?.avatarUrl,
         points,
         tier: resolveTier(points, cfg.tiers).tier,
         totalDonated,
@@ -821,8 +821,10 @@ export class MockDataProvider implements DataProvider {
       .sort((a, b) => (a.ts < b.ts ? 1 : -1))
       .map((d) => {
         const r = this.redactDonation(d, false);
-        const donorName = this.profiles.get(d.donor)?.displayName;
-        return donorName ? { ...r, donorName } : r;
+        const prof = this.profiles.get(d.donor);
+        return prof?.displayName || prof?.avatarUrl
+          ? { ...r, donorName: prof?.displayName, donorAvatarUrl: prof?.avatarUrl }
+          : r;
       });
 
     // The donor's points log: what points were CREDITED for (crowns + escrow tasks that landed), newest first.
@@ -890,8 +892,11 @@ export class MockDataProvider implements DataProvider {
     // Whether this address owns a realm (one per wallet, ADR 0002) — so the profile can link to the realm.
     const ownedChannel = [...this.channelsById.values()].find((c) => c.ownerAddress === address);
 
+    const ownProfile = this.profiles.get(address);
     return {
       address,
+      displayName: ownProfile?.displayName,
+      avatarUrl: ownProfile?.avatarUrl,
       totalDonated,
       donationCount: donations.length,
       channelsSupported: standings.length,
@@ -1243,9 +1248,10 @@ export class MockDataProvider implements DataProvider {
       .sort((a, b) => (a.ts < b.ts ? 1 : -1))
       .map((d) => {
         const r = this.redactDonation(d, isManager);
-        const donorName =
-          showNames && !blocked.has(d.donor) ? this.profiles.get(d.donor)?.displayName : undefined;
-        return donorName ? { ...r, donorName } : r;
+        const prof = showNames && !blocked.has(d.donor) ? this.profiles.get(d.donor) : undefined;
+        return prof?.displayName || prof?.avatarUrl
+          ? { ...r, donorName: prof?.displayName, donorAvatarUrl: prof?.avatarUrl }
+          : r;
       });
     return { items };
   }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { Monogram } from "./header-actions";
 import { TierBadge } from "./standing";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Select } from "@/components/ui/select";
@@ -121,6 +122,7 @@ export function Leaderboard({
               >
                 <div className="flex min-w-0 items-center gap-3">
                   <span className="mono w-6 shrink-0 text-small text-fg-faint">{i + 1}</span>
+                  <Monogram name={e.displayName ?? e.donor} avatarUrl={e.avatarUrl} size="sm" />
                   <span className="truncate text-small text-fg">
                     {e.displayName ?? shortAddress(e.donor)}
                   </span>

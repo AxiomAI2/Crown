@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChannelSettingsEditor } from "@/components/domain/channel-settings-editor";
 import { ChannelStatusBanner } from "@/components/domain/channel-status";
@@ -79,6 +80,7 @@ export default function SpacePage() {
   const realmKnown = !myChannelQ.isLoading;
   const [section, setSection] = useState<SectionKey>("holdings-dashboard");
   const { collapsed, toggle } = useRailCollapsed("space-rail");
+  const searchParams = useSearchParams();
 
   // Dev-only: `?as=<label>` logs in a seeded identity (mock only; inert in api/chain).
   useEffect(() => {
@@ -87,11 +89,12 @@ export default function SpacePage() {
     if (as) dev.setAddress(demoAddress(as));
   }, [address, dev.available]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Section deep-link: `?tab=realm-customization` etc. (+ aliases).
+  // Section deep-link: `?tab=realm-customization` etc. (+ aliases). Reacts to searchParams so in-app links
+  // that only change ?tab= (e.g. the "Open queue" banner) actually switch the view — not just the URL.
   useEffect(() => {
-    const t = new URLSearchParams(window.location.search).get("tab");
+    const t = searchParams.get("tab");
     if (t && TAB_ALIAS[t]) setSection(TAB_ALIAS[t]);
-  }, []);
+  }, [searchParams]);
 
   // Keep the section consistent with realm ownership (after creation / if there is no realm yet).
   useEffect(() => {
