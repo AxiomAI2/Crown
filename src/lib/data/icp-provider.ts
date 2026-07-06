@@ -1,22 +1,22 @@
 /**
- * IcpDataProvider — the `icp` mode (M1+M2 of the migration, ADR 0021): the ICP canister = the CANON of Reign and disputes.
+ * IcpDataProvider — режим `icp` (M1+M2 миграции, ADR 0021): канистра ICP = КАНОН репутации и споров.
  *
- * A hybrid on top of ChainDataProvider. To the canister go:
- *  - Reign reads: `getStanding`, `getLeaderboard`, the numbers and journal of `getDonorOverview`
- *    (HTTP export of the core canister; the browser reads the canon BYPASSING our server — that's the point of the phase);
- *  - disputes over chain tasks (M2): opening/voting — wallet signatures to the arbiter (`gameAction`),
- *    the dispute state is MERGED into task reads (`gameQuery`/`homeFeed`) — the server mirror
- *    doesn't see the dispute, the canon of status/votes/verdict is the arbiter;
- *  - a realm's dispute governance parameters (M1): read/write with the owner's signature.
- * Everything else — as in chain: wallet, Crowns, escrow money, texts/moderation/profiles — the server.
+ * Гибрид поверх ChainDataProvider. В канистру идут:
+ *  - чтения репутации: `getStanding`, `getLeaderboard`, цифры и журнал `getDonorOverview`
+ *    (HTTP-экспорт core-канистры; браузер читает канон МИМО нашего сервера — в этом смысл фазы);
+ *  - споры по chain-задачам (M2): открытие/голос — подписи кошелька в арбитр (`gameAction`),
+ *    состояние спора ВЛИВАЕТСЯ в чтения задач (`gameQuery`/`homeFeed`) — серверное зеркало
+ *    спор не видит, канон статуса/голосов/вердикта — арбитр;
+ *  - governance-параметры споров канала (M1): чтение/запись подписью владельца.
+ * Всё остальное — как в chain: кошелёк, донаты, эскроу-деньги, тексты/модерация/профили — сервер.
  *
- * The cosmetics stay skin: donor names on the leaderboard are pulled from the server and joined
- * to the canonical numbers; server unavailable → numbers without names (money/Reign don't depend on skin).
+ * Косметика остаётся кожей: имена доноров на лидерборде подтягиваются с сервера и присоединяются
+ * к каноничным цифрам; сервер недоступен → цифры без имён (деньги/репутация не зависят от кожи).
  *
- * The canon delta at the transition (yellow-paper §18.5-8a): the canister knows only on-chain events;
- * realms of the mock era (without on-chain activation) keep server numbers and events.
+ * Дельта канона на переходе (yellow-paper §18.5-8a): канистра знает только ончейн-события;
+ * каналы mock-эпохи (без ончейн-активации) остаются с серверными цифрами и событиями.
  *
- * Rollback (migration-plan §3): NEXT_PUBLIC_DATA_SOURCE=chain — the frontend reads the server again.
+ * Откат (migration-plan §3): NEXT_PUBLIC_DATA_SOURCE=chain — фронт снова читает сервер.
  */
 import { PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
@@ -51,7 +51,7 @@ import type {
   ViewerStanding,
 } from "./types";
 
-/** Donor aggregate from the canister's HTTP export (`/standing`, `/leaderboard`). Money as strings. */
+/** Агрегат донора из HTTP-экспорта канистры (`/standing`, `/leaderboard`). Деньги — строками. */
 interface CanisterAgg {
   address: string;
   pointsMicro: string;
@@ -61,21 +61,21 @@ interface CanisterAgg {
 }
 
 const MICRO_PER_POINT = 1_000_000;
-/** The leaderboard's "month" = a rolling 30 days — the same semantics as the server (mock-provider). */
+/** «Месяц» лидерборда = скользящие 30 дней — та же семантика, что у сервера (mock-provider). */
 const MONTH_MS = 30 * 86_400_000;
 
-/** A donor journal entry from the canister's `/donor` (detail for the profile's "Reign journal"). */
+/** Запись журнала донора из `/donor` канистры (детализация для «Журнала репутации» профиля). */
 interface CanisterDonorEvent {
   seq: number;
   channelId: string;
   kind: "DONATION" | "GAME_DONATION" | "DISPUTE_WON" | "DISPUTE_LOST";
-  pointsDeltaMicro: string; // signed (DISPUTE_LOST < 0)
+  pointsDeltaMicro: string; // знаковая (DISPUTE_LOST < 0)
   amountMicro: string;
   blockTime: number | null;
-  signature: string; // tx signature for money entries; pseudo `dispute:…` for dispute effects
+  signature: string; // tx-подпись для денежных записей; псевдо `dispute:…` у спор-эффектов
 }
 
-/** Canister dispute → the off-chain TaskDispute form (micro → points at the UI boundary). null — no dispute. */
+/** Спор канистры → оффчейн-форма TaskDispute (micro → очки на границе UI). null — спора нет. */
 function canisterDisputeAsTask(cd: CanisterDisputeView): TaskDispute | null {
   if (cd.openedAtMs == null) return null;
   return {
@@ -93,9 +93,9 @@ function canisterDisputeAsTask(cd: CanisterDisputeView): TaskDispute | null {
 }
 
 /**
- * Merge the canister dispute into the server-mirror task: dispute status/votes are the arbiter's canon.
- * We don't downgrade the server's RESOLVED (the indexer already saw the on-chain outcome — with it the dispute is history);
- * otherwise a task with an ongoing/decided dispute would show as DISPUTED rather than the mirror's "DONE".
+ * Влить спор канистры в задачу серверного зеркала: статус/голоса спора — канон арбитра.
+ * RESOLVED сервера не понижаем (индексер уже увидел ончейн-исход — спор при нём история);
+ * иначе задача с идущим/вынесенным спором показывается как DISPUTED, а не «DONE» зеркала.
  */
 function mergeCanisterDispute(
   task: EscrowTask,
@@ -112,7 +112,7 @@ export class IcpDataProvider extends ChainDataProvider {
     if (!ICP_CANISTER_URL) {
       throw new DataError(
         "NOT_CONFIGURED",
-        "The icp mode requires NEXT_PUBLIC_ICP_CANISTER_URL (runbook 'ICP canisters').",
+        "Режим icp требует NEXT_PUBLIC_ICP_CANISTER_URL (runbook «Канистры ICP»).",
       );
     }
     let res: Response;
@@ -121,10 +121,10 @@ export class IcpDataProvider extends ChainDataProvider {
     } catch {
       throw new DataError(
         "NETWORK",
-        "The canister is unavailable — is the local stand up? (runbook 'ICP canisters')",
+        "Канистра недоступна — поднят ли локальный стенд? (runbook «Канистры ICP»)",
       );
     }
-    if (!res.ok) throw new DataError("BAD_RESPONSE", `The canister responded HTTP ${res.status}`);
+    if (!res.ok) throw new DataError("BAD_RESPONSE", `Канистра ответила HTTP ${res.status}`);
     return (await res.json()) as T;
   }
 
@@ -134,9 +134,9 @@ export class IcpDataProvider extends ChainDataProvider {
         this.canisterGet<{ standing: CanisterAgg }>(
           `/standing?channel=${encodeURIComponent(channelId)}&address=${encodeURIComponent(donor)}`,
         ),
-        this.getChannelConfig(channelId), // tiers — the realm config (skin), the points scale itself — canon
+        this.getChannelConfig(channelId), // тиры — конфиг канала (кожа), сама шкала очков — канон
       ]);
-      if (standing.donations === 0) return null; // like the server: no history → no standing
+      if (standing.donations === 0) return null; // как у сервера: нет истории → нет стендинга
       const points = Number(standing.pointsMicro) / MICRO_PER_POINT;
       const { tier, nextTier, progressToNext } = resolveTier(points, config.tiers);
       return {
@@ -167,7 +167,7 @@ export class IcpDataProvider extends ChainDataProvider {
             (since !== undefined ? `&since=${since}` : ""),
         ),
         this.getChannelConfig(channelId),
-        // Names — cosmetics from the server; its unavailability does NOT break the canon (we'll show numbers without names).
+        // Имена — косметика с сервера; его недоступность НЕ роняет канон (цифры покажем без имён).
         super.getLeaderboard(channelId, period).catch(() => [] as LeaderboardEntry[]),
       ]);
       const displayNames = new Map(skin.map((e) => [e.donor, e.displayName]));
@@ -186,10 +186,10 @@ export class IcpDataProvider extends ChainDataProvider {
   }
 
   /**
-   * Donor profile (/me, /u): Reign/money numbers per realm — the CANON from the canister
-   * (`/donor?address=`), the skin (realm names, handle, activity texts) — from the server.
-   * Realms the canister doesn't know (mock era, no on-chain activation) keep
-   * server numbers — an honest transitional delta (yellow-paper §18.5-8a).
+   * Профиль донора (/me, /u): цифры репутации/денег по каналам — КАНОН из канистры
+   * (`/donor?address=`), кожа (имена каналов, handle, тексты активности) — с сервера.
+   * Каналы, которых канистра не знает (mock-эпоха, без ончейн-активации), остаются с
+   * серверными цифрами — честная переходная дельта (yellow-paper §18.5-8a).
    */
   override getDonorOverview(address: Address): Result<DonorOverview> {
     return (async () => {
@@ -207,9 +207,9 @@ export class IcpDataProvider extends ChainDataProvider {
       const standings = await Promise.all(
         base.standings.map(async (row) => {
           const c = byChannel.get(row.channelId);
-          if (!c) return row; // the canister doesn't know the realm — the server row as is
+          if (!c) return row; // канистра канал не знает — серверная строка как есть
           const points = Number(c.pointsMicro) / MICRO_PER_POINT;
-          // Tier — by the realm's current ladder; config unavailable → no tier (honestly).
+          // Тир — по действующей лестнице канала; конфиг недоступен → без тира (честно).
           const tier = await this.getChannelConfig(row.channelId)
             .then((cfg) => resolveTier(points, cfg.tiers).tier)
             .catch(() => undefined);
@@ -235,16 +235,16 @@ export class IcpDataProvider extends ChainDataProvider {
         .filter((v): v is string => !!v)
         .sort()[0];
 
-      // "Reign journal": for realms the canister knows — detail from ITS journal
-      // (including dispute effects DISPUTE_WON/LOST and task payouts GAME_DONATION) — otherwise the number
-      // above (canon) wouldn't match the list of events below it. The skin (Crown text) is joined
-      // from the server event by tx signature; realms of the mock era keep server events.
+      // «Журнал репутации»: для каналов, которые канистра знает, — детализация из ЕЁ журнала
+      // (включая спор-эффекты DISPUTE_WON/LOST и выплаты заданий GAME_DONATION) — иначе число
+      // сверху (канон) не сходится с перечнем событий под ним. Кожа (текст доната) присоединяется
+      // из серверного события по tx-подписи; каналы mock-эпохи остаются с серверными событиями.
       const skinBySig = new Map(
         base.pointEvents.filter((e) => e.txSignature).map((e) => [e.txSignature!, e]),
       );
-      // The escrow task text — skin, the canister doesn't have it (and won't: the canister is only about money/Reign).
-      // We join the text from the server by the (realm, amount) pair — the canister entry and the server event describe
-      // ONE escrow Crown; a list per key + shift() disambiguates the rare case of two tasks of the same amount on a realm.
+      // Текст эскроу-задания — кожа, в канистре его нет (и не будет: канистра только про деньги/репутацию).
+      // Джойним текст с сервера по паре (канал, сумма) — канистра-запись и серверное событие описывают
+      // ОДИН эскроу-донат; список на ключ + shift() разводит редкий случай двух заданий одной суммы на канале.
       const escrowSkinByKey = new Map<string, DonorPointEvent[]>();
       for (const e of base.pointEvents) {
         if (e.type !== "GAME_DONATION") continue;
@@ -253,17 +253,49 @@ export class IcpDataProvider extends ChainDataProvider {
         if (list) list.push(e);
         else escrowSkinByKey.set(k, [e]);
       }
-      // Pairing with the canon (canon.events — by seq, old→new) is chronological: we sort each
-      // list by ascending ts, so that on a collision (two tasks of the same amount on a realm) `shift()` returns
-      // the events in the same order. Funded earlier ⇒ claimed ⇒ resolved earlier — the orders line up.
+      // Спаривание с каноном (canon.events — по seq, старые→новые) хронологическое: сортируем каждый
+      // список по возрастанию ts, чтобы при коллизии (два задания одной суммы на канале) `shift()` отдал
+      // события в том же порядке. Профинансировано раньше ⇒ заклеймлено ⇒ зарезолвлено раньше — порядки сходятся.
       for (const list of escrowSkinByKey.values()) list.sort((a, b) => (a.ts < b.ts ? -1 : 1));
+
+      // DISPUTE_WON/LOST → ссылка на табло спора (пруф: кто открыл, его подпись проверила канистра).
+      // Событие несёт эскроу-PDA в псевдо-подписи `dispute:<pda>:<kind>`; страница табло ищется по off-chain
+      // id задания — маппим PDA→taskId по задачам канала (escrowTaskId → та же PDA). Fetch только для
+      // каналов, где споры реально есть.
+      const disputeChannels = [
+        ...new Set(
+          (canon.events ?? [])
+            .filter((e) => e.kind === "DISPUTE_WON" || e.kind === "DISPUTE_LOST")
+            .map((e) => e.channelId),
+        ),
+      ];
+      const pdaToTask = new Map<string, string>();
+      if (ESCROW_PROGRAM_ID && disputeChannels.length) {
+        const program = new PublicKey(ESCROW_PROGRAM_ID);
+        await Promise.all(
+          disputeChannels.map(async (chId) => {
+            const res = (await super.gameQuery({
+              gameId: "escrow-task",
+              channelId: chId,
+              op: "list",
+            })) as { tasks: EscrowTask[] } | null;
+            for (const t of res?.tasks ?? []) {
+              if (!t.escrowTaskId) continue;
+              const seed = new Uint8Array(t.escrowTaskId.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
+              pdaToTask.set(escrowPda(program, seed).toBase58(), t.id);
+            }
+          }),
+        );
+      }
+
       const canonEvents: DonorPointEvent[] = (canon.events ?? []).map((e) => {
         const skin = skinBySig.get(e.signature);
         const escrowSkin =
           e.kind === "GAME_DONATION"
             ? escrowSkinByKey.get(`${e.channelId}:${e.amountMicro}`)?.shift()
             : undefined;
-        const isTx = !e.signature.startsWith("dispute:"); // a dispute-effect pseudo-signature — not a link
+        const isDispute = e.signature.startsWith("dispute:");
+        const disputePda = isDispute ? e.signature.split(":")[1] : undefined;
         return {
           id: `icp:${e.seq}`,
           channelId: e.channelId,
@@ -274,13 +306,14 @@ export class IcpDataProvider extends ChainDataProvider {
             e.blockTime != null
               ? new Date(e.blockTime * 1000).toISOString()
               : (skin?.ts ?? escrowSkin?.ts ?? new Date(0).toISOString()),
-          txSignature: isTx ? e.signature : undefined,
+          txSignature: isDispute ? undefined : e.signature, // спор — не ончейн-tx, ссылка на табло ниже
           escrowTaskId: escrowSkin?.escrowTaskId,
-          message: skin?.message ?? escrowSkin?.message, // Crown — by signature; task — by (realm, amount)
+          disputeTaskId: disputePda ? pdaToTask.get(disputePda) : undefined,
+          message: skin?.message ?? escrowSkin?.message, // донат — по подписи; задание — по (канал,сумма)
         };
       });
-      // A canister without `events` (code before the M2 detail, not yet redeployed) → the server journal
-      // as it was: worse than canon, but not emptiness.
+      // Канистра без `events` (код до M2-детализации, ещё не передеплоена) → серверный журнал
+      // как был: хуже канона, но не пустота.
       const pointEvents = canon.events
         ? [...canonEvents, ...base.pointEvents.filter((e) => !byChannel.has(e.channelId))].sort(
             (a, b) => (a.ts < b.ts ? 1 : -1),
@@ -300,7 +333,7 @@ export class IcpDataProvider extends ChainDataProvider {
     })();
   }
 
-  // ─────────── dispute governance parameters (M1): canon is the canister ───────────
+  // ─────────── governance-параметры споров (M1): канон — канистра ───────────
 
   getDisputeParams(channelId: string): Result<DisputeParamsInfo> {
     return (async () => {
@@ -312,27 +345,27 @@ export class IcpDataProvider extends ChainDataProvider {
   }
 
   /**
-   * Writing parameters: canon message → signed by the wallet (ed25519, gasless) → POST to the canister.
-   * The right to write is checked by the CANISTER (owner = the activation payer from the chain, version nonce,
-   * timelock §8.9) — here only early, clear refusals before going for a signature.
+   * Запись параметров: канон-сообщение → подпись кошельком (ed25519, без газа) → POST в канистру.
+   * Право на запись проверяет КАНИСТРА (владелец = плательщик активации из цепочки, версия-нонс,
+   * таймлок §8.9) — здесь только ранние понятные отказы до похода за подписью.
    */
   setDisputeParams(channelId: string, params: DisputeParamsValues): Result<DisputeParamsInfo> {
     return (async () => {
       const w = this.wallet;
       if (!w?.publicKey || !w.signMessage)
-        throw new DataError("NO_SIGN", "This wallet can't sign messages.");
+        throw new DataError("NO_SIGN", "Кошелёк не умеет подписывать сообщения.");
       const me = w.publicKey.toBase58();
 
       const info = await this.getDisputeParams(channelId);
       if (!info.owner)
         throw new DataError(
           "NOT_OWNER",
-          "The realm isn't activated on-chain — the canister doesn't know the owner (rules can't be changed).",
+          "Канал не активирован ончейн — канистра не знает владельца (правила менять нельзя).",
         );
       if (info.owner !== me)
         throw new DataError(
           "NOT_OWNER",
-          `Only the realm owner (activation payer ${info.owner.slice(0, 8)}…) can change the rules — a different wallet is connected.`,
+          `Правила меняет только владелец канала (плательщик активации ${info.owner.slice(0, 8)}…) — подключён другой кошелёк.`,
         );
 
       const version = info.version + 1;
@@ -364,29 +397,29 @@ export class IcpDataProvider extends ChainDataProvider {
       } catch {
         throw new DataError(
           "NETWORK",
-          "The canister is unavailable — is the local stand up? (runbook 'ICP canisters')",
+          "Канистра недоступна — поднят ли локальный стенд? (runbook «Канистры ICP»)",
         );
       }
       const body = (await res.json()) as { ok: boolean; error?: string };
       if (!res.ok || !body.ok)
         throw new DataError(
           "BAD_RESPONSE",
-          `The canister rejected the write: ${body.error ?? `HTTP ${res.status}`}`,
+          `Канистра отвергла запись: ${body.error ?? `HTTP ${res.status}`}`,
         );
       return this.getDisputeParams(channelId);
     })();
   }
 
-  // ─────────── disputes over chain tasks (M2): canon is the canister arbiter ───────────
+  // ─────────── споры по chain-задачам (M2): канон — арбитр канистры ───────────
 
-  /** Cache of `/disputes?channel=` (map key — hex escrowTaskId): one trip per batch of task reads. */
+  /** Кэш `/disputes?channel=` (ключ карты — hex escrowTaskId): один поход на пачку чтений задач. */
   private disputesCache = new Map<string, { at: number; map: Map<string, CanisterDisputeView> }>();
   private static readonly DISPUTES_TTL_MS = 10_000;
 
   /**
-   * All of a realm's disputes from the canister. Canister unavailability degrades to an empty map (also
-   * cached for the TTL — we don't hammer a downed gateway): tasks show from the server mirror, the dispute
-   * canon is pulled by later requests. The targeted `getCanisterDispute` does NOT hide the error.
+   * Все споры канала из канистры. Недоступность канистры деградирует до пустой карты (и тоже
+   * кэшируется на TTL — не долбим упавший шлюз): задачи покажутся по серверному зеркалу, канон
+   * спора подтянется следующими запросами. Точечный `getCanisterDispute` ошибку НЕ прячет.
    */
   private async channelDisputes(channelId: string): Promise<Map<string, CanisterDisputeView>> {
     const hit = this.disputesCache.get(channelId);
@@ -401,17 +434,17 @@ export class IcpDataProvider extends ChainDataProvider {
         if (cd.escrowTaskId) map.set(cd.escrowTaskId, cd);
       }
     } catch {
-      /* empty map below */
+      /* пустая карта ниже */
     }
     this.disputesCache.set(channelId, { at: Date.now(), map });
     return map;
   }
 
   /**
-   * Task reads: the server mirror (money/texts/moderation) + the DISPUTE from the canister (arbiter canon).
-   * Opening/voting go to the canister bypassing the server (gameAction below), so without merging the feed,
-   * the studio, the dispute page, and the dashboard would show the task as "DONE" without a dispute — and the card
-   * would even offer "Claim" during live voting.
+   * Чтения задач: зеркало сервера (деньги/тексты/модерация) + СПОР из канистры (канон арбитра).
+   * Открытие/голос уходят в канистру мимо сервера (gameAction ниже), поэтому без слияния лента,
+   * студия, страница спора и дашборд показывали бы задачу как «DONE» без спора — а карточка
+   * даже предлагала бы «Забрать» во время живого голосования.
    */
   override gameQuery(req: GameRequest): Result<unknown> {
     return (async () => {
@@ -432,8 +465,8 @@ export class IcpDataProvider extends ChainDataProvider {
         return task ? mergeCanisterDispute(task, cases) : task;
       }
       if (req.op === "disputeVotes") {
-        // The server knows only off-chain disputes (tasks of the mock/api era); we assemble the canister dispute
-        // into the same paginated view with the same pure function (machine.disputeVotesView).
+        // Сервер знает только оффчейн-споры (задачи mock/api-эпохи); спор канистры собираем
+        // в тот же постраничный вид той же чистой функцией (machine.disputeVotesView).
         const base = (await super.gameQuery(req)) as DisputeVotesResult | null;
         if (base?.found) return base;
         const taskId = (req.payload as { taskId?: string } | null)?.taskId;
@@ -453,9 +486,9 @@ export class IcpDataProvider extends ChainDataProvider {
   }
 
   /**
-   * The "Needs you" dashboard: the server computes the cycles, but it doesn't see the canister dispute — a donor's task
-   * with ongoing voting would forever stay "Dispute or wait". We ripen the cycles:
-   * a dispute window with a dispute open in the canister → "Voting in progress" with its deadline.
+   * Дашборд «Требует тебя»: циклы считает сервер, но спор канистры он не видит — задача донора
+   * с идущим голосованием навсегда оставалась бы «Оспорить или подождать». Дозреваем циклы:
+   * окно оспаривания с открытым в канистре спором → «Идёт голосование» с её дедлайном.
    */
   override homeFeed(): Result<HomeFeed> {
     return (async () => {
@@ -483,7 +516,7 @@ export class IcpDataProvider extends ChainDataProvider {
               actionable: false,
             };
           } catch {
-            return c; // canister unavailable → the server cycle as is
+            return c; // канистра недоступна → серверный цикл как есть
           }
         }),
       );
@@ -491,8 +524,8 @@ export class IcpDataProvider extends ChainDataProvider {
     })();
   }
 
-  /** The task's escrow account address (base58 PDA); null = a task without on-chain escrow (mock era).
-   * Deliberately `super.gameQuery`: dispute merging isn't needed here (only escrowTaskId is needed). */
+  /** Адрес эскроу-аккаунта задания (base58 PDA); null = задача без ончейн-эскроу (mock-эпоха).
+   * Нарочно `super.gameQuery`: слияние спора здесь не нужно (нужен только escrowTaskId). */
   private async escrowAccountOf(channelId: string, taskId: string): Promise<string | null> {
     const task = (await super.gameQuery({
       gameId: "escrow-task",
@@ -515,10 +548,10 @@ export class IcpDataProvider extends ChainDataProvider {
           `${ICP_CANISTER_URL}/dispute?escrow=${encodeURIComponent(escrowAccount)}`,
         );
       } catch {
-        throw new DataError("NETWORK", "The canister is unavailable (runbook 'ICP canisters')");
+        throw new DataError("NETWORK", "Канистра недоступна (runbook «Канистры ICP»)");
       }
-      if (res.status === 404) return null; // no dispute for this escrow
-      if (!res.ok) throw new DataError("BAD_RESPONSE", `The canister responded HTTP ${res.status}`);
+      if (res.status === 404) return null; // спора по этому эскроу нет
+      if (!res.ok) throw new DataError("BAD_RESPONSE", `Канистра ответила HTTP ${res.status}`);
       return normalizeCanisterDispute(
         (await res.json()) as Parameters<typeof normalizeCanisterDispute>[0],
       );
@@ -526,9 +559,9 @@ export class IcpDataProvider extends ChainDataProvider {
   }
 
   /**
-   * Routing of dispute operations: for CHAIN tasks `raiseDispute`/`vote` go TO THE CANISTER
-   * (wallet signature of the canonical message; the outcome is executed by the threshold resolver) — the same
-   * panel buttons, a different substrate. Tasks without escrow (mock/api era) — as before, off-chain.
+   * Маршрутизация операций спора: для CHAIN-задач `raiseDispute`/`vote` идут В КАНИСТРУ
+   * (подпись кошельком канонического сообщения; исход исполняет тресхолд-резолвер) — те же
+   * кнопки панели, другой субстрат. Задачи без эскроу (mock/api-эпоха) — как раньше, оффчейн.
    */
   override gameAction(req: GameRequest): Result<unknown> {
     return (async () => {
@@ -544,7 +577,7 @@ export class IcpDataProvider extends ChainDataProvider {
 
       const w = this.wallet;
       if (!w?.publicKey || !w.signMessage)
-        throw new DataError("NO_SIGN", "This wallet can't sign messages.");
+        throw new DataError("NO_SIGN", "Кошелёк не умеет подписывать сообщения.");
       const me = w.publicKey.toBase58();
 
       const post = async (path: string, body: Record<string, unknown>) => {
@@ -555,7 +588,7 @@ export class IcpDataProvider extends ChainDataProvider {
         });
         const out = (await res.json()) as { ok: boolean; error?: string };
         if (!res.ok || !out.ok)
-          throw new DataError("BAD_RESPONSE", `Canister: ${out.error ?? `HTTP ${res.status}`}`);
+          throw new DataError("BAD_RESPONSE", `Канистра: ${out.error ?? `HTTP ${res.status}`}`);
       };
 
       if (req.op === "raiseDispute") {

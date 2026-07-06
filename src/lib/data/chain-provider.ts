@@ -59,21 +59,21 @@ import type {
 } from "./types";
 
 /**
- * Phase 3 (yellow-paper §11.4): HYBRID. Reading Reign/realms/moderation comes from the off-chain
- * backend (the indexer feeds it), so it's delegated to `ApiDataProvider`. Writing money goes through
- * the wallet: `connect` (SIWS, gasless), `createDonation` (assemble tx 97/3 + memo + ATA, signed by
- * the wallet). The final Reign credit is done by the indexer; an optimistic result is returned here.
+ * Фаза 3 (yellow-paper §11.4): ГИБРИД. Чтение репутации/каналов/модерации — из оффчейн-бэкенда
+ * (индексер кормит его), поэтому делегируется `ApiDataProvider`. Запись денег — через кошелёк:
+ * `connect` (SIWS, gasless), `createDonation` (сборка tx 97/3 + memo + ATA, подпись кошельком).
+ * Финальный зачёт репутации делает индексер; здесь возвращается оптимистичный результат.
  *
- * The wallet is injected from the React tree (useWallet) via setWallet — the class never calls hooks.
+ * Кошелёк инжектится из React-дерева (useWallet) через setWallet — класс не вызывает хуки.
  */
-/** Uint8Array → base64 without Buffer (browser). Signature is 64 bytes — a simple implementation suffices. */
+/** Uint8Array → base64 без Buffer (браузер). Подпись 64 байта — простая реализация достаточна. */
 function toBase64(bytes: Uint8Array): string {
   let s = "";
   for (const b of bytes) s += String.fromCharCode(b);
   return btoa(s);
 }
 
-// — Helpers for the 32-byte escrow seed (chain-mode game, G3a) —
+// — Хелперы 32-байтового seed эскроу (chain-режим игры, G3a) —
 const toHex = (b: Uint8Array): string =>
   Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
 function fromHex(s: string): Uint8Array {
@@ -90,27 +90,27 @@ function randomTaskId(): Uint8Array {
 export class ChainDataProvider implements DataProvider {
   private api = new ApiDataProvider();
   private connection = new Connection(DEVNET_RPC, "confirmed");
-  // protected: IcpDataProvider (subclass) signs governance messages with the wallet (M1).
+  // protected: IcpDataProvider (подкласс) подписывает кошельком governance-сообщения (M1).
   protected wallet: WalletContextState | null = null;
-  private authedAddress: string | null = null; // address that already has a verified token
+  private authedAddress: string | null = null; // адрес, по которому уже есть проверенный токен
   private authing: Promise<boolean> | null = null;
 
   constructor() {
-    // The session is tied to the CONNECTED wallet: on startup we do NOT apply the localStorage token "blindly" —
-    // otherwise the UI is "half-logged-in" (the Crown form/standing are active) though the wallet isn't connected and there's nothing to sign with.
-    // When the wallet connects (autoConnect or "Sign in"), the bridge calls ensureAuth → which reuses
-    // the stored token WITHOUT signing again. That way the header, standing, and Crown always reflect one state.
+    // Сессия привязана к ПОДКЛЮЧЁННОМУ кошельку: на старте токен из localStorage НЕ применяем «вслепую» —
+    // иначе UI «полу-залогинен» (форма доната/standing активны), хотя кошелёк не подключён и подписать нечем.
+    // Когда кошелёк подключится (autoConnect или «Войти»), bridge вызовет ensureAuth → тот переиспользует
+    // сохранённый токен БЕЗ повторной подписи. Так шапка, standing и донат всегда отражают одно состояние.
   }
 
   setWallet(wallet: WalletContextState | null) {
     this.wallet = wallet;
-    // The backend identity = the VERIFIED token (ensureAuth), not a bare pubkey (hole C1). We drop the session ONLY when
-    // switching to a DIFFERENT connected address. "Wallet not connected" (addr === null, e.g. refresh without
-    // autoConnect) must NOT drop the restored token — logout is done explicitly (__logout from the bridge).
+    // Личность бэкенда = ПРОВЕРЕННЫЙ токен (ensureAuth), не голый pubkey (дыра C1). Роняем сессию ТОЛЬКО при
+    // смене на ДРУГОЙ подключённый адрес. «Кошелёк не подключён» (addr === null, напр. refresh без
+    // autoConnect) НЕ должно ронять восстановленный токен — выход делается явно (__logout из bridge).
     const addr = wallet?.publicKey?.toBase58() ?? null;
     if (addr !== null && addr !== this.authedAddress) this.clearAuth();
   }
-  /** Full logout: forget the token (memory + localStorage). Called by the bridge on an EXPLICIT wallet disconnect. */
+  /** Полный выход: забыть токен (память + localStorage). Зовётся bridge при ЯВНОМ дисконекте кошелька. */
   __logout() {
     this.clearAuth();
     this.clearStoredToken();
@@ -119,7 +119,7 @@ export class ChainDataProvider implements DataProvider {
     return this.wallet?.publicKey?.toBase58() ?? null;
   }
 
-  // — Authentication (SIWS): nonce from the server → signed by the wallet → session token —
+  // — Аутентификация (SIWS): nonce от сервера → подпись кошельком → session-токен —
   private clearAuth() {
     this.authedAddress = null;
     this.api.__setToken(null);
@@ -134,7 +134,7 @@ export class ChainDataProvider implements DataProvider {
       } | null;
       if (o && o.address === address && o.exp > Date.now()) return o.token;
     } catch {
-      /* corrupt/empty store */
+      /* битый/пустой стор */
     }
     return null;
   }
@@ -142,7 +142,7 @@ export class ChainDataProvider implements DataProvider {
     try {
       localStorage?.setItem(SIWS_STORAGE_KEY, JSON.stringify({ address, token, exp }));
     } catch {
-      /* private mode/quota — not critical, we just go without persistence */
+      /* приватный режим/квота — не критично, останемся без персистентности */
     }
   }
   private clearStoredToken() {
@@ -153,9 +153,9 @@ export class ChainDataProvider implements DataProvider {
     }
   }
   /**
-   * Guarantees a verified identity for the connected wallet. Idempotent: with an already-valid token
-   * (in memory or localStorage) it does NOT ask for a signature again. Returns true if the state changed
-   * (a reason to invalidate the query cache). Crowns don't call this method — you can crown without signing in.
+   * Гарантирует проверенную личность для подключённого кошелька. Идемпотентно: при уже валидном токене
+   * (в памяти или localStorage) НЕ просит подпись повторно. Возвращает true, если состояние изменилось
+   * (повод инвалидировать кэш запросов). Донаты не зовут этот метод — донатить можно без входа.
    */
   async ensureAuth(): Promise<boolean> {
     const w = this.wallet;
@@ -171,10 +171,10 @@ export class ChainDataProvider implements DataProvider {
     if (this.authing) return this.authing;
 
     const p = (async () => {
-      // 1. Try the stored token, but VERIFY it against the server (source of truth). Server sessions are
-      //    in-memory → after a server restart/token expiry the localStorage token no longer resolves. Without this
-      //    check the UI would stay "half-logged-in": the wallet is connected (address visible), but the session is empty →
-      //    creator/post-registration buttons reset.
+      // 1. Пробуем сохранённый токен, но ПРОВЕРЯЕМ его против сервера (источник истины). Сессии на сервере
+      //    in-memory → после рестарта сервера/истечения токена localStorage-токен уже не резолвится. Без этой
+      //    проверки UI оставался бы «полу-залогинен»: кошелёк подключён (адрес виден), но сессия пустая →
+      //    кнопки создателя/после регистрации сброшены.
       const stored = this.loadStoredToken(address);
       if (stored) {
         this.api.__setToken(stored);
@@ -183,19 +183,19 @@ export class ChainDataProvider implements DataProvider {
           this.authedAddress = address;
           return true;
         }
-        this.clearStoredToken(); // token expired on the server → clear it and go for a fresh signature
+        this.clearStoredToken(); // токен протух на сервере → чистим и идём на свежую подпись
         this.api.__setToken(null);
       }
-      // 2. Fresh SIWS: server nonce + signed by the wallet.
-      if (!w.signMessage) throw new DataError("NO_SIGN", "This wallet can't sign messages.");
+      // 2. Свежий SIWS: серверный nonce + подпись кошельком.
+      if (!w.signMessage) throw new DataError("NO_SIGN", "Кошелёк не умеет подписывать сообщения.");
       const { message } = await this.api.authNonce(address);
       let sig: Uint8Array;
       try {
         sig = await w.signMessage(new TextEncoder().encode(message));
       } catch {
-        // The user rejected the SIWS signature (or the wallet couldn't) — this is an EXPECTED refusal, not a crash. Disconnect
-        // the wallet so the UI returns to the original "Sign in" (rather than getting stuck on "Sign in (signature)"), and do NOT rethrow
-        // the error — otherwise the dev-overlay pops up and the button hangs.
+        // Пользователь отклонил подпись SIWS (или кошелёк не смог) — это ШТАТНЫЙ отказ, не краш. Отключаем
+        // кошелёк, чтобы UI вернулся к исходной «Войти» (а не залип в «Войти (подпись)»), и НЕ пробрасываем
+        // ошибку — иначе всплывает dev-overlay и кнопка подвисает.
         await w.disconnect?.().catch(() => {});
         this.clearAuth();
         return false;
@@ -207,8 +207,8 @@ export class ChainDataProvider implements DataProvider {
       return true;
     })();
     this.authing = p;
-    // The finally chain may REJECT (a server error in authNonce/authVerify) → we swallow it with .catch, otherwise
-    // the unhandled rejection surfaces as the dev-overlay. The caller receives the actual error via `return p`.
+    // finally-цепочка может ОТКЛОНИТЬСЯ (ошибка сервера в authNonce/authVerify) → гасим её .catch, иначе
+    // unhandled rejection всплывёт dev-overlay'ем. Саму ошибку получает вызывающий через `return p`.
     void p
       .finally(() => {
         if (this.authing === p) this.authing = null;
@@ -218,10 +218,10 @@ export class ChainDataProvider implements DataProvider {
   }
 
   /**
-   * Server ingestion of an on-chain tx with retries. In chain mode the server accepts only finalized (M2), which
-   * is ~15-30s later than the client's "confirmed" — a single request would almost always return pending, and then the money
-   * is gone but there's no credit/activation (there was such a bug with activation). We retry while the server signals pending.
-   * 24×3s ≈ 72s comfortably covers typical finalization. Idempotent on the server side.
+   * Приём ончейн-tx сервером с ретраями. В chain-режиме сервер принимает только finalized (M2), а это
+   * на ~15-30с позже клиентского "confirmed" — один запрос почти всегда вернул бы pending, и тогда деньги
+   * ушли, а зачёта/активации нет (был такой баг с активацией). Повторяем, пока сервер сигналит pending.
+   * 24×3с ≈ 72с с запасом перекрывают типичную финализацию. Идемпотентно на стороне сервера.
    */
   private async ingestWithRetry<T extends { ok: boolean; pending?: boolean }>(
     call: () => Promise<T>,
@@ -236,22 +236,22 @@ export class ChainDataProvider implements DataProvider {
     return res;
   }
 
-  // — Wallet (on-chain) —
+  // — Кошелёк (ончейн) —
   async getSession(): Result<Session> {
-    return this.api.getSession(); // the server takes the identity from the verified token (ensureAuth)
+    return this.api.getSession(); // личность сервер берёт из проверенного токена (ensureAuth)
   }
   async connect(): Result<Session> {
     const w = this.wallet;
-    if (!w) throw new DataError("NO_WALLET", "Wallet not connected.");
+    if (!w) throw new DataError("NO_WALLET", "Кошелёк не подключён.");
     if (!w.connected) await w.connect();
-    await this.ensureAuth(); // real SIWS: server nonce + signature verification on the backend
+    await this.ensureAuth(); // настоящий SIWS: серверный nonce + проверка подписи на бэкенде
     return this.api.getSession();
   }
   async disconnect(): Result<void> {
     try {
-      await this.api.disconnect(); // while the token is in the body, the server will invalidate it
+      await this.api.disconnect(); // пока токен в теле — сервер его погасит
     } catch {
-      /* clear locally anyway */
+      /* всё равно чистим локально */
     }
     this.clearAuth();
     this.clearStoredToken();
@@ -260,16 +260,16 @@ export class ChainDataProvider implements DataProvider {
 
   async createDonation(input: DonationInput): Result<DonationResult> {
     const w = this.wallet;
-    if (!w?.publicKey || !w.sendTransaction) throw new DataError("NO_WALLET", "Connect your wallet.");
+    if (!w?.publicKey || !w.sendTransaction) throw new DataError("NO_WALLET", "Подключи кошелёк.");
     if (!DEVNET_USDC_MINT || !TREASURY_OWNER) {
       throw new DataError(
         "NOT_CONFIGURED",
-        "NEXT_PUBLIC_DEVNET_USDC_MINT and NEXT_PUBLIC_TREASURY_OWNER are not set.",
+        "Не заданы NEXT_PUBLIC_DEVNET_USDC_MINT и NEXT_PUBLIC_TREASURY_OWNER.",
       );
     }
-    // Text preflight BEFORE signing/sending: on-chain money is irreversible (§4.2), so we catch forbidden content
-    // (HARD_BLOCK) early and do NOT build the transaction — the wallet won't even ask for a signature. Profanity is allowed
-    // (moderation policy); ingest re-runs moderation anyway as a backstop. No text — nothing to check.
+    // Префлайт текста ДО подписи/отправки: деньги ончейн необратимы (§4.2), поэтому запрещёнку
+    // (HARD_BLOCK) ловим заранее и НЕ строим транзакцию — кошелёк даже не спросит подпись. Мат разрешён
+    // (политика модерации); ingest всё равно проводит модерацию повторно как бэкстоп. Без текста — нечего.
     const text = input.text?.trim() || undefined;
     if (text) {
       const { blocked, reason } = await this.api.precheckText(text, input.channelId);
@@ -277,23 +277,23 @@ export class ChainDataProvider implements DataProvider {
         throw new DataError(
           reason === "blocklist" ? "BLOCKED" : "TEXT_BLOCKED",
           reason === "blocklist"
-            ? "This wallet is blocked on the realm from Crowns-with-messages. You can crown without text."
-            : "The message didn't pass moderation (forbidden/hard content). Remove it or crown without text.",
+            ? "Этот кошелёк заблокирован на канале для донатов-с-сообщениями. Задонатить можно без текста."
+            : "Сообщение не прошло модерацию (запрещённый/жёсткий контент). Убери его или задонать без текста.",
         );
     }
 
-    // Resolve channelId → payoutAddress via the off-chain backend.
+    // Разрешаем channelId → payoutAddress через оффчейн-бэкенд.
     const list = await this.api.listChannels();
     const card = list.items.find((c) => c.channelId === input.channelId);
     const channel = card ? await this.api.getChannel(card.handle) : null;
-    if (!channel) throw new DataError("NO_CHANNEL", "Realm not found or not activated.");
-    this.assertPayoutAttested(channel); // H1: payout is valid only with the owner's signature — the server isn't the truth
+    if (!channel) throw new DataError("NO_CHANNEL", "Канал не найден или не активирован.");
+    this.assertPayoutAttested(channel); // H1: payout валиден только с подписью владельца — сервер не истина
 
     const amountMicro = toMicro(input.amountUSDC);
     const { fee, net } = splitAmount(amountMicro);
     const donationId = `d-${this.address()}-${list.items.length}`;
-    // The text is private and off-chain; in the memo we put ONLY its hash — the server later checks the submitted text against it
-    // (trustless binding, see server/ingest.ts). No text → m = null.
+    // Текст приватен и оффчейн; в memo кладём ТОЛЬКО его хэш — сервер потом сверит присланный текст с ним
+    // (трастлесс-привязка, см. server/ingest.ts). Без текста m = null.
     const msgRef = text ? await hashContent(text) : null;
     const ix = await buildDonationInstructions(this.connection, {
       donor: w.publicKey,
@@ -311,17 +311,17 @@ export class ChainDataProvider implements DataProvider {
     tx.recentBlockhash = latest.blockhash;
     const signature = await w.sendTransaction(tx, this.connection);
 
-    // First wait for the tx to actually land in the network (confirmed — fast).
+    // Сначала ждём, что tx вообще попала в сеть (confirmed — быстро).
     await this.connection.confirmTransaction({ signature, ...latest }, "confirmed");
-    // We show the "Done" moment only after FINALIZATION (irreversible): the server accepts the Crown only when
-    // finalized, so we poll ingestion with retries until the tx finalizes (~15-30s). Only then is the moment
-    // honest — the money is gone for good, canceling (Brave "Cancel") is no longer possible. The server checks the text against the memo
-    // hash and creates a message → HELD/moderation. The Reign credit has already happened by this point.
+    // Момент «Готово» показываем только после ФИНАЛИЗАЦИИ (необратимо): сервер принимает донат лишь на
+    // finalized, поэтому опрашиваем приём с ретраями, пока tx не финализируется (~15-30с). Только так момент
+    // честен — деньги ушли окончательно, отменить (Brave «Cancel») уже нельзя. Текст сервер сверит с memo-
+    // хэшем и заведёт сообщение → HELD/модерация. Зачёт репутации к этому моменту уже произошёл.
     const ingest = await this.ingestWithRetry(() => this.api.ingestSignature(signature, text));
     if (!ingest.ok) {
       throw new DataError(
         "DONATION_PENDING",
-        ingest.reason ?? "The Crown isn't finalized on the network yet — refresh the page a little later.",
+        ingest.reason ?? "Донат пока не финализирован в сети — обнови страницу чуть позже.",
       );
     }
 
@@ -354,7 +354,7 @@ export class ChainDataProvider implements DataProvider {
     return { donation, standing, tierChanged: false };
   }
 
-  // — Off-chain layer (read from the backend, fed by the indexer) → delegate to ApiDataProvider —
+  // — Оффчейн-слой (читается из бэкенда, кормится индексером) → делегируем ApiDataProvider —
   getProfile(a: Address): Result<LightProfile | null> {
     return this.api.getProfile(a);
   }
@@ -380,29 +380,29 @@ export class ChainDataProvider implements DataProvider {
     return this.api.getChannelConfig(id);
   }
   /**
-   * H1: creating a realm in chain mode immediately locks the payout with the owner wallet's ed25519 signature.
-   * From that point the server is not the source of truth for the payout address: the signature is verified by every donor's client
-   * (assertPayoutAttested) and by ingest at credit time. The wallet will show readable message text (not a transaction).
+   * H1: создание канала в chain-режиме сразу закрепляет payout ed25519-подписью кошелька владельца.
+   * С этого момента сервер не источник истины по адресу выплат: подпись проверяет клиент каждого донора
+   * (assertPayoutAttested) и ingest при зачёте. Кошелёк покажет читаемый текст сообщения (не транзакция).
    */
   async createChannel(i: CreateChannelInput): Result<Channel> {
     const payoutAttestation = await this.signPayoutAttestation(i.payoutAddress);
     return this.api.createChannel({ ...i, payoutAttestation });
   }
-  /** H1: lock the payout of an existing realm (created before attestations) — sign and send to the server. */
+  /** H1: дозакрепить payout существующего канала (создан до аттестаций) — подписываем и шлём на сервер. */
   async attestPayout(channelId: string): Result<Channel> {
     const mine = await this.api.getMyChannel();
     if (!mine || mine.id !== channelId)
-      throw new DataError("NOT_OWNER", "Only the realm owner can sign the payout address.");
+      throw new DataError("NOT_OWNER", "Подписать адрес выплат может только владелец канала.");
     return this.api.attestPayout(channelId, await this.signPayoutAttestation(mine.payoutAddress));
   }
   private async signPayoutAttestation(payout: string): Promise<string> {
     const w = this.wallet;
     if (!w?.publicKey || !w.signMessage)
-      throw new DataError("NO_SIGN", "This wallet can't sign messages.");
+      throw new DataError("NO_SIGN", "Кошелёк не умеет подписывать сообщения.");
     const msg = buildPayoutAttestationMessage(w.publicKey.toBase58(), payout);
     return toBase64(await w.signMessage(new TextEncoder().encode(msg)));
   }
-  /** Client-side H1 check: we don't build a money tx to a payout not signed by the realm owner's key. */
+  /** Клиентская проверка H1: не собираем денежную tx на payout, не подписанный ключом владельца канала. */
   private assertPayoutAttested(channel: Channel): void {
     if (
       !channel.payoutAttestation ||
@@ -414,24 +414,24 @@ export class ChainDataProvider implements DataProvider {
     )
       throw new DataError(
         "PAYOUT_UNATTESTED",
-        "The realm hasn't confirmed its payout address with the owner's signature — sending money is blocked (protection against address swapping).",
+        "Канал не подтвердил адрес выплат подписью владельца — отправка денег заблокирована (защита от подмены адреса).",
       );
   }
   /**
-   * Realm activation = an on-chain fee (~$2 USDC owner→treasury) + memo `{act}`. The server itself pulls the tx
-   * from the chain, checks payer === owner and the amount threshold, and moves the realm to ACTIVE (see ingestActivation).
-   * An off-chain flip is forbidden in chain mode (CHAIN_FORBIDDEN), so we go strictly through the wallet.
+   * Активация канала = ончейн-сбор (~$2 USDC владелец→трежери) + memo `{act}`. Сервер сам достаёт tx
+   * из цепочки, сверяет payer === владелец и порог суммы, и переводит канал в ACTIVE (см. ingestActivation).
+   * Оффчейн-флип в chain-режиме запрещён (CHAIN_FORBIDDEN), поэтому идём строго через кошелёк.
    */
   async activateChannel(id: string): Result<Channel> {
     const w = this.wallet;
-    if (!w?.publicKey || !w.sendTransaction) throw new DataError("NO_WALLET", "Connect your wallet.");
+    if (!w?.publicKey || !w.sendTransaction) throw new DataError("NO_WALLET", "Подключи кошелёк.");
     if (!DEVNET_USDC_MINT || !TREASURY_OWNER) {
       throw new DataError(
         "NOT_CONFIGURED",
-        "NEXT_PUBLIC_DEVNET_USDC_MINT and NEXT_PUBLIC_TREASURY_OWNER are not set.",
+        "Не заданы NEXT_PUBLIC_DEVNET_USDC_MINT и NEXT_PUBLIC_TREASURY_OWNER.",
       );
     }
-    await this.ensureAuth(); // the owner activates their own realm → a verified identity is needed for getMyChannel
+    await this.ensureAuth(); // владелец активирует свой канал → нужна проверенная личность для getMyChannel
 
     const ix = await buildActivationInstructions(this.connection, {
       payer: w.publicKey,
@@ -447,14 +447,14 @@ export class ChainDataProvider implements DataProvider {
     const signature = await w.sendTransaction(tx, this.connection);
 
     await this.connection.confirmTransaction({ signature, ...latest }, "confirmed");
-    // The server accepts the fee only when finalized (M2) — we retry ingestion until the tx finalizes (~15-30s),
-    // otherwise the fee is paid but the realm isn't activated. Blocking: the user waits on the activation screen.
+    // Сервер принимает сбор только на finalized (M2) — повторяем приём, пока tx не финализируется (~15-30с),
+    // иначе сбор уплачен, а канал не активирован. Блокирующе: пользователь ждёт на экране активации.
     const res = await this.ingestWithRetry(() => this.api.ingestActivation(signature));
     if (!res.ok)
-      throw new DataError("ACTIVATION_FAILED", res.reason ?? "Activation fee not accepted.");
+      throw new DataError("ACTIVATION_FAILED", res.reason ?? "Сбор активации не принят.");
 
     const channel = await this.api.getMyChannel();
-    if (!channel) throw new DataError("NO_CHANNEL", "Realm not found after activation.");
+    if (!channel) throw new DataError("NO_CHANNEL", "Канал не найден после активации.");
     return channel;
   }
   updateChannelConfig(id: string, p: ConfigPatch): Result<ChannelConfig> {
@@ -506,17 +506,17 @@ export class ChainDataProvider implements DataProvider {
     return this.api.applyOperatorAction(a);
   }
 
-  // — Mini-games (game-bus, ADR 0016) —
-  // For escrow-task (ADR 0017): money operations really move USDC through the on-chain program with the connected
-  // wallet (the program itself checks that the signer is the right actor: donor/streamer/recipient), then
-  // we update the off-chain mirror via `api` (which also handles text moderation and Reign banking). Disputes (M2,
-  // ADR 0021) are run by the canister arbiter, its outcome executed by its threshold resolver — routed in IcpDataProvider;
-  // in pure chain mode (without icp) a dispute over a chain task does NOT carry its outcome onto the chain. Reads come from the backend.
+  // — Мини-игры (game-bus, ADR 0016) —
+  // Для escrow-task (ADR 0017): денежные операции реально двигают USDC через ончейн-программу подключённым
+  // кошельком (программа сама проверяет, что подписант — нужный актор: донор/стример/получатель), затем
+  // обновляем оффчейн-зеркало через `api` (там же — модерация текста и банковка репутации). Споры (M2,
+  // ADR 0021) ведёт арбитр канистры, исход исполняет её тресхолд-резолвер — маршрутизация в IcpDataProvider;
+  // в чистом chain-режиме (без icp) спор по chain-задаче исхода на цепочку НЕ доводит. Чтения — из бэкенда.
 
-  /** Assemble a tx from instructions, sign with the connected wallet, wait for confirmed. Return the signature. */
+  /** Собрать tx из инструкций, подписать подключённым кошельком, дождаться confirmed. Вернуть подпись. */
   private async sendTx(ixs: TransactionInstruction[]): Promise<string> {
     const w = this.wallet;
-    if (!w?.publicKey || !w.sendTransaction) throw new DataError("NO_WALLET", "Connect your wallet.");
+    if (!w?.publicKey || !w.sendTransaction) throw new DataError("NO_WALLET", "Подключи кошелёк.");
     const tx = new Transaction().add(...ixs);
     tx.feePayer = w.publicKey;
     const latest = await this.connection.getLatestBlockhash();
@@ -526,7 +526,7 @@ export class ChainDataProvider implements DataProvider {
     return sig;
   }
 
-  /** The task's 32-byte escrow seed (from the off-chain mirror) for rebuilding the PDA in later operations. */
+  /** 32-байтовый seed эскроу задания (из оффчейн-зеркала) для пересборки PDA в последующих операциях. */
   private async escrowTaskIdOf(channelId: string, taskId: unknown): Promise<Uint8Array> {
     const task = (await this.api.gameQuery({
       gameId: "escrow-task",
@@ -535,18 +535,18 @@ export class ChainDataProvider implements DataProvider {
       payload: { taskId },
     })) as { escrowTaskId?: string } | null;
     if (!task?.escrowTaskId)
-      throw new DataError("NO_ESCROW", "The task has no on-chain escrow (created outside chain mode?).");
+      throw new DataError("NO_ESCROW", "У задания нет ончейн-эскроу (создано не в chain-режиме?).");
     return fromHex(task.escrowTaskId);
   }
 
   async gameAction(req: GameRequest): Result<unknown> {
     if (req.gameId !== "escrow-task") return this.api.gameAction(req);
     const w = this.wallet;
-    if (!w?.publicKey) throw new DataError("NO_WALLET", "Connect your wallet.");
+    if (!w?.publicKey) throw new DataError("NO_WALLET", "Подключи кошелёк.");
     if (!ESCROW_PROGRAM_ID || !DEVNET_USDC_MINT) {
       throw new DataError(
         "NOT_CONFIGURED",
-        "The escrow program address or USDC mint is not set (NEXT_PUBLIC_ESCROW_PROGRAM_ID/USDC).",
+        "Не задан адрес эскроу-программы или USDC-mint (NEXT_PUBLIC_ESCROW_PROGRAM_ID/USDC).",
       );
     }
     const programId = new PublicKey(ESCROW_PROGRAM_ID);
@@ -557,56 +557,56 @@ export class ChainDataProvider implements DataProvider {
       case "create": {
         const amountStr = String(p.amount ?? "");
         if (!/^\d+$/.test(amountStr) || BigInt(amountStr) <= 0n)
-          throw new DataError("BAD_AMOUNT", "A positive amount is required (micro-USDC).");
-        // Realm levers BEFORE signing/sending (parity with the server-side create): escrow is irreversible — BELOW_MIN/
-        // TOO_LONG after fund would freeze the money until the refund timeout. The server checks again (the truth is there).
+          throw new DataError("BAD_AMOUNT", "Нужна положительная сумма (micro-USDC).");
+        // Рычаги канала ДО подписи/отправки (паритет с серверным create): эскроу необратим — BELOW_MIN/
+        // TOO_LONG после fund заморозили бы деньги до таймаута возврата. Сервер проверит ещё раз (истина там).
         const text = typeof p.text === "string" ? p.text.trim() : "";
         const cfg = await this.api.getChannelConfig(req.channelId);
         const minTask =
           cfg.minDonationWithText > cfg.minDonation ? cfg.minDonationWithText : cfg.minDonation;
         if (BigInt(amountStr) < minTask)
-          throw new DataError("BELOW_MIN", "The amount is below the realm's minimum for tasks.");
+          throw new DataError("BELOW_MIN", "Сумма ниже минимума канала для заданий.");
         if (text.length > cfg.messageMaxLen)
-          throw new DataError("TOO_LONG", "The task text exceeds the realm's limit.");
-        // §10 threshold BEFORE signing (parity with the server-side create): escrow is irreversible — a LOW_REP refusal AFTER
-        // fund would freeze the donor's money until the refund timeout (yellow-paper §18.3-5, closed).
+          throw new DataError("TOO_LONG", "Текст задания превышает лимит канала.");
+        // §10-порог ДО подписи (паритет с серверным create): эскроу необратим — отказ LOW_REP ПОСЛЕ
+        // fund заморозил бы деньги донора до таймаута возврата (yellow-paper §18.3-5, закрыто).
         if (cfg.minReputationToTask > 0) {
           const st = await this.api.getStanding(req.channelId, w.publicKey.toBase58());
           if ((st?.points ?? 0) < cfg.minReputationToTask)
             throw new DataError(
               "LOW_REP",
-              `Tasks on this realm are available from ${cfg.minReputationToTask} Reign points — earn them with regular Crowns.`,
+              `Задания на этом канале доступны с ${cfg.minReputationToTask} очков репутации — набери их обычными донатами.`,
             );
         }
-        // Moderation BEFORE signing/sending: on-chain money is irreversible — we catch forbidden content early, otherwise
-        // the escrow would be funded for a task that the off-chain create would then reject.
+        // Модерация ДО подписи/отправки: деньги ончейн необратимы — запрещёнку ловим заранее, иначе
+        // эскроу был бы профинансирован под задание, которое оффчейн-create потом отклонит.
         if (text) {
-          // kind: "task" → the preflight judges by the SAME strict policy as the server-side create (ADR 0017): on-chain
-          // money is irreversible, so an illegal task must be cut off BEFORE funding, not after.
+          // kind: "task" → префлайт судит ТОЙ ЖЕ строгой политикой, что серверный create (ADR 0017): деньги
+          // ончейн необратимы, поэтому нелегальное задание должно отсекаться ДО фандинга, а не после.
           const { blocked, reason } = await this.api.precheckText(text, req.channelId, "task");
           if (blocked)
             throw new DataError(
               reason === "blocklist" ? "BLOCKED" : "TEXT_BLOCKED",
               reason === "blocklist"
-                ? "The wallet is blocked on the realm for messages."
-                : "The task text didn't pass moderation (forbidden/dangerous content).",
+                ? "Кошелёк заблокирован на канале для сообщений."
+                : "Текст задания не прошёл модерацию (запрещённый/опасный контент).",
             );
         }
-        // channelId → the streamer's payout address (via the off-chain backend, as in createDonation).
+        // channelId → payout-адрес стримера (через оффчейн-бэкенд, как в createDonation).
         const list = await this.api.listChannels();
         const card = list.items.find((c) => c.channelId === req.channelId);
         const channel = card ? await this.api.getChannel(card.handle) : null;
-        if (!channel) throw new DataError("NO_CHANNEL", "Realm not found or not activated.");
-        this.assertPayoutAttested(channel); // H1: escrow fund is also money to the payout, same check
+        if (!channel) throw new DataError("NO_CHANNEL", "Канал не найден или не активирован.");
+        this.assertPayoutAttested(channel); // H1: эскроу-fund — тоже деньги на payout, та же проверка
         const rawMs = typeof p.executionMs === "number" ? p.executionMs : 24 * 3600 * 1000;
-        // Clamp the submission window to executionMin (the same floor as machine.createTask; executionMin > grace, ESC-17)
-        // — otherwise fund reverts on the on-chain require, and the off-chain deadline would diverge from the on-chain done_deadline. The same
-        // value goes into the off-chain create → the chain and the mirror stay consistent.
+        // Клампим окно сдачи к executionMin (тот же пол, что и machine.createTask; executionMin > grace, ESC-17)
+        // — иначе fund ревертит на ончейн require, а офчейн-дедлайн разошёлся бы с ончейн done_deadline. То же
+        // значение уходит в офчейн-create → ончейн и зеркало согласованы.
         const executionMs = Math.max(rawMs, WINDOWS.executionMin);
-        // CR-4: task_id = SHA-256(nonce ‖ text) — the on-chain escrow seed BECOMES a commitment to the task text
-        // (like memo.m for Crowns). The operator can neither swap nor quietly hide the text that the
-        // jury judges: anyone can recompute the commitment from (text, nonce) and check it against the on-chain address. The nonce is stored off-chain.
-        const textNonce = toHex(randomTaskId()).slice(0, 32); // 16 bytes of salt (kills brute-forcing low-entropy ones)
+        // CR-4: task_id = SHA-256(nonce ‖ text) — ончейн-seed эскроу СТАНОВИТСЯ коммитментом к тексту задания
+        // (как memo.m у донатов). Оператор не сможет ни подменить, ни скрыть незаметно текст, который судит
+        // жюри: любой пересчитает коммитмент по (text, nonce) и сверит с ончейн-адресом. nonce хранится офчейн.
+        const textNonce = toHex(randomTaskId()).slice(0, 32); // 16 байт соли (гасит брутфорс низкоэнтропийных)
         const taskIdHex = await taskTextCommitment(text, textNonce);
         const taskId = fromHex(taskIdHex);
         const ix = await buildFundIx({
@@ -625,11 +625,22 @@ export class ChainDataProvider implements DataProvider {
         });
       }
 
-      // "Accept" now GOES to the chain (ESC-19): without an on-chain accept you can't mark_done/claim, and via
-      // the accept tx the indexer reveals the text. The streamer pays gas; the text is published — that's the seam.
+      // «Готово» (mark_done) — идемпотентно/само-исцеляюще. Первый mark_done мог пройти ОНЧЕЙН, но
+      // оффчейн-зеркало отстать (ответ/сеть упали после отправки tx) → эскроу уже Done, а UI показывает
+      // «В работе» и снова шлёт mark_done → программа ревертит 0x1772 «недопустимый статус». Поэтому:
+      // если ончейн уже Done+ (или аккаунт заклеймлен) — tx НЕ шлём, только досинхронизируем оффчейн.
+      case "markDone": {
+        const taskId = await this.escrowTaskIdOf(req.channelId, p.taskId);
+        const info = await this.connection.getAccountInfo(escrowPda(programId, taskId));
+        const past = !info || decodeEscrow(info.data).state >= 2; // 2=Done,3=Resolved,4=Disputed
+        if (!past) await this.sendTx([buildMarkDoneIx(programId, w.publicKey, taskId)]);
+        return this.api.gameAction(req);
+      }
+
+      // «Принять» (accept) ходит на цепочку (ESC-19): без ончейн-accept нельзя mark_done/claim, а по
+      // accept-tx индексер раскрывает текст. Стример платит газ; текст публикуется — это и есть шов.
       case "accept":
       case "reject":
-      case "markDone":
       case "cancel": {
         const taskId = await this.escrowTaskIdOf(req.channelId, p.taskId);
         const ix =
@@ -637,9 +648,7 @@ export class ChainDataProvider implements DataProvider {
             ? buildAcceptIx(programId, w.publicKey, taskId)
             : req.op === "reject"
               ? buildRejectIx(programId, w.publicKey, taskId)
-              : req.op === "markDone"
-                ? buildMarkDoneIx(programId, w.publicKey, taskId)
-                : buildCancelIx(programId, w.publicKey, taskId);
+              : buildCancelIx(programId, w.publicKey, taskId);
         await this.sendTx([ix]);
         return this.api.gameAction(req);
       }
@@ -649,7 +658,7 @@ export class ChainDataProvider implements DataProvider {
         const escrow = escrowPda(programId, taskId);
         const info = await this.connection.getAccountInfo(escrow);
         if (info) {
-          const me = w.publicKey; // the guard's narrowing doesn't survive into closures — pin it in a const
+          const me = w.publicKey; // сужение из гварда не доживает до замыканий — фиксируем в const
           const acc = decodeEscrow(info.data);
           const claimStreamerIxs = () =>
             buildClaimStreamerIxs(this.connection, {
@@ -664,29 +673,29 @@ export class ChainDataProvider implements DataProvider {
             buildClaimDonorIxs(this.connection, { programId, donor: me, mint, taskId });
 
           if (acc.resolution === 1) {
-            await this.sendTx(await claimStreamerIxs()); // ToStreamer (already resolved)
+            await this.sendTx(await claimStreamerIxs()); // ToStreamer (уже разрешено)
           } else if (acc.resolution === 2) {
-            await this.sendTx(await claimDonorIxs()); // ToDonor (already resolved)
+            await this.sendTx(await claimDonorIxs()); // ToDonor (уже разрешено)
           } else {
-            // Unresolved → auto-resolution by timeout + claim in ONE transaction (one confirmation/gas
-            // instead of two). We predict the side from the on-chain state (the same that resolve_timeout would set):
-            // Done → to the streamer; Pending/Accepted-overdue → to the donor. Not ripe yet / dispute open → the program
-            // reverts the whole tx (claim opens after the window or after the canister arbiter's verdict, M2).
+            // Unresolved → авторазрешение по таймауту + claim ОДНОЙ транзакцией (одно подтверждение/газ
+            // вместо двух). Сторону предсказываем по on-chain состоянию (то же выставит resolve_timeout):
+            // Done → стримеру; Pending/Accepted-просрочка → донору. Не дозрело / открыт спор → программа
+            // откатит всю tx (claim откроется после окна или после вердикта арбитра канистры, M2).
             const claimIxs = acc.state === 2 ? await claimStreamerIxs() : await claimDonorIxs();
             await this.sendTx([buildResolveTimeoutIx(programId, me, taskId), ...claimIxs]);
           }
         }
-        // Off-chain settle banks the Reign (DONATION on to_streamer; a refund gives no points) — the brain is off-chain.
+        // Оффчейн-settle забанкует репутацию (DONATION при to_streamer; возврат очков не даёт) — мозг оффчейн.
         return this.api.gameAction(req);
       }
 
-      // M2 (ADR 0021): manual on-chain resolver actions (markDisputed/resolveDispute) are REMOVED —
-      // a chain task's dispute is run by the canister arbiter, the verdict executed by the threshold resolver
-      // (IcpDataProvider.gameAction routes raiseDispute/vote to the canister).
+      // M2 (ADR 0021): ручные ончейн-действия резолвера (markDisputed/resolveDispute) УДАЛЕНЫ —
+      // спор chain-задачи ведёт арбитр канистры, вердикт исполняет тресхолд-резолвер
+      // (IcpDataProvider.gameAction маршрутизирует raiseDispute/vote в канистру).
 
       default:
-        // raiseDispute, vote, and the rest — the server's off-chain mirror. For chain tasks in icp mode this
-        // isn't reached: IcpDataProvider intercepts dispute operations and routes them to the canister arbiter (M2).
+        // raiseDispute, vote и прочее — оффчейн-зеркало сервера. Для chain-задач в icp-режиме сюда
+        // не доходит: IcpDataProvider перехватывает спор-операции и уводит их в арбитр канистры (M2).
         return this.api.gameAction(req);
     }
   }

@@ -66,10 +66,15 @@
   dfx deploy core --argument '(record { rpc_url = "https://api.devnet.solana.com";
     treasury_ata = "GzBQqH16CHT5m8v5JWAG6fTPcRohTfZQFvgW8Jx8AoKX";
     usdc_mint = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"; poll_secs = 20 : nat64;
-    escrow_program = opt "GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4" })'
+    escrow_program = opt "GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4";
+    schnorr_key_name = opt "key_1" })'
   ```
   `escrow_program` включает арбитр споров (M2) И эскроу-индексатор (`escrow_index.rs`): эскроу-донаты
   заданий (G3a) → `GameDonation` в журнал (иначе icp-профиль их не покажет — yellow-paper §18.5-8a).
+  **`schnorr_key_name = opt "key_1"` ОБЯЗАТЕЛЬНО** на нынешней локальной реплике: без него дефолт
+  `dfx_test_key`, которого у PocketIC больше нет (ключ зовётся `key_1`) → открытие спора падает
+  `schnorr_public_key: ChainKeyError("unknown threshold key: dfx_test_key")`. Проверка после деплоя:
+  `dfx canister call core solana_address` → `Ok "EekhckAL…"` (не reject).
   Всё поднять одной командой из корня — `./up.sh` (после ребута; `./up.sh web` — перезапуск только фронта).
   Смена init-конфига (добавить `escrow_program`) требует `dfx deploy core --mode reinstall --yes` —
   post_upgrade конфиг НЕ перечитывает; на локальном стенде reinstall безопасен (журнал пересоберётся).

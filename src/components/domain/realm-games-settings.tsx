@@ -231,6 +231,17 @@ interface ParamsDraft {
   lossPenalty: string;
 }
 
+/** Логическая группа полей формы — мини-заголовок + сетка 2-в-ряд. Разбивает длинный список
+ *  параметров на осмысленные блоки (кто открывает/голосует · тайминги · ставки). */
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <span className="text-caption uppercase tracking-wide text-fg-faint">{title}</span>
+      <div className="grid gap-4 sm:grid-cols-2">{children}</div>
+    </div>
+  );
+}
+
 function DisputeParamsSection({ channelId }: { channelId: string }) {
   const paramsQ = useDisputeParams(channelId);
   const save = useSetDisputeParams();
@@ -319,17 +330,18 @@ function DisputeParamsSection({ channelId }: { channelId: string }) {
     );
   }
 
+  // Эффективный пол открытия спора = max(порог, штраф): поднявший обязан покрыть, что проиграет.
+  const penaltyNum = Number.isFinite(num(draft.lossPenalty)) ? num(draft.lossPenalty) : 0;
+  const minRepNum = Number.isFinite(num(draft.minRep)) ? num(draft.minRep) : 0;
+  const floor = Math.max(minRepNum, penaltyNum);
+  const floorFromPenalty = penaltyNum > minRepNum;
+
   return (
     <Card>
       <p className="text-small text-fg-muted">
         Rules for task-crown disputes live in the ICP canister, not with the platform: only your
         wallet signature can change them, and they take effect on a timelock — disputes already
         running keep the old rules. The platform cannot tweak these.
-      </p>
-      <p className="text-small text-fg-faint">
-        A raiser must be able to cover what they&apos;d lose: the effective floor to open a dispute is
-        the larger of &laquo;Reign to open a dispute&raquo; and the &laquo;Lost-dispute penalty&raquo;
-        below — someone with less Reign than the penalty can&apos;t raise one.
       </p>
       {info.pending ? (
         <p className="text-small text-info">
@@ -342,51 +354,104 @@ function DisputeParamsSection({ channelId }: { channelId: string }) {
           Default rules apply — this realm hasn&apos;t changed anything.
         </p>
       ) : null}
-      <div className="grid gap-4 sm:grid-cols-2">
+
+      {/* Живой «эффективный пол» открытия спора — снимает необходимость держать max в голове. */}
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-[var(--bg)] px-4 py-3">
+        <div className="flex min-w-0 flex-col">
+          <span className="text-caption uppercase tracking-wide text-fg-faint">
+            Floor to open a dispute
+          </span>
+          <span className="text-small text-fg-muted">
+            A raiser must cover what they&apos;d lose — so it can&apos;t be below the penalty.
+          </span>
+        </div>
+        <span className="mono shrink-0 text-h3 tabular-nums text-fg">
+          {floor}
+          <span className="ml-1 text-small text-fg-faint">Reign</span>
+        </span>
+      </div>
+
+      <Group title="Who can open & vote">
         <Input
           label="Reign to open a dispute"
           mono
+          inputMode="decimal"
           value={draft.minRep}
+          helper={
+            floorFromPenalty
+              ? `Auto-raised to ${penaltyNum} to match the penalty.`
+              : "Minimum Reign to raise a dispute."
+          }
           onChange={(e) => setDraft({ ...draft, minRep: e.target.value })}
         />
         <Input
-          label="Minimum juror weight, Reign"
+          label="Minimum juror weight"
           mono
+          inputMode="decimal"
+          helper="Reign a wallet needs for its vote to count."
           value={draft.minWeight}
           onChange={(e) => setDraft({ ...draft, minWeight: e.target.value })}
         />
         <Input
-          label="Turnout quorum, Reign (fewer → dispute goes to you)"
+          label="Turnout quorum"
           mono
+          inputMode="decimal"
+          helper="Reign — if fewer vote, the dispute goes to you."
           value={draft.quorum}
           onChange={(e) => setDraft({ ...draft, quorum: e.target.value })}
         />
+      </Group>
+
+      <Group title="Timing">
         <Input
-          label="Open-dispute window, minutes"
+          label="Open-dispute window"
           mono
+          inputMode="decimal"
+          helper="minutes to raise a dispute after «Done»."
           value={draft.disputeMin}
           onChange={(e) => setDraft({ ...draft, disputeMin: e.target.value })}
         />
         <Input
-          label="Voting window, minutes"
+          label="Voting window"
           mono
+          inputMode="decimal"
+          helper="minutes jurors have to vote."
           value={draft.votingMin}
           onChange={(e) => setDraft({ ...draft, votingMin: e.target.value })}
         />
+      </Group>
+
+      <Group title="Stakes (Reign)">
         <Input
-          label="Won-dispute reward, Reign"
+          label="Won-dispute reward"
           mono
+          inputMode="decimal"
+          helper="Reign the raiser gains if the community sides with them."
           value={draft.winBonus}
           onChange={(e) => setDraft({ ...draft, winBonus: e.target.value })}
         />
         <Input
-          label="Lost-dispute penalty, Reign"
+          label="Lost-dispute penalty"
           mono
+          inputMode="decimal"
+          helper="Reign the raiser loses on a false dispute — sets the floor above."
           value={draft.lossPenalty}
-          onChange={(e) => setDraft({ ...draft, lossPenalty: e.target.value })}
+          onChange={(e) => {
+            // Логическая связка: штраф авто-поднимает порог открытия спора (пол = max), чтобы
+            // поднявший всегда мог покрыть проигрыш. Более высокий ручной порог сохраняется.
+            const v = e.target.value;
+            const penalty = num(v);
+            const curMin = num(draft.minRep);
+            setDraft({
+              ...draft,
+              lossPenalty: v,
+              minRep: Number.isFinite(penalty) && penalty > curMin ? v : draft.minRep,
+            });
+          }}
         />
-      </div>
-      <div className="flex flex-col items-start gap-2">
+      </Group>
+
+      <div className="flex flex-col items-start gap-2 border-t border-border pt-4">
         <Button variant="money" loading={save.isPending} disabled={!valid} onClick={submit}>
           Sign and send to the canister
         </Button>

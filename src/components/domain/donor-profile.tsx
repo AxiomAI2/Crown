@@ -34,7 +34,7 @@ import { toast } from "@/components/ui/toast";
 import { useCopied } from "@/components/ui/use-copied";
 import { explorerTxUrl } from "@/lib/chain/addresses";
 import { useDonorOverview, useProfile, useUpdateProfile } from "@/lib/data/hooks";
-import type { Donation, DonorChannelStanding, DonorOverview, DonorPointEvent } from "@/lib/data/types";
+import type { DonorChannelStanding, DonorOverview, DonorPointEvent } from "@/lib/data/types";
 import {
   channelHue,
   cn,
@@ -248,10 +248,21 @@ const RANGE_CAPTION: Record<ChartRange, string> = {
  * Cumulative "total crowned" chart — shared component (area-chart): even steps per crown,
  * a sharp jump on each crown. Here we only convert crowns → events (t, increment in USDC).
  */
-function DonationsAreaChart({ donations, range }: { donations: Donation[]; range: ChartRange }) {
+function DonationsAreaChart({
+  pointEvents,
+  range,
+}: {
+  pointEvents: DonorPointEvent[];
+  range: ChartRange;
+}) {
+  // Строим из ДЕНЕЖНЫХ событий журнала (DONATION + эскроу-GAME_DONATION), а не из серверных `donations`:
+  // в icp-режиме это канон канистры (иначе график не сходится с «Total crowned» и теряет эскроу-донаты).
   const events = useMemo(
-    () => donations.map((d) => ({ t: Date.parse(d.ts), v: fromMicro(d.amount) })),
-    [donations],
+    () =>
+      pointEvents
+        .filter((e) => e.type === "DONATION" || e.type === "GAME_DONATION")
+        .map((e) => ({ t: Date.parse(e.ts), v: fromMicro(e.amount) })),
+    [pointEvents],
   );
   return (
     <CumulativeAreaChart
@@ -359,6 +370,17 @@ function ActivityRow({
           >
             <ExternalLinkIcon className="h-4 w-4" />
           </a>
+        ) : null}
+        {/* Спор — не ончейн-tx: пруф это табло, где виден открывший (его подпись проверила канистра) + голоса/вердикт. */}
+        {(e.type === "DISPUTE_WON" || e.type === "DISPUTE_LOST") && e.disputeTaskId && handle ? (
+          <Link
+            href={`/c/${handle}/dispute/${encodeURIComponent(e.disputeTaskId)}`}
+            title="Open the dispute board — who raised it, votes, verdict"
+            aria-label="Dispute board"
+            className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
+          >
+            <ExternalLinkIcon className="h-4 w-4" />
+          </Link>
         ) : null}
       </div>
     </div>
@@ -482,7 +504,7 @@ function DonorDashboard({
             <RangeTabs range={range} onChange={setRange} />
           </div>
           <Amount micro={overview.totalDonated} variant="money" className="text-display-l" />
-          <DonationsAreaChart donations={overview.donations} range={range} />
+          <DonationsAreaChart pointEvents={pointEvents} range={range} />
           <span className="text-small text-fg-faint">
             {RANGE_CAPTION[range]} · money is final, Reign is computed per realm separately
           </span>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Amount, FeeSplit } from "@/components/domain/amount";
+import { Monogram } from "@/components/domain/header-actions";
 import { ModerationMenu } from "@/components/domain/moderation-menu";
 import { ReportDialog } from "@/components/domain/report-dialog";
 import { StandingHeadline } from "@/components/domain/standing";
@@ -26,21 +27,21 @@ import { explorerTxUrl } from "@/lib/chain/addresses";
 import type { CanisterDisputeView } from "@/lib/chain/dispute-vote";
 import { useChannelConfig, useDisputeParams, useSession, useStanding } from "@/lib/data/hooks";
 import { pointsForAmount } from "@/lib/reputation";
-import { collapseWhitespace, formatPoints, shortAddress, timeAgo, toMicro } from "@/lib/utils";
+import { collapseWhitespace, formatPoints, plural, shortAddress, timeAgo, toMicro } from "@/lib/utils";
 import { useCanisterDispute, useEscrowAction, useEscrowTasks } from "./hooks";
 import { dueResolution, isTextPublic, WINDOWS } from "./machine";
 import type { EscrowTask, TaskDispute } from "./types";
 
-// The same amount presets as a regular crown (the crown widget) — a unified design.
+// Те же пресеты сумм, что и в обычном донате (донат-виджет) — единый дизайн.
 const PRESETS = [5, 10, 25, 100];
 
-// The execution deadline is typed in by the donor (number + unit); bounds — from WINDOWS (executionMin..executionMax).
+// Срок на выполнение донор вписывает вручную (число + единица); границы — из WINDOWS (executionMin..executionMax).
 const H = 3_600_000;
 const MIN = H / 60;
 const DAY = 24 * H;
 const UNIT_MS: Record<"m" | "h" | "d", number> = { m: MIN, h: H, d: DAY };
 
-/** A live timestamp: ticks once a second → the card's timers run in real time. */
+/** Живой таймстамп: тикает раз в секунду → таймеры на карточке идут в реальном времени (real-time). */
 function useNow(intervalMs = 1000): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -50,43 +51,43 @@ function useNow(intervalMs = 1000): number {
   return now;
 }
 
-/** Countdown to iso: "M:SS" by the second (for short windows), h/d — for long ones. `now` is live. */
+/** Обратный отсчёт до iso: «M:SS» посекундно (под короткие окна), ч/дн — для длинных. `now` — живой. */
 function until(iso: string, now: number): string {
   const left = Date.parse(iso) - now;
-  if (left <= 0) return "deadline passed";
+  if (left <= 0) return "срок истёк";
   const s = Math.floor(left / 1000);
   const d = Math.floor(s / 86400);
   const h = Math.floor((s % 86400) / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  if (d > 0) return `${d}d ${h}h left`;
-  if (h > 0) return `${h}h ${m.toString().padStart(2, "0")}m left`;
-  return `${m}:${sec.toString().padStart(2, "0")} left`;
+  if (d > 0) return `осталось ${d}д ${h}ч`;
+  if (h > 0) return `осталось ${h}ч ${m.toString().padStart(2, "0")}м`;
+  return `осталось ${m}:${sec.toString().padStart(2, "0")}`;
 }
 
-/** Which deadline is ticking now (by stage) — a live caption for the card. */
+/** Какой дедлайн сейчас тикает (по стадии) — живая подпись для карточки. */
 function deadlineLabel(task: EscrowTask, now: number): string | null {
   switch (task.status) {
     case "PENDING":
-      return `Submit by · ${until(task.executionDeadline, now)}`;
+      return `Сдать до · ${until(task.executionDeadline, now)}`;
     case "ACCEPTED":
-      return `Complete by · ${until(task.executionDeadline, now)}`;
+      return `Выполнить · ${until(task.executionDeadline, now)}`;
     case "DONE":
       return task.disputeWindowEndsAt
-        ? `Dispute by · ${until(task.disputeWindowEndsAt, now)}`
+        ? `Оспорить до · ${until(task.disputeWindowEndsAt, now)}`
         : null;
     case "DISPUTED":
-      return task.dispute ? `Voting · ${until(task.dispute.votingEndsAt, now)}` : null;
+      return task.dispute ? `Голосование · ${until(task.dispute.votingEndsAt, now)}` : null;
     default:
       return null;
   }
 }
 
 /**
- * The "task-for-a-crown" mini-game UI, two surfaces (ADR 0016 / redesign of the realm's games section):
- *  - EscrowTaskRail — the RIGHT rail: the action (create a task-for-a-crown);
- *  - EscrowTaskHub  — the LEFT: rules + "why it's fair" + active tasks (monitoring, disputes).
- * Data — via typed hooks (game-bus). Money in chain mode — a real on-chain escrow (G3a).
+ * UI мини-игры «задание-донат», две поверхности (ADR 0016 / редизайн раздела игр на канале):
+ *  - EscrowTaskRail — ПРАВЫЙ рейл: действие (создать задание-донат);
+ *  - EscrowTaskHub  — ЛЕВО: правила + «почему честно» + активные задания (мониторинг, споры).
+ * Данные — через типизированные хуки (game-bus). Деньги в chain-режиме — реальный ончейн-эскроу (G3a).
  */
 
 interface GameProps {
@@ -96,14 +97,14 @@ interface GameProps {
 }
 
 const STATUS_LABEL: Record<EscrowTask["status"], string> = {
-  PENDING: "Awaiting streamer",
-  ACCEPTED: "In progress",
-  DONE: "Dispute window",
-  DISPUTED: "Dispute voting",
-  RESOLVED: "Completed",
+  PENDING: "Ждёт стримера",
+  ACCEPTED: "В работе",
+  DONE: "Окно оспаривания",
+  DISPUTED: "Голосование по спору",
+  RESOLVED: "Завершено",
 };
 const outcomeLabel = (o: "to_streamer" | "to_donor") =>
-  o === "to_streamer" ? "to streamer" : "refund to donor";
+  o === "to_streamer" ? "стримеру" : "возврат донору";
 
 type Run = (op: string, payload?: unknown, okMsg?: string, onDone?: () => void) => void;
 
@@ -115,12 +116,12 @@ function useRun(channelId: string): { run: Run; pending: boolean } {
       {
         onSuccess: () => {
           if (okMsg) toast({ variant: "success", title: okMsg });
-          onDone?.(); // e.g. close the confirm dialog and clear the form — only on success
+          onDone?.(); // напр. закрыть диалог подтверждения и очистить форму — только по успеху
         },
         onError: (e) =>
           toast({
             variant: "error",
-            title: "Something went wrong",
+            title: "Не получилось",
             description: e instanceof Error ? e.message : String(e),
           }),
       },
@@ -128,7 +129,7 @@ function useRun(channelId: string): { run: Run; pending: boolean } {
   return { run, pending: action.isPending };
 }
 
-// ───────────────────────── right rail: action ─────────────────────────
+// ───────────────────────── правый рейл: действие ─────────────────────────
 
 export function EscrowTaskRail({ channelId }: GameProps) {
   const viewer = useSession().data?.address ?? null;
@@ -137,16 +138,16 @@ export function EscrowTaskRail({ channelId }: GameProps) {
   const { run, pending } = useRun(channelId);
   const [amount, setAmount] = useState("");
   const [text, setText] = useState("");
-  // The execution deadline is set by the donor by hand: number + unit (hours/days). Default — 1 day.
+  // Срок выполнения задаёт донор вручную: число + единица (часы/дни). По умолчанию — 1 день.
   const [dlValue, setDlValue] = useState("1");
   const [dlUnit, setDlUnit] = useState<"m" | "h" | "d">("d");
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const num = Number(amount);
   const amountValid = amount !== "" && Number.isFinite(num) && num > 0;
-  const gain = amountValid ? pointsForAmount(toMicro(num)) : 0; // preview of the points gain
-  // The realm's minimum for a task = the larger of minDonation/minDonationWithText (a task is a crown with text;
-  // the same computation on the server in create → BELOW_MIN). We validate before signing — don't burn gas on a rejection.
+  const gain = amountValid ? pointsForAmount(toMicro(num)) : 0; // предпросмотр прибавки очков
+  // Минимум канала для задания = бóльший из minDonation/minDonationWithText (задание — донат с текстом;
+  // тот же расчёт на сервере в create → BELOW_MIN). Валидируем до подписи — не жечь газ об отказ.
   const minTaskMicro = config
     ? config.minDonationWithText > config.minDonation
       ? config.minDonationWithText
@@ -154,11 +155,11 @@ export function EscrowTaskRail({ channelId }: GameProps) {
     : null;
   const belowMin = amountValid && minTaskMicro !== null && toMicro(num) < minTaskMicro;
   const amountError = belowMin
-    ? `The realm's minimum for tasks — ${Number(minTaskMicro) / 1_000_000} USDC`
+    ? `Минимум канала для заданий — ${Number(minTaskMicro) / 1_000_000} USDC`
     : undefined;
 
-  // §10 threshold: the right to submit a task. We gate the form ahead of time — otherwise the donor learns of the
-  // rejection only after typing the text (the server and chain preflight would cut it off anyway — this is an honest early signal).
+  // §10-порог: право прислать задание. Гейтим форму заранее — иначе донор узнаёт об отказе только
+  // после набора текста (сервер и chain-префлайт всё равно отсекут — тут честный ранний сигнал).
   const minRep = config?.minReputationToTask ?? 0;
   const lowRep = minRep > 0 && (standingQ.data?.points ?? 0) < minRep;
 
@@ -169,14 +170,14 @@ export function EscrowTaskRail({ channelId }: GameProps) {
     Number.isInteger(dlNum) &&
     deadlineMs >= WINDOWS.executionMin &&
     deadlineMs <= WINDOWS.executionMax;
-  // The floor comes from WINDOWS.executionMin (ESC-17: > grace), so the hint doesn't diverge from validation:
-  // fast-test = 2 min, prod = 5 min. Ceiling executionMax = 90 days ≈ 3 months.
+  // Пол берём из WINDOWS.executionMin (ESC-17: > grace), чтобы подсказка не расходилась с валидацией:
+  // fast-test = 2 мин, прод = 5 мин. Потолок executionMax = 90 дней ≈ 3 месяца.
   const deadlineError =
     dlValue !== "" && !deadlineValid
-      ? `Deadline: from ${Math.round(WINDOWS.executionMin / MIN)} minutes to 3 months`
+      ? `Срок: от ${Math.round(WINDOWS.executionMin / MIN)} минут до 3 месяцев`
       : undefined;
-  // A long deadline = a long freeze: if the streamer ignores it, the refund only comes AFTER the delivery deadline
-  // (escrow, no-show/expired) — there's no separate on-chain 72h accept window. We warn from 7 days (the v1.1 corridor).
+  // Долгий срок = долгая заморозка: при игноре стримера возврат приходит только по ИСТЕЧЕНИИ срока сдачи
+  // (эскроу, no-show/expired) — отдельного 72ч-окна принятия ончейн нет. Предупреждаем от 7 дней (коридор v1.1).
   const longDeadline = deadlineValid && deadlineMs > 7 * DAY;
   const valid = amountValid && !belowMin && text.trim().length > 0 && deadlineValid && !lowRep;
 
@@ -185,9 +186,9 @@ export function EscrowTaskRail({ channelId }: GameProps) {
     run(
       "create",
       { amount: toMicro(num).toString(), text: text.trim(), executionMs: deadlineMs },
-      "Task created",
+      "Задание создано",
       () => {
-        // clear and close ONLY on success — if the signature was canceled → the form and dialog stay put
+        // очищаем и закрываем ТОЛЬКО по успеху — отменил подпись → форма и диалог на месте
         setConfirmOpen(false);
         setAmount("");
         setText("");
@@ -199,12 +200,12 @@ export function EscrowTaskRail({ channelId }: GameProps) {
     <div className="flex flex-col gap-4 rounded-lg border border-border bg-[var(--bg)] p-4">
       {!viewer ? (
         <>
-          <h3 className="text-h3 text-fg">Task for a Crown</h3>
-          <p className="text-small text-fg-muted">Connect your wallet to create a task.</p>
+          <h3 className="text-h3 text-fg">Задание-донат</h3>
+          <p className="text-small text-fg-muted">Подключи кошелёк, чтобы создать задание.</p>
         </>
       ) : (
         <>
-          {/* The same standing card as a regular crown: a live preview of the points gain. */}
+          {/* Та же карточка standing, что и у обычного доната: живой предпросмотр прибавки очков. */}
           <StandingHeadline
             standing={standingQ.data}
             tiers={config?.tiers ?? []}
@@ -214,11 +215,11 @@ export function EscrowTaskRail({ channelId }: GameProps) {
 
           <div className="border-t border-border" />
 
-          <h3 className="text-h3 text-fg">Task for a Crown</h3>
+          <h3 className="text-h3 text-fg">Задание-донат</h3>
 
           <div className="flex flex-col gap-2">
             <Input
-              label="Amount, USDC"
+              label="Сумма, USDC"
               mono
               inputMode="decimal"
               placeholder="0.00"
@@ -243,8 +244,8 @@ export function EscrowTaskRail({ channelId }: GameProps) {
           </div>
 
           <Textarea
-            label="Task"
-            placeholder="What should the streamer do…"
+            label="Задание"
+            placeholder="Что сделать стримеру…"
             maxLength={config?.messageMaxLen ?? 280}
             showCount
             value={text}
@@ -253,13 +254,13 @@ export function EscrowTaskRail({ channelId }: GameProps) {
           />
           {lowRep ? (
             <p className="text-small text-fg-muted">
-              Tasks in this realm start at {formatPoints(minRep)} Reign points (you have{" "}
-              {formatPoints(standingQ.data?.points ?? 0)}). Reign is earned with regular crowns.
+              Задания на этом канале — с {formatPoints(minRep)} очков репутации (у тебя{" "}
+              {formatPoints(standingQ.data?.points ?? 0)}). Репутация набирается обычными донатами.
             </p>
           ) : null}
 
           <div className="flex flex-col gap-1">
-            <span className="text-small text-fg-muted">Execution deadline</span>
+            <span className="text-small text-fg-muted">Срок на выполнение</span>
             <div className="flex items-start gap-2">
               <Input
                 mono
@@ -273,20 +274,20 @@ export function EscrowTaskRail({ channelId }: GameProps) {
               <Select
                 value={dlUnit}
                 onChange={(e) => setDlUnit(e.target.value as "m" | "h" | "d")}
-                aria-label="Deadline unit"
+                aria-label="Единица срока"
                 className="w-28 bg-[var(--bg)]"
               >
-                <option value="m">minutes</option>
-                <option value="h">hours</option>
-                <option value="d">days</option>
+                <option value="m">минут</option>
+                <option value="h">часов</option>
+                <option value="d">дней</option>
               </Select>
             </div>
             {longDeadline ? (
               <p className="text-small text-warn">
-                A long deadline — a long freeze: if the streamer simply ignores the task, the money
-                will sit in escrow for up to {Math.round(deadlineMs / DAY)} days and return only
-                after the deadline. You can only cancel in the first ~{Math.round(WINDOWS.grace / MIN)} min
-                after creation.
+                Долгий срок — долгая заморозка: если стример просто проигнорирует задание, деньги
+                пролежат в эскроу до {Math.round(deadlineMs / DAY)} дней и вернутся только по
+                истечении срока. Отменить можно лишь в первые ~{Math.round(WINDOWS.grace / MIN)} мин
+                после создания.
               </p>
             ) : null}
           </div>
@@ -297,45 +298,45 @@ export function EscrowTaskRail({ channelId }: GameProps) {
             onClick={() => setConfirmOpen(true)}
             className="border-border-strong bg-[var(--bg)] hover:bg-surface-raised"
           >
-            Create task
+            Создать задание
           </Button>
 
-          {/* Confirmation with a breakdown — like a regular crown (donate.tsx), but the copy is honest for
-              escrow: the money is NOT final to the streamer immediately; on a no-show it returns to the donor without a fee (§6). */}
+          {/* Подтверждение с разбивкой — как у обычного доната (donate.tsx), но копирайт честный для
+              эскроу: деньги НЕ финальны стримеру сразу, при no-show возвращаются донору без комиссии (§6). */}
           <Dialog
             open={confirmOpen}
             onOpenChange={(o) => {
-              if (!pending) setConfirmOpen(o); // don't allow closing during signing/finalization
+              if (!pending) setConfirmOpen(o); // не даём закрыть во время подписи/финализации
             }}
           >
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Confirmation</DialogTitle>
+                <DialogTitle>Подтверждение</DialogTitle>
                 <DialogDescription>
-                  The money is frozen in escrow. To the streamer — if they complete it; fully to you
-                  — if they miss the deadline.
+                  Деньги замораживаются в эскроу. Стримеру — если выполнит; тебе полностью — если не
+                  успеет в срок.
                 </DialogDescription>
               </DialogHeader>
               {amountValid ? <FeeSplit amount={toMicro(num)} /> : null}
               <p className="text-small text-fg-muted">
                 {pending
-                  ? "Sign in your wallet and wait for on-chain finalization (~15–30s) — the task will appear once the escrow is confirmed."
-                  : "The breakdown — if the streamer completes it. If they miss the deadline — we'll return the full amount without a fee."}
+                  ? "Подпиши в кошельке и подожди финализации в сети (~15–30с) — задание появится, когда эскроу подтвердится."
+                  : "Разбивка — если стример выполнит. Не успеет в срок — вернём всю сумму без комиссии."}
               </p>
               {!pending && longDeadline ? (
                 <p className="text-small text-warn">
-                  Deadline {Math.round(deadlineMs / DAY)} days: if the streamer ignores the task,
-                  the refund will only come after it expires — you can't take the money earlier.
+                  Срок {Math.round(deadlineMs / DAY)} дней: если стример проигнорирует задание,
+                  возврат придёт только после его истечения — забрать деньги раньше нельзя.
                 </p>
               ) : null}
               <DialogFooter>
                 <DialogClose asChild>
                   <Button variant="ghost" disabled={pending}>
-                    Cancel
+                    Отмена
                   </Button>
                 </DialogClose>
                 <Button variant="money" loading={pending} onClick={confirmCreate}>
-                  {pending ? "Finalizing…" : "Confirm and sign"}
+                  {pending ? "Финализируем…" : "Подтвердить и подписать"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -346,14 +347,14 @@ export function EscrowTaskRail({ channelId }: GameProps) {
   );
 }
 
-// ───────────────────────── left part: rules + active ─────────────────────────
+// ───────────────────────── левая часть: правила + активные ─────────────────────────
 
 export function EscrowTaskHub({ channelId, ownerAddress, handle }: GameProps) {
   const viewer = useSession().data?.address ?? null;
   const tasksQ = useEscrowTasks(channelId);
   const { run, pending } = useRun(channelId);
-  // "Active" = the cycle is still running. Completed ones (RESOLVED + claimed) move to the feed; ones rejected by
-  // the streamer (hidden) we hide from here too — the escrow returns to the donor on its own by timer.
+  // «Активные» = цикл ещё идёт. Завершённые (RESOLVED + забрано) уезжают в ленту; отклонённые стримером
+  // (hidden) прячем отсюда тоже — эскроу вернётся донору сам по таймеру.
   const active = (tasksQ.data?.tasks ?? []).filter(
     (t) => !t.hidden && !(t.status === "RESOLVED" && t.resolution?.claimed),
   );
@@ -362,19 +363,19 @@ export function EscrowTaskHub({ channelId, ownerAddress, handle }: GameProps) {
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-3">
         <div className="text-caption uppercase tracking-wide text-fg-faint">
-          Active tasks · {active.length}
+          Активные задания · {active.length}
         </div>
         {tasksQ.isLoading ? (
           <Skeleton className="h-24 w-full rounded-lg" />
         ) : tasksQ.error ? (
           <ErrorState
-            description="Couldn't load the tasks."
+            description="Не удалось загрузить задания."
             onRetry={() => tasksQ.refetch()}
           />
         ) : active.length === 0 ? (
           <EmptyState
-            title="No active tasks"
-            description="Create a task on the right. Completed ones — in the &quot;Crowns&quot; feed."
+            title="Нет активных заданий"
+            description="Создай задание справа. Завершённые — в ленте «Донаты»."
           />
         ) : (
           <div className="flex flex-col [&>:last-child]:border-b-0">
@@ -396,14 +397,14 @@ export function EscrowTaskHub({ channelId, ownerAddress, handle }: GameProps) {
   );
 }
 
-/** Human-readable window from WINDOWS — the rules don't hardcode durations (fast mode and calibration). */
+/** Человекочитаемое окно из WINDOWS — правила не хардкодят длительности (fast-режим и калибровка). */
 const fmtWindow = (ms: number) =>
-  ms >= 3_600_000 ? `${Math.round(ms / 3_600_000)} h` : `${Math.round(ms / 60_000)} min`;
+  ms >= 3_600_000 ? `${Math.round(ms / 3_600_000)} ч` : `${Math.round(ms / 60_000)} мин`;
 
 /**
- * The game's rules — shown in the "i" modal of the game picker (GameActionRail). The outer container is the modal.
- * In icp mode the dispute windows/thresholds are the ACTIVE realm params from the canister (M1/M2: set by the owner,
- * the donor sees them BEFORE opening a dispute); outside icp (or until the canister responds) — the machine defaults.
+ * Правила игры — показываются в модалке «i» пикера игр (GameActionRail). Внешний контейнер даёт модалка.
+ * В icp-режиме окна/пороги спора — ДЕЙСТВУЮЩИЕ параметры канала из канистры (M1/M2: их задаёт владелец,
+ * донор видит их ДО открытия спора); вне icp (или пока канистра не ответила) — дефолты машины.
  */
 export function EscrowTaskRules({ channelId }: { channelId?: string }) {
   const params = useDisputeParams(channelId).data?.effective;
@@ -414,57 +415,57 @@ export function EscrowTaskRules({ channelId }: { channelId?: string }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
-        <h3 className="text-h3 text-fg">How it works</h3>
+        <h3 className="text-h3 text-fg">Как работает</h3>
         <ol className="text-small flex list-inside list-decimal flex-col gap-1 text-fg-muted">
-          <li>A viewer crowns with a task — the money is frozen in escrow.</li>
-          <li>The streamer completes the task and presses "Done" (the proof is the stream/VOD itself).</li>
+          <li>Зритель донатит с заданием — деньги замораживаются в эскроу.</li>
+          <li>Стример выполняет задание и жмёт «Готово» (доказательство — сам стрим/VOD).</li>
           <li>
-            Dispute window {fmtWindow(disputeWindow)}: if nobody disputes — the money goes to the
-            streamer.
+            Окно оспаривания {fmtWindow(disputeWindow)}: если никто не спорит — деньги уходят
+            стримеру.
           </li>
           <li>
-            Think it wasn't done? With Reign{" "}
+            Считаешь, что не выполнено? С репутацией{" "}
             {minRepPts != null ? (
               <span className="mono">≥ {formatPoints(minRepPts)}</span>
             ) : (
-              "≥ the threshold"
+              "≥ порога"
             )}{" "}
-            you raise a dispute → voting {fmtWindow(votingWindow)}
+            поднимаешь спор → голосование {fmtWindow(votingWindow)}
             {quorumPts != null ? (
               <>
                 {" "}
-                (turnout quorum — <span className="mono">{formatPoints(quorumPts)}</span> points; if
-                not reached — the money goes to the streamer)
+                (кворум явки — <span className="mono">{formatPoints(quorumPts)}</span> очков; не
+                соберётся — деньги уйдут стримеру)
               </>
             ) : null}
             .
           </li>
-          <li>The community decided "not completed" → 100% back to the donor; "completed" → to the streamer.</li>
+          <li>Комьюнити решило «не выполнил» → 100% назад донору; «выполнил» → стримеру.</li>
         </ol>
       </div>
       <div className="flex flex-col gap-2">
-        <h3 className="text-h3 text-fg">Why it's fair</h3>
+        <h3 className="text-h3 text-fg">Почему это честно</h3>
         <ul className="text-small flex list-inside list-disc flex-col gap-1 text-fg-muted">
           <li>
-            There's no prize: the money goes either to the streamer for the work or back to the donor
-            — you can't win someone else's money (not a bet).
+            Приза нет: деньги либо стримеру за дело, либо назад донору — выиграть чужое нельзя (не
+            пари).
           </li>
           <li>
-            A vote is weighted by reputation at the dispute moment — you can't inflate it "for the dispute" after the fact.
+            Голос взвешен репутацией на момент спора — накрутить «под спор» задним числом нельзя.
           </li>
-          <li>Jurors aren't paid, and whoever raises a false dispute risks their own Reign.</li>
+          <li>Жюри не платят, а поднявший ложный спор рискует своей репутацией.</li>
         </ul>
       </div>
     </div>
   );
 }
 
-// ───────────────────────── reusable parts ─────────────────────────
+// ───────────────────────── переиспользуемые части ─────────────────────────
 
 /**
- * Task moderation — SHARED for the feed and "Active" (the same "…" and flag as a crown). A regular viewer
- * — a "Report" flag; the owner/moderator — "…" (the same ModerationMenu). A report on a task goes through the
- * game action `report` (a task is not a donation message). To the task's author and to signed-out users — nothing.
+ * Модерация задания — ЕДИНАЯ для ленты и «Активных» (одинаковое «…» и флажок, как у доната). Обычному зрителю
+ * — флажок «Пожаловаться»; владельцу/модератору — «…» (та же ModerationMenu). Жалоба на задание идёт через
+ * игровой экшен `report` (задание — не сообщение доната). Автору задания и без входа — ничего.
  */
 function TaskModeration({
   task,
@@ -481,9 +482,9 @@ function TaskModeration({
       reports?: number;
       hidden?: boolean;
     };
-  const title = "Report the task";
+  const title = "Пожаловаться на задание";
   const description =
-    "Choose a reason — the report goes to the streamer and the operator. On several reports the task text is auto-hidden.";
+    "Выбери причину — жалоба уйдёт стримеру и оператору. При нескольких жалобах текст задания авто-скрывается.";
   if (isManager)
     return (
       <ModerationMenu
@@ -507,9 +508,9 @@ function TaskModeration({
 }
 
 /**
- * Read-only task row for the realm's SHARED crowns feed (ChannelFeed): a historical record — donor,
- * a "Task" label + status/outcome, amount, text, time, a link to the escrow. No actions/timer (management —
- * in the "Games" tab). The same row skeleton as DonationCard variant="row" → a unified look with regular crowns.
+ * Read-only строка задания для ОБЩЕЙ ленты донатов канала (ChannelFeed): историческая запись — донор,
+ * метка «Задание» + статус/исход, сумма, текст, время, ссылка на эскроу. Без действий/таймера (управление —
+ * во вкладке «Игры»). Тот же ряд-скелет, что DonationCard variant="row" → единый вид с обычными донатами.
  */
 export function TaskFeedRow({
   task,
@@ -519,69 +520,73 @@ export function TaskFeedRow({
 }: {
   task: EscrowTask;
   handle: string;
-  viewer?: string | null; // the current viewer — to show "Report" (not their own task, not a manager)
-  manageChannelId?: string; // set (owner/moderator) → "…" with ban/hide of the donor, like a crown
+  viewer?: string | null; // текущий зритель — чтобы показать «Пожаловаться» (не своё задание, не менеджеру)
+  manageChannelId?: string; // задан (владелец/модератор) → «…» с бан/скрытием донора, как у доната
 }) {
   const final = task.resolution ?? null;
   const status = final
-    ? `Outcome: ${outcomeLabel(final.outcome)}${final.claimed ? " · claimed" : ""}`
+    ? `Итог: ${outcomeLabel(final.outcome)}${final.claimed ? " · забрано" : ""}`
     : STATUS_LABEL[task.status];
+  const name = shortAddress(task.donor);
+  // Тот же лёгкий ряд-с-аватаром, что у обычного доната (DonationCard variant="row" avatar). Задание-специфика
+  // компактна: бейджи «Задание»+статус и, если был спор, ОДНА строка-ссылка на табло — само табло голосов в
+  // ленту не тянем (перегружает); полный расклад — на странице спора.
   return (
-    <div className="flex flex-col gap-2 border-b border-border py-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <Link
-            href={`/u/${task.donor}`}
-            className="text-small truncate text-fg transition-colors hover:text-status"
-          >
-            {shortAddress(task.donor)}
-          </Link>
-          <span className="text-caption shrink-0 rounded-pill border border-money px-2 py-0.5 text-money">
-            Task
-          </span>
-          <span className="text-caption shrink-0 rounded-pill border border-border px-2 py-0.5 text-fg-faint">
-            {status}
-          </span>
+    <div className="flex gap-3 border-b border-border py-3.5">
+      <Monogram name={name} size="md" />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <Link
+              href={`/u/${task.donor}`}
+              className="truncate text-small font-medium text-fg transition-colors hover:text-status"
+            >
+              {name}
+            </Link>
+            <span className="text-caption shrink-0 rounded-pill border border-money px-2 py-0.5 text-money">
+              Задание
+            </span>
+            <span className="text-caption shrink-0 rounded-pill border border-border px-2 py-0.5 text-fg-faint">
+              {status}
+            </span>
+          </div>
+          <Amount micro={BigInt(task.amount)} className="shrink-0" />
         </div>
-        <Amount micro={BigInt(task.amount)} />
-      </div>
-      {/* Text — only if published (SHOWN). Otherwise "[not shown]" (we don't leak the private text, §4.6);
-          operator-pulled — "[removed by the platform operator]" (a moderation takedown overrides publication). */}
-      {isTextPublic(task) ? (
-        <p className="text-body break-words text-fg">{collapseWhitespace(task.text)}</p>
-      ) : task.operatorBlocked ? (
-        <p className="text-body italic text-fg-faint">[removed by the platform operator]</p>
-      ) : (
-        <p className="text-body italic text-fg-faint">[not shown]</p>
-      )}
-      {/* There was a dispute → show the vote tally and a link to the full dispute details page (the same one as in "Games"). */}
-      {task.dispute ? (
-        <>
-          <DisputeTally dispute={task.dispute} />
+        {/* Текст — только если опубликован (SHOWN, §4.6). Иначе плашка (приватный текст не светим). */}
+        {isTextPublic(task) ? (
+          <p className="text-body break-words text-fg">{collapseWhitespace(task.text)}</p>
+        ) : task.operatorBlocked ? (
+          <p className="text-small italic text-fg-faint">[снято оператором платформы]</p>
+        ) : (
+          <p className="text-small italic text-fg-faint">[не показано]</p>
+        )}
+        {/* Был спор → одна компактная строка-ссылка на табло (голоса/вердикт там, ленту не грузим). */}
+        {task.dispute ? (
           <Link
             href={`/c/${handle}/dispute/${encodeURIComponent(task.id)}`}
-            className="text-small self-start text-info hover:underline"
+            className="text-caption self-start text-fg-muted transition-colors hover:text-info"
           >
-            Participants and votes ({task.dispute.votes.length}) →
+            Спор · {task.dispute.votes.length}{" "}
+            {plural(task.dispute.votes.length, ["голос", "голоса", "голосов"])} →
           </Link>
-        </>
-      ) : null}
-      <div className="text-small flex flex-wrap items-center gap-2 text-fg-faint">
-        <span title={task.createdAt}>{timeAgo(task.createdAt)}</span>
-        <div className="ml-auto flex items-center gap-2">
-          {task.fundTx ? (
-            <a
-              href={explorerTxUrl(task.fundTx)}
-              target="_blank"
-              rel="noreferrer"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
-              title="Escrow in the blockchain explorer"
-              aria-label="Escrow in the blockchain explorer"
-            >
-              <ExternalLinkIcon className="h-4 w-4" />
-            </a>
-          ) : null}
-          <TaskModeration task={task} viewer={viewer} isManager={!!manageChannelId} />
+        ) : null}
+        <div className="text-caption flex flex-wrap items-center gap-2 text-fg-faint">
+          <span title={task.createdAt}>{timeAgo(task.createdAt)}</span>
+          <div className="ml-auto flex items-center gap-1">
+            {task.fundTx ? (
+              <a
+                href={explorerTxUrl(task.fundTx)}
+                target="_blank"
+                rel="noreferrer"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
+                title="Эскроу в блокчейн-эксплорере"
+                aria-label="Эскроу в блокчейн-эксплорере"
+              >
+                <ExternalLinkIcon className="h-4 w-4" />
+              </a>
+            ) : null}
+            <TaskModeration task={task} viewer={viewer} isManager={!!manageChannelId} />
+          </div>
         </div>
       </div>
     </div>
@@ -603,7 +608,7 @@ function TaskCard({
   pending: boolean;
   run: Run;
 }) {
-  const now = useNow(); // live — timers and the appearance of buttons (claim/resolve) in real time
+  const now = useNow(); // живой — таймеры и появление кнопок (claim/резолв) в реальном времени
   const due = task.status !== "RESOLVED" ? dueResolution(task, now) : null;
   const final = task.resolution ?? null;
   const effective = final ?? due;
@@ -611,9 +616,9 @@ function TaskCard({
   const isStreamer = !!viewer && viewer === ownerAddress;
   const isDonor = !!viewer && viewer === task.donor;
   const id = task.id;
-  // M2 (ADR 0021): a chain task's dispute lives in the CANISTER (opening/votes — wallet signatures,
-  // the verdict is executed by a threshold resolver). The manual operator-resolver is removed — there's no human
-  // in the decision chain anymore. Tasks without an escrow (mock/api) are disputed the old way, off-chain.
+  // M2 (ADR 0021): спор chain-задачи живёт в КАНИСТРЕ (открытие/голоса — подписи кошельков,
+  // вердикт исполняет тресхолд-резолвер). Ручной оператор-резолвер удалён — человека в цепочке
+  // решения больше нет. Задачи без эскроу (mock/api) спорятся по-старому, оффчейн.
   const canisterDisputeQ = useCanisterDispute(task.channelId, id, task.escrowTaskId);
   const cd = canisterDisputeQ.data ?? null;
   const cdVoted = !!viewer && !!cd && cd.votes.some((v) => v.voter === viewer);
@@ -621,19 +626,19 @@ function TaskCard({
   const within = (iso?: string) => !!iso && now <= Date.parse(iso);
   const alreadyVoted = !!viewer && (task.dispute?.votes.some((v) => v.voter === viewer) ?? false);
   const winner = effective?.outcome === "to_streamer" ? ownerAddress : task.donor;
-  // For a canister dispute (cd) "Claim" opens only after the REAL outcome (task.resolution:
-  // the threshold resolver executed the verdict on-chain and the indexer saw it) — a time-"matured" `due`
-  // is not grounds here: the on-chain escrow is Disputed, the program will reject the claim.
+  // При споре канистры (cd) «Забрать» открывается только после НАСТОЯЩЕГО исхода (task.resolution:
+  // тресхолд-резолвер исполнил вердикт ончейн и индексер это увидел) — «дозревший» по времени `due`
+  // здесь не основание: эскроу ончейн в Disputed, программа отклонит claim.
   const canClaim = !!effective && !final?.claimed && viewer === winner && (!cd || !!final);
-  // The streamer/author always see the text; others — only SHOWN (otherwise a "under moderation"/"hidden" banner).
-  // An operator takedown overrides the role: text pulled by the operator is visible to NOBODY (even the streamer/author).
+  // Стример/автор видят текст всегда; остальным — только SHOWN (иначе плашка «на модерации»/«скрыто»).
+  // Операторский тейкдаун перебивает роль: снятый оператором текст не виден НИКОМУ (даже стримеру/автору).
   const canSeeText = !task.operatorBlocked && (isTextPublic(task) || isStreamer || isDonor);
 
   return (
     <div className="flex flex-col gap-2 border-b border-border py-4">
-      {/* The same standard row as the crowns feed (DonationCard variant="row"): donor + status badge → amount;
-          text; meta row (time · deadline/outcome · escrow link). The amount is neutral (not money-green —
-          the money in the game isn't final yet: on a no-show it returns to the donor). */}
+      {/* Тот же ряд-стандарт, что лента донатов (DonationCard variant="row"): донор+бейдж статуса → сумма;
+          текст; мета-строка (время · дедлайн/исход · ссылка на эскроу). Сумма нейтральная (не money-green —
+          деньги в игре ещё не финальны: при no-show возвращаются донору). */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <Link
@@ -644,7 +649,7 @@ function TaskCard({
           </Link>
           <span className="text-caption shrink-0 rounded-pill border border-border px-2 py-0.5 text-fg-faint">
             {final
-              ? `Outcome: ${outcomeLabel(final.outcome)}${final.claimed ? " · claimed" : ""}`
+              ? `Итог: ${outcomeLabel(final.outcome)}${final.claimed ? " · забрано" : ""}`
               : STATUS_LABEL[task.status]}
           </span>
         </div>
@@ -654,43 +659,43 @@ function TaskCard({
       {canSeeText ? (
         <p className="text-body break-words text-fg">{collapseWhitespace(task.text)}</p>
       ) : task.operatorBlocked ? (
-        <p className="text-body italic text-fg-faint">[removed by the platform operator]</p>
+        <p className="text-body italic text-fg-faint">[снято оператором платформы]</p>
       ) : (
-        <p className="text-body italic text-fg-faint">[not shown]</p>
+        <p className="text-body italic text-fg-faint">[не показано]</p>
       )}
 
       {cd ? <CanisterDisputeBlock cd={cd} now={now} /> : null}
 
-      {/* The old off-chain dispute board — only when there's no canister one (otherwise it's already in the block above). */}
+      {/* Табло старого оффчейн-спора — только когда нет канистрового (иначе оно уже в блоке выше). */}
       {task.dispute && !cd ? <DisputeTally dispute={task.dispute} /> : null}
-      {/* Link to the full dispute page — for BOTH circuits: in icp mode the provider merges
-          the canister dispute into task.dispute, and the "Participants and votes" page reads it via the same view. */}
+      {/* Ссылка на полную страницу спора — для ОБОИХ контуров: в icp-режиме провайдер вливает
+          спор канистры в task.dispute, и страница «Участники и голоса» читает его тем же видом. */}
       {task.dispute ? (
         <Link
           href={`/c/${handle}/dispute/${encodeURIComponent(task.id)}`}
           className="text-small self-start text-info hover:underline"
         >
-          Participants and votes ({task.dispute.votes.length}) →
+          Участники и голоса ({task.dispute.votes.length}) →
         </Link>
       ) : null}
 
       <div className="text-small flex flex-wrap items-center gap-2 text-fg-faint">
         <span title={task.createdAt}>{timeAgo(task.createdAt)}</span>
         {!final && due ? (
-          <span>· ready to resolve: {outcomeLabel(due.outcome)}</span>
+          <span>· готово к разрешению: {outcomeLabel(due.outcome)}</span>
         ) : !final && deadlineLabel(task, now) ? (
           <span className="mono">· {deadlineLabel(task, now)}</span>
         ) : null}
         <div className="ml-auto flex items-center gap-2">
-          {/* Escrow link (survives claim) + moderation (flag/"…") — a unified look with the feed. */}
+          {/* Эскроу-ссылка (переживает claim) + модерация (флажок/«…») — единый вид с лентой. */}
           {task.fundTx ? (
             <a
               href={explorerTxUrl(task.fundTx)}
               target="_blank"
               rel="noreferrer"
               className="flex h-7 w-7 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-surface-raised hover:text-fg"
-              title="Escrow in the blockchain explorer"
-              aria-label="Escrow in the blockchain explorer"
+              title="Эскроу в блокчейн-эксплорере"
+              aria-label="Эскроу в блокчейн-эксплорере"
             >
               <ExternalLinkIcon className="h-4 w-4" />
             </a>
@@ -700,48 +705,48 @@ function TaskCard({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {/* Text moderation queue: "Show" — only while the task is alive (timer not expired, not resolved),
-            otherwise it's too late to publish (it goes to a refund to the donor). "Hide" — only BEFORE acceptance
-            (PENDING): after accept the money may go to the streamer, so the text must stay visible to the community (ESC-19). */}
+        {/* Очередь модерации текста: «Показать» — только пока задание живо (таймер не истёк, не разрешено),
+            иначе публиковать поздно (уходит в возврат донору). «Скрыть» — только ДО принятия (PENDING): после
+            accept деньги могут уйти стримеру, поэтому текст обязан оставаться на виду у комьюнити (ESC-19). */}
         {isStreamer && isTextPublic(task) && task.status === "PENDING" ? (
           <Button
             size="sm"
             variant="ghost"
             disabled={pending}
-            onClick={() => run("setTextState", { taskId: id, state: "HIDDEN" }, "Text hidden")}
+            onClick={() => run("setTextState", { taskId: id, state: "HIDDEN" }, "Текст скрыт")}
           >
-            Hide text
+            Скрыть текст
           </Button>
         ) : isStreamer && !isTextPublic(task) && !task.operatorBlocked && !due && !final ? (
           <Button
             size="sm"
             variant="secondary"
             disabled={pending}
-            onClick={() => run("setTextState", { taskId: id, state: "SHOWN" }, "Text shown")}
+            onClick={() => run("setTextState", { taskId: id, state: "SHOWN" }, "Текст показан")}
           >
-            Show text
+            Показать текст
           </Button>
         ) : null}
         {isStreamer && task.status === "PENDING" && !due ? (
           <>
-            {/* "Accept" = on-chain accept: it also reveals the text to the community (ESC-19) — the "show first" gate
-                is gone, publication happens by the acceptance itself. */}
+            {/* «Принять» = ончейн-accept: он же раскрывает текст комьюнити (ESC-19) — гейта «покажи сначала»
+                больше нет, публикация происходит самим принятием. */}
             <Button
               size="sm"
               variant="secondary"
               disabled={pending}
-              onClick={() => run("accept", { taskId: id }, "Accepted — text shown")}
+              onClick={() => run("accept", { taskId: id }, "Принято — текст показан")}
             >
-              Accept
+              Принять
             </Button>
             <Button
               size="sm"
               variant="ghost"
               disabled={pending}
-              // Reject = hide from the frontend (no on-chain tx/gas). The escrow returns to the donor on its own by timer.
-              onClick={() => run("hide", { taskId: id }, "Rejected — will return to the donor by timer")}
+              // Отказ = скрыть из фронтенда (без ончейн-tx/газа). Эскроу вернётся донору сам по таймеру.
+              onClick={() => run("hide", { taskId: id }, "Отклонено — вернётся донору по таймеру")}
             >
-              Reject
+              Отклонить
             </Button>
           </>
         ) : null}
@@ -751,9 +756,9 @@ function TaskCard({
             size="sm"
             variant="money"
             disabled={pending}
-            onClick={() => run("markDone", { taskId: id }, 'Marked "Done"')}
+            onClick={() => run("markDone", { taskId: id }, "Отмечено «Готово»")}
           >
-            Done
+            Готово
           </Button>
         ) : null}
 
@@ -762,23 +767,23 @@ function TaskCard({
             size="sm"
             variant="ghost"
             disabled={pending}
-            onClick={() => run("cancel", { taskId: id }, "Canceled")}
+            onClick={() => run("cancel", { taskId: id }, "Отменено")}
           >
-            Cancel
+            Отменить
           </Button>
         ) : null}
 
-        {/* "Dispute": for chain tasks in icp mode the provider routes the operation to the canister itself
-            (wallet signature); for the rest — the previous off-chain path. We hide it if a dispute
-            is already open in the canister (cd). */}
+        {/* «Оспорить»: для chain-задач в icp-режиме провайдер сам уводит операцию в канистру
+            (подпись кошельком); для остальных — прежний оффчейн-путь. Скрываем, если спор
+            в канистре уже открыт (cd). */}
         {task.status === "DONE" && !due && !!viewer && !isStreamer && !cd ? (
           <Button
             size="sm"
             variant="secondary"
             disabled={pending}
-            onClick={() => run("raiseDispute", { taskId: id }, "Dispute raised")}
+            onClick={() => run("raiseDispute", { taskId: id }, "Спор поднят")}
           >
-            Dispute
+            Оспорить
           </Button>
         ) : null}
 
@@ -794,39 +799,39 @@ function TaskCard({
               size="sm"
               variant="secondary"
               disabled={pending}
-              onClick={() => run("vote", { taskId: id, choice: "completed" }, "Vote counted")}
+              onClick={() => run("vote", { taskId: id, choice: "completed" }, "Голос учтён")}
             >
-              Vote: completed
+              Голос: выполнил
             </Button>
             <Button
               size="sm"
               variant="ghost"
               disabled={pending}
-              onClick={() => run("vote", { taskId: id, choice: "not_completed" }, "Vote counted")}
+              onClick={() => run("vote", { taskId: id, choice: "not_completed" }, "Голос учтён")}
             >
-              Vote: not completed
+              Голос: не выполнил
             </Button>
           </>
         ) : null}
 
-        {/* A vote in a CANISTER dispute: the same vote operation — the provider signs and sends it to the arbiter. */}
+        {/* Голос в споре КАНИСТРЫ: та же операция vote — провайдер подпишет и отправит в арбитр. */}
         {cdVotingOpen && !!viewer && !isDonor && !isStreamer && !cdVoted ? (
           <>
             <Button
               size="sm"
               variant="secondary"
               disabled={pending}
-              onClick={() => run("vote", { taskId: id, choice: "completed" }, "Vote counted")}
+              onClick={() => run("vote", { taskId: id, choice: "completed" }, "Голос учтён")}
             >
-              Vote: completed
+              Голос: выполнил
             </Button>
             <Button
               size="sm"
               variant="ghost"
               disabled={pending}
-              onClick={() => run("vote", { taskId: id, choice: "not_completed" }, "Vote counted")}
+              onClick={() => run("vote", { taskId: id, choice: "not_completed" }, "Голос учтён")}
             >
-              Vote: not completed
+              Голос: не выполнил
             </Button>
           </>
         ) : null}
@@ -836,9 +841,9 @@ function TaskCard({
             size="sm"
             variant="money"
             disabled={pending}
-            onClick={() => run("claim", { taskId: id }, "Claimed")}
+            onClick={() => run("claim", { taskId: id }, "Забрано")}
           >
-            Claim
+            Забрать
           </Button>
         ) : null}
       </div>
@@ -847,9 +852,9 @@ function TaskCard({
 }
 
 /**
- * A CANISTER dispute (M2): an open board (the owner's decision — votes are visible live), the window,
- * the verdict and the on-chain signatures of the threshold resolver. The board reuses DisputeTally —
- * we synthesize an off-chain dispute shape from the canister data (micro → points at the UI boundary).
+ * Спор в КАНИСТРЕ (M2): открытое табло (решение владельца — голоса видны живьём), окно,
+ * вердикт и ончейн-подписи тресхолд-резолвера. Табло переиспользует DisputeTally —
+ * синтезируем оффчейн-форму спора из данных канистры (micro → очки на границе UI).
  */
 function CanisterDisputeBlock({ cd, now }: { cd: CanisterDisputeView; now: number }) {
   const synthetic: TaskDispute = {
@@ -868,14 +873,14 @@ function CanisterDisputeBlock({ cd, now }: { cd: CanisterDisputeView; now: numbe
     <div className="flex flex-col gap-2">
       <div className="text-caption flex flex-wrap items-center gap-x-3 text-fg-faint">
         <span>
-          The dispute is decided by the canister — the outcome is signed by the threshold resolver, the platform doesn't take part.
+          Спор решается канистрой — исход подпишет тресхолд-резолвер, площадка не участвует.
         </span>
         {!cd.verdict && cd.votingEndsAtMs ? (
           <span className="mono">
-            voting ·{" "}
+            голосование ·{" "}
             {now <= cd.votingEndsAtMs
               ? until(new Date(cd.votingEndsAtMs).toISOString(), now)
-              : "awaiting verdict"}
+              : "ждёт вердикта"}
           </span>
         ) : null}
       </div>
@@ -883,7 +888,7 @@ function CanisterDisputeBlock({ cd, now }: { cd: CanisterDisputeView; now: numbe
       {cd.verdict ? (
         <div className="text-small flex flex-wrap items-center gap-x-3 text-fg-muted">
           <span>
-            Verdict:{" "}
+            Вердикт:{" "}
             <span
               style={{
                 color: cd.verdict.outcome === "to_streamer" ? "var(--money)" : "var(--danger)",
@@ -899,10 +904,10 @@ function CanisterDisputeBlock({ cd, now }: { cd: CanisterDisputeView; now: numbe
               rel="noreferrer"
               className="text-info hover:underline"
             >
-              resolver signature ↗
+              подпись резолвера ↗
             </a>
           ) : (
-            <span className="text-fg-faint">executing on-chain…</span>
+            <span className="text-fg-faint">исполняется на цепочке…</span>
           )}
         </div>
       ) : null}
@@ -910,7 +915,7 @@ function CanisterDisputeBlock({ cd, now }: { cd: CanisterDisputeView; now: numbe
   );
 }
 
-/** A weight bar "completed" vs "not completed" + points/votes per side + progress to quorum + the current leader. */
+/** Полоса весов «выполнил» vs «не выполнил» + очки/голоса по сторонам + прогресс к кворуму + текущий лидер. */
 function DisputeTally({ dispute }: { dispute: TaskDispute }) {
   let completed = 0;
   let not = 0;
@@ -935,17 +940,17 @@ function DisputeTally({ dispute }: { dispute: TaskDispute }) {
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col items-start">
           <span className="text-small" style={{ color: "var(--money)" }}>
-            Completed
+            Выполнил
           </span>
-          <span className="mono text-small text-fg">{completed} points</span>
-          <span className="text-caption text-fg-faint">{cVotes} vote(s)</span>
+          <span className="mono text-small text-fg">{completed} очков</span>
+          <span className="text-caption text-fg-faint">{cVotes} голос(ов)</span>
         </div>
         <div className="flex flex-col items-end">
           <span className="text-small" style={{ color: "var(--danger)" }}>
-            Not completed
+            Не выполнил
           </span>
-          <span className="mono text-small text-fg">{not} points</span>
-          <span className="text-caption text-fg-faint">{nVotes} vote(s)</span>
+          <span className="mono text-small text-fg">{not} очков</span>
+          <span className="text-caption text-fg-faint">{nVotes} голос(ов)</span>
         </div>
       </div>
       <div className="flex h-2 overflow-hidden rounded-pill bg-surface-raised">
@@ -954,13 +959,13 @@ function DisputeTally({ dispute }: { dispute: TaskDispute }) {
       </div>
       <div className="text-caption flex flex-wrap items-center justify-between gap-x-3 text-fg-faint">
         <span className="mono">
-          weight {total} / quorum {dispute.quorum}
-          {quorumMet ? "" : " · quorum not reached"}
+          вес {total} / кворум {dispute.quorum}
+          {quorumMet ? "" : " · кворум не собран"}
         </span>
         <span>
-          currently leading:{" "}
+          сейчас ведёт:{" "}
           <span style={{ color: lead === "to_streamer" ? "var(--money)" : "var(--danger)" }}>
-            {lead === "to_streamer" ? "to streamer" : "refund to donor"}
+            {lead === "to_streamer" ? "стримеру" : "возврат донору"}
           </span>
         </span>
       </div>

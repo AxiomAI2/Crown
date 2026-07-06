@@ -315,6 +315,7 @@ export interface DonorPointEvent {
   txSignature?: TxSignature;
   message?: MessageRef; // private crown/task text (if shown) — for the activity row
   escrowTaskId?: string; // GAME_DONATION: escrow-task seed (CR-4) — the join key for the text in icp mode
+  disputeTaskId?: string; // DISPUTE_WON/LOST: off-chain task id — link to the dispute board (proof: who opened it)
 }
 
 export interface DonorOverview {

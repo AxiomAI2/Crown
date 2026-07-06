@@ -72,7 +72,8 @@ echo "→ Канистра: деплой core…"
   treasury_ata = "GzBQqH16CHT5m8v5JWAG6fTPcRohTfZQFvgW8Jx8AoKX";
   usdc_mint = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
   poll_secs = 20 : nat64;
-  escrow_program = opt "GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4" })' 2>&1 | grep -E "Installed code|Reinstalled|Error|error" | head -2)
+  escrow_program = opt "GPP2BCNMp8peLh3uySuEqPb2gWanr4xw5Lf3X7Kx7GU4";
+  schnorr_key_name = opt "key_1" })' 2>&1 | grep -E "Installed code|Reinstalled|Error|error" | head -2)
 
 # 2) Dev-сервер (фронт + бэкенд + индексер). .next чистим — ребут = жёсткий kill (грабля runbook).
 echo "→ Dev-сервер: чистка .next и старт…"
