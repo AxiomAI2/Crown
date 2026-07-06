@@ -46,8 +46,8 @@ export function ChannelAbout({ channel, config }: { channel: Channel; config?: C
           <Row label="Messages">
             <span className="text-fg-muted">
               {config.textShowMode === "auto_if_clean"
-                ? "Auto-shown if clean — else held for the streamer."
-                : "Private until the streamer shows them."}
+                ? "Auto-shown if clean — else held for the content maker."
+                : "Private until the content maker shows them."}
             </span>
           </Row>
         </>

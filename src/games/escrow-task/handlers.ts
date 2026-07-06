@@ -338,7 +338,7 @@ export const escrowTaskHandlers: GameHandlers = {
     raiseDispute: (ctx, payload) => {
       const id = requireIdentity(ctx);
       if (id === ctx.channelOwner)
-        throw new GameBusError("FORBIDDEN", "The streamer doesn't dispute their own completion.");
+        throw new GameBusError("FORBIDDEN", "The content maker doesn't dispute their own completion.");
       // §10: the reputation threshold for the right to raise a dispute (a streamer lever) — gates the right, not the vote
       // weight or the outcome. Reputation = money crowned to the realm → spamming false disputes requires real standing, not a zero wallet.
       if (ctx.reputationAsOf(id, ctx.now()) < ctx.minReputationToDispute)
@@ -360,7 +360,7 @@ export const escrowTaskHandlers: GameHandlers = {
       if (id === task.donor)
         throw new GameBusError("FORBIDDEN", "The donor doesn't vote in their own dispute.");
       if (id === ctx.channelOwner)
-        throw new GameBusError("FORBIDDEN", "The streamer doesn't vote in their own dispute.");
+        throw new GameBusError("FORBIDDEN", "The content maker doesn't vote in their own dispute.");
       const weight = ctx.reputationAsOf(id, task.dispute?.openedAt ?? ctx.now());
       return commit(
         ctx,

@@ -10,7 +10,7 @@ type Verdict = "CLEAR" | "FLAG" | "HARD_BLOCK";
 
 const VERDICT: Record<Verdict, { cls: string; note: string }> = {
   CLEAR: { cls: "border-money text-money", note: "Passes — published/allowed." },
-  FLAG: { cls: "border-warn text-warn", note: "In HELD — awaiting the streamer's manual decision." },
+  FLAG: { cls: "border-warn text-warn", note: "In HELD — awaiting the content maker's manual decision." },
   HARD_BLOCK: { cls: "border-danger text-danger", note: "Block + quarantine + T&S incident." },
 };
 

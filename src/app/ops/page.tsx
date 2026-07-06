@@ -38,7 +38,7 @@ const KIND: Record<IncidentLog["kind"], { label: string; cls: string }> = {
 
 const LADDER = [
   "Hide / quarantine message",
-  "Realm block (streamer)",
+  "Realm block (content maker)",
   "Temporary realm suspend (SUSPENDED)",
   "Ban creator role (BANNED)",
   "Full wallet ban",
@@ -136,7 +136,7 @@ export default function OpsConsolePage() {
       <div className="flex flex-col gap-1">
         <h1 className="text-display-l text-fg">Operator console / T&amp;S</h1>
         <p className="text-fg-muted">
-          Platform level: what a streamer cannot do. ADMIN_VOID is the only Reign deduction.
+          Platform level: what a content maker cannot do.
         </p>
       </div>
 

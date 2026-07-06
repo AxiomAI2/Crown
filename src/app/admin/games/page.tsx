@@ -22,7 +22,7 @@ const OUTCOME_LABEL: Record<TaskOutcome, string> = {
 };
 // Live (non-terminal) status → label + accent. Terminal tasks show their resolution instead.
 const STATUS: Record<Exclude<EscrowTask["status"], "RESOLVED">, { label: string; cls: string }> = {
-  PENDING: { label: "Awaiting streamer", cls: "border-border text-fg-muted" },
+  PENDING: { label: "Awaiting content maker", cls: "border-border text-fg-muted" },
   ACCEPTED: { label: "In progress", cls: "border-info text-info" },
   DONE: { label: "Dispute window", cls: "border-warn text-warn" },
   DISPUTED: { label: "Dispute voting", cls: "border-danger text-danger" },
@@ -104,7 +104,7 @@ export default function AdminGamesPage() {
       ) : rows.length === 0 ? (
         <EmptyState
           title="No mini-games yet"
-          description="Tasks appear here once streamers enable a game and supporters create them."
+          description="Tasks appear here once content makers enable a game and supporters create them."
         />
       ) : visible.length === 0 ? (
         <EmptyState title="Nothing here" description="No tasks match this filter." />

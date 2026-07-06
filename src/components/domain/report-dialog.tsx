@@ -38,7 +38,7 @@ export function ReportDialog({
   trigger,
   onSubmit,
   title = "Report message",
-  description = "Pick a reason — the report goes to the streamer and the operator (T&S). With multiple reports the text is auto-hidden.",
+  description = "Pick a reason — the report goes to the content maker and the operator (T&S). With multiple reports the text is auto-hidden.",
 }: {
   messageId?: string;
   channelId: string;
@@ -65,7 +65,7 @@ export function ReportDialog({
     toast({
       title: r.hidden ? "Hidden due to reports" : "Report sent",
       description: r.hidden
-        ? "The text is auto-hidden until the streamer/operator decides."
+        ? "The text is auto-hidden until the content maker/operator decides."
         : typeof r.reports === "number"
           ? `Reports counted: ${r.reports}.`
           : undefined,

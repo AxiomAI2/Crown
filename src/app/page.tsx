@@ -72,6 +72,7 @@ function RealmsShowcase() {
   const [query, setQuery] = useState("");
   const [platforms, setPlatforms] = useState<Set<ChannelLinkPlatform>>(new Set());
   const [sort, setSort] = useState<RealmSort>("all"); // All-time / 7 days (crowned volume)
+  const [liveOnly, setLiveOnly] = useState(false); // show only realms that are live right now
 
   // Show in the filter only the platforms that actually appear among the realms (no dead options),
   // in CHANNEL_PLATFORMS order.
@@ -89,13 +90,15 @@ function RealmsShowcase() {
       .filter((c) => !q || `${c.handle} ${c.displayName ?? ""}`.toLowerCase().includes(q))
       // Social filter: a realm passes if it has a link to ANY of the selected platforms (union).
       .filter((c) => platforms.size === 0 || (c.links ?? []).some((l) => platforms.has(l.platform)))
+      // Live filter: only realms currently live.
+      .filter((c) => !liveOnly || !!c.isLive)
       .slice()
       .sort((a, b) => {
         const av = metric(a);
         const bv = metric(b);
         return bv > av ? 1 : bv < av ? -1 : 0;
       });
-  }, [realms, q, sort, platforms]);
+  }, [realms, q, sort, platforms, liveOnly]);
 
   const togglePlatform = (p: ChannelLinkPlatform) =>
     setPlatforms((prev) => {
@@ -111,7 +114,7 @@ function RealmsShowcase() {
   // changes the old layout fades out (animate-list-out) → onAnimationEnd swaps in the new one → cascade-in.
   // Search is deliberately NOT in the signature — it filters live, so typing doesn't re-trigger the
   // animation on every keystroke (that jerked the grid).
-  const sig = `${sort}|${[...platforms].sort().join(",")}`;
+  const sig = `${sort}|${liveOnly}|${[...platforms].sort().join(",")}`;
   const [shown, setShown] = useState<ChannelCard[]>(visible);
   const [shownSig, setShownSig] = useState(sig);
   const [leaving, setLeaving] = useState(false);
@@ -147,26 +150,16 @@ function RealmsShowcase() {
 
   return (
     <section className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border pb-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border pb-3">
         <h2 className="text-h3 text-fg">The realms</h2>
         {hasRealms ? (
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Sort by crowned volume — all-time vs 7-day momentum (so the top isn't frozen forever). */}
-            <SortToggle value={sort} onChange={setSort} />
-            {/* Social filter — collapsed into a dropdown so it doesn't take up a row */}
-            {availablePlatforms.length > 0 ? (
-              <PlatformFilterMenu
-                platforms={availablePlatforms}
-                selected={platforms}
-                onToggle={togglePlatform}
-                onClear={() => setPlatforms(new Set())}
-              />
-            ) : null}
-          </div>
+          <span className="text-small text-fg-faint">
+            {visible.length === realms.length ? `${realms.length}` : `${visible.length} of ${realms.length}`}
+          </span>
         ) : null}
       </div>
 
-      {/* Primary catalog search — a persistent pill bar (bobounty-style) spanning the width, above the grid. */}
+      {/* Search on top — a pill that GROWS on focus (widens + gold glow). */}
       {hasRealms ? (
         <SearchBar value={query} onChange={setQuery} placeholder="Search realms…" label="Search realms" />
       ) : null}
@@ -177,122 +170,96 @@ function RealmsShowcase() {
         <ErrorState description="Couldn't load the realms." onRetry={() => refetch()} />
       ) : realms.length === 0 ? (
         <EmptyState title="No realms yet" description="Be the first to open one." />
-      ) : visible.length === 0 ? (
-        <EmptyState
-          title="No realms found"
-          description="Try clearing the search or platform filters."
-        />
       ) : (
-        <div
-          className={cn(
-            "grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
-            leaving ? "animate-list-out" : "enter-stagger",
+        // Filters on the LEFT (sticky), the realm grid on the RIGHT.
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start lg:gap-8">
+          <FiltersPanel
+            sort={sort}
+            onSort={setSort}
+            liveOnly={liveOnly}
+            onLiveOnly={setLiveOnly}
+            platforms={availablePlatforms}
+            selected={platforms}
+            onToggle={togglePlatform}
+            onClearPlatforms={() => setPlatforms(new Set())}
+          />
+
+          {visible.length === 0 ? (
+            <EmptyState title="No realms found" description="Try clearing the search or filters." />
+          ) : (
+            <div
+              className={cn(
+                "grid gap-4 sm:grid-cols-2 xl:grid-cols-3",
+                leaving ? "animate-list-out" : "enter-stagger",
+              )}
+              onAnimationEnd={(e) => {
+                if (leaving && e.target === e.currentTarget) commitSwap();
+              }}
+            >
+              {shown.map((c) => (
+                <RealmCard key={c.channelId} realm={c} />
+              ))}
+            </div>
           )}
-          onAnimationEnd={(e) => {
-            if (leaving && e.target === e.currentTarget) commitSwap();
-          }}
-        >
-          {shown.map((c) => (
-            <RealmCard key={c.channelId} realm={c} />
-          ))}
         </div>
       )}
     </section>
   );
 }
 
-/** Social filter collapsed into a dropdown: a compact "Platforms" button + a checklist that opens on click. */
-function PlatformFilterMenu({
+/** Left filter panel: sort, live-only, and a platform checklist. Sticky on desktop. */
+function FiltersPanel({
+  sort,
+  onSort,
+  liveOnly,
+  onLiveOnly,
   platforms,
   selected,
   onToggle,
-  onClear,
+  onClearPlatforms,
 }: {
+  sort: RealmSort;
+  onSort: (v: RealmSort) => void;
+  liveOnly: boolean;
+  onLiveOnly: (v: boolean) => void;
   platforms: ChannelLinkPlatform[];
   selected: Set<ChannelLinkPlatform>;
   onToggle: (p: ChannelLinkPlatform) => void;
-  onClear: () => void;
+  onClearPlatforms: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  // render keeps the menu in the DOM during the close animation (we unmount on onAnimationEnd, when open=false).
-  const [render, setRender] = useState(false);
-  const count = selected.size;
-
-  useEffect(() => {
-    if (open) setRender(true);
-  }, [open]);
-
-  // Esc closes the menu.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
-
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className={cn(
-          "inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-small transition-colors",
-          count > 0 ? "text-money" : "text-fg-muted hover:text-fg",
-        )}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.75"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-3.5 w-3.5"
-          aria-hidden="true"
-        >
-          <path d="M3 5h18l-7 8v6l-4-2v-4z" />
-        </svg>
-        Platforms
-        {count > 0 ? (
-          <span className="grid h-4 min-w-4 place-items-center rounded-full bg-money px-1 text-[10px] font-semibold text-[var(--bg)]">
-            {count}
-          </span>
-        ) : null}
-      </button>
+    <aside className="flex flex-col gap-6 lg:sticky lg:top-[calc(var(--header-h)+1rem)]">
+      <FilterGroup title="Sort">
+        <SortToggle value={sort} onChange={onSort} />
+      </FilterGroup>
 
-      {render ? (
-        <>
-          <button
-            type="button"
-            aria-label="Close filters"
-            className="fixed inset-0 z-40 cursor-default"
-            onClick={() => setOpen(false)}
+      <FilterGroup title="Status">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={liveOnly}
+          onClick={() => onLiveOnly(!liveOnly)}
+          className={cn(
+            "flex w-fit items-center gap-2 rounded-lg border px-3 py-2 text-small transition-colors",
+            liveOnly
+              ? "border-danger text-danger"
+              : "border-border text-fg-muted hover:border-border-strong hover:text-fg",
+          )}
+        >
+          <span
+            className={cn("h-2 w-2 rounded-full", liveOnly ? "animate-pulse bg-danger" : "bg-fg-faint")}
+            aria-hidden
           />
-          <div
-            role="menu"
-            style={{ transformOrigin: "top right" }}
-            onAnimationEnd={() => {
-              if (!open) setRender(false);
-            }}
-            className={cn(
-              "absolute right-0 z-50 mt-2 w-52 overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-xl shadow-black/40",
-              open ? "animate-menu-in" : "animate-menu-out",
-            )}
-          >
-            <div className="flex items-center justify-between px-2 py-1.5">
-              <span className="text-caption uppercase tracking-wide text-fg-faint">Platforms</span>
-              {count > 0 ? (
-                <button
-                  type="button"
-                  onClick={onClear}
-                  className="text-caption text-fg-faint transition-colors hover:text-fg"
-                >
-                  Clear
-                </button>
-              ) : null}
-            </div>
+          Live now
+        </button>
+      </FilterGroup>
+
+      {platforms.length > 0 ? (
+        <FilterGroup
+          title="Platforms"
+          action={selected.size > 0 ? { label: "Clear", onClick: onClearPlatforms } : undefined}
+        >
+          <div className="flex flex-col gap-0.5">
             {platforms.map((p) => {
               const def = platformDef(p);
               if (!def) return null;
@@ -301,15 +268,15 @@ function PlatformFilterMenu({
                 <button
                   key={p}
                   type="button"
-                  role="menuitemcheckbox"
+                  role="checkbox"
                   aria-checked={active}
                   onClick={() => onToggle(p)}
                   className={cn(
-                    "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-small transition-colors",
-                    active ? "text-money" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
+                    "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-small transition-colors",
+                    active ? "text-money" : "text-fg-muted hover:bg-surface hover:text-fg",
                   )}
                 >
-                  <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 flex-none overflow-visible" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 flex-none" aria-hidden="true">
                     <path d={def.iconPath} />
                   </svg>
                   <span className="flex-1 text-left">{def.label}</span>
@@ -318,8 +285,36 @@ function PlatformFilterMenu({
               );
             })}
           </div>
-        </>
+        </FilterGroup>
       ) : null}
+    </aside>
+  );
+}
+
+function FilterGroup({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: { label: string; onClick: () => void };
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-caption uppercase tracking-wide text-fg-faint">{title}</h3>
+        {action ? (
+          <button
+            type="button"
+            onClick={action.onClick}
+            className="text-caption text-fg-faint transition-colors hover:text-fg"
+          >
+            {action.label}
+          </button>
+        ) : null}
+      </div>
+      {children}
     </div>
   );
 }

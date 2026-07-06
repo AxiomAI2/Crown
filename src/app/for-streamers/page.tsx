@@ -5,7 +5,7 @@ import { AppHeader } from "@/components/layout/app-header";
 import { SiteFooter } from "@/components/layout/site-footer";
 
 export const metadata: Metadata = {
-  title: "For streamers — open your realm · CROWN",
+  title: "For content makers — open your realm · CROWN",
   description:
     "Supporters crown you in USDC on Solana and climb the ranks you set. You keep 97%, straight to your wallet. Non-custodial, free to start.",
 };
@@ -63,7 +63,7 @@ export default function ForStreamersPage() {
           <CrownLogo size={64} className="animate-crown text-money" />
 
           <span className="rounded-pill border border-money-dim bg-money-bg/50 px-3 py-1 text-caption uppercase tracking-wide text-money">
-            For streamers
+            For content makers
           </span>
 
           <h1 className="max-w-3xl text-display-xl leading-[1.05] text-fg">

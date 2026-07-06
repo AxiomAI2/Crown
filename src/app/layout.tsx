@@ -20,7 +20,7 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "CROWN — crown your realm",
   description:
-    "Crown a streamer with USDC on Solana and build your Reign in their realm. Non-transferable, earned crown by crown.",
+    "Crown a content maker with USDC on Solana and build your Reign in their realm. Non-transferable, earned crown by crown.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

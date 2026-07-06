@@ -271,8 +271,8 @@ export function DonateWidget({
                 blockedFromText
                   ? "You're blocked from messages on this realm — uncheck to crown without text."
                   : softWarn
-                    ? "This contains a word the streamer's filter may flag (doesn't block)."
-                    : "Text stays private until shown — the streamer decides whether to publish it."
+                    ? "This contains a word the content maker's filter may flag (doesn't block)."
+                    : "Text stays private until shown — the content maker decides whether to publish it."
               }
               className={cn(
                 "bg-[var(--bg)]",
@@ -408,7 +408,7 @@ function DoneView({
         ) : null}
         {hadText ? (
           <p className="rounded border border-border bg-surface p-3 text-small text-fg-muted">
-            Your message is with the streamer for review (HELD). Funds and Reign are already counted —
+            Your message is with the content maker for review (HELD). Funds and Reign are already counted —
             publishing the text doesn&apos;t affect them.
           </p>
         ) : null}

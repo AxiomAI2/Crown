@@ -24,7 +24,7 @@ export function FeeSplit({ amount }: { amount: bigint }) {
   return (
     <div className="flex flex-col gap-1.5 rounded border border-border bg-[var(--bg)] p-3 text-small">
       <div className="flex items-center justify-between">
-        <span className="text-fg-muted">To streamer 97%</span>
+        <span className="text-fg-muted">To content maker 97%</span>
         <Amount micro={net} />
       </div>
       <div className="flex items-center justify-between">

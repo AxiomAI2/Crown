@@ -97,14 +97,14 @@ interface GameProps {
 }
 
 const STATUS_LABEL: Record<EscrowTask["status"], string> = {
-  PENDING: "Awaiting streamer",
+  PENDING: "Awaiting content maker",
   ACCEPTED: "In progress",
   DONE: "Dispute window",
   DISPUTED: "Dispute voting",
   RESOLVED: "Completed",
 };
 const outcomeLabel = (o: "to_streamer" | "to_donor") =>
-  o === "to_streamer" ? "to streamer" : "refund to supporter";
+  o === "to_streamer" ? "to content maker" : "refund to supporter";
 
 type Run = (op: string, payload?: unknown, okMsg?: string, onDone?: () => void) => void;
 
@@ -245,7 +245,7 @@ export function EscrowTaskRail({ channelId }: GameProps) {
 
           <Textarea
             label="Task"
-            placeholder="What the streamer should do…"
+            placeholder="What the content maker should do…"
             maxLength={config?.messageMaxLen ?? 280}
             showCount
             value={text}
@@ -321,7 +321,7 @@ export function EscrowTaskRail({ channelId }: GameProps) {
               <p className="text-small text-fg-muted">
                 {pending
                   ? "Sign in your wallet and wait for on-chain finalization (~15–30s) — the task appears once the escrow is confirmed."
-                  : "The breakdown applies if the streamer delivers. If they miss the deadline, we refund the full amount with no fee."}
+                  : "The breakdown applies if the content maker delivers. If they miss the deadline, we refund the full amount with no fee."}
               </p>
               {!pending && longDeadline ? (
                 <p className="text-small text-warn">
@@ -491,7 +491,7 @@ function TaskModeration({
     };
   const title = "Report this task";
   const description =
-    "Pick a reason — the report goes to the streamer and the operator. With several reports the task text is auto-hidden.";
+    "Pick a reason — the report goes to the content maker and the operator. With several reports the task text is auto-hidden.";
   if (isManager)
     return (
       <ModerationMenu
@@ -973,7 +973,7 @@ function DisputeTally({ dispute }: { dispute: TaskDispute }) {
         <span>
           leading now:{" "}
           <span style={{ color: lead === "to_streamer" ? "var(--money)" : "var(--danger)" }}>
-            {lead === "to_streamer" ? "to streamer" : "refund to supporter"}
+            {lead === "to_streamer" ? "to content maker" : "refund to supporter"}
           </span>
         </span>
       </div>

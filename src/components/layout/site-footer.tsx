@@ -19,14 +19,14 @@ export function SiteFooter() {
               </span>
             </Link>
             <p className="max-w-xs text-small text-fg-faint">
-              Crown a streamer with USDC on Solana and build your Reign in their realm — earned, non-transferable.
+              Crown a content maker with USDC on Solana and build your Reign in their realm — earned, non-transferable.
             </p>
           </div>
 
           <FooterCol title="Product">
             <FooterLink href="/">Realms</FooterLink>
             <FooterLink href="/games">Mini-games</FooterLink>
-            <FooterLink href="/for-streamers">For streamers</FooterLink>
+            <FooterLink href="/for-streamers">For content makers</FooterLink>
           </FooterCol>
 
           <FooterCol title="Legal">

@@ -38,7 +38,7 @@ export function AppHeader() {
               (guests included). Creators already have a realm, so it's hidden for them. */}
           {!session?.isCreator ? (
             <NavLink href="/for-streamers" active={isActive("/for-streamers")}>
-              For streamers
+              For content makers
             </NavLink>
           ) : null}
           {session?.isOperator && (

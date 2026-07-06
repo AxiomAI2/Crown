@@ -302,8 +302,8 @@ export default function AdminDashboardPage() {
           title="Escrow tasks by status"
           hint={
             games.taskCount > 0
-              ? `${games.toStreamer} paid to streamer · ${games.toDonor} refunded to supporter`
-              : "No escrow tasks yet — streamers enable games per realm."
+              ? `${games.toStreamer} paid to content maker · ${games.toDonor} refunded to supporter`
+              : "No escrow tasks yet — content makers enable games per realm."
           }
         >
           {gamesLoading ? (

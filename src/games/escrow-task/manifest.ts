@@ -9,7 +9,7 @@ export const escrowTask: GameModule = {
   id: "escrow-task",
   title: "Tasks for a Crown",
   tagline:
-    "A crown with a task in escrow: the streamer completes it, the community verifies, otherwise — a refund to the donor.",
+    "A crown with a task in escrow: the content maker completes it, the community verifies, otherwise — a refund to the donor.",
   status: "available",
   specDoc: "docs/yellow-paper.md",
 };

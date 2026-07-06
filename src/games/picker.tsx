@@ -44,7 +44,7 @@ function DonateRules() {
         A one-time crown to the streamer: the money goes to them immediately and irreversibly (minus the platform's
         3% fee), and you build up <span className="text-fg">Reign</span> in this realm.
       </p>
-      <p>The message attached to the crown (optional) stays private until the streamer shows it in the feed.</p>
+      <p>The message attached to the crown (optional) stays private until the content maker shows it in the feed.</p>
     </div>
   );
 }
@@ -53,7 +53,7 @@ function DonateRules() {
 const DONATE_ENTRY: PickerEntry = {
   id: "donate",
   name: "Crown",
-  tagline: "Straight to the streamer, builds Reign.",
+  tagline: "Straight to the content maker, builds Reign.",
   Icon: GiftIcon,
   Rules: DonateRules,
   Form: ({ ctx }) => (

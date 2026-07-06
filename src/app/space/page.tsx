@@ -11,6 +11,7 @@ import { RealmBlocklist } from "@/components/domain/realm-blocklist";
 import { RealmDashboard } from "@/components/domain/realm-dashboard";
 import { RealmGamesSettings } from "@/components/domain/realm-games-settings";
 import { CrownLogo } from "@/components/crown-logo";
+import { AppHeader } from "@/components/layout/app-header";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { CrownWallet } from "@/components/layout/crown-wallet";
 import { RailToggle, useRailCollapsed } from "@/components/layout/rail-toggle";
@@ -99,22 +100,37 @@ export default function SpacePage() {
       setSection("realm-create");
   }, [address, realmKnown, hasRealm, section]);
 
+  // Arriving from the "Open your realm" funnel (landing / sidebar) → make the connect prompt about that.
+  const wantsCreate = ((t) => t === "realm-create" || t === "create")(searchParams.get("tab"));
+
   if (session.isLoading) {
     return (
-      <div className="mx-auto max-w-content px-4 pt-16">
-        <Skeleton className="h-64 w-full rounded-xl" />
-      </div>
+      <>
+        <AppHeader />
+        <div className="mx-auto max-w-content px-4 pt-16">
+          <Skeleton className="h-64 w-full rounded-xl" />
+        </div>
+      </>
     );
   }
   if (!address) {
+    // Guest CTAs land here (e.g. "Open your realm"). Keep the app chrome so it doesn't read as a broken,
+    // header-less dead end — brand + nav + a clear connect affordance, with copy matching why they came.
     return (
-      <div className="mx-auto max-w-content px-4 pt-16">
-        <EmptyState
-          title="Wallet not connected"
-          description="Connect wallet to enter your personal space."
-          action={<ConnectWalletButton />}
-        />
-      </div>
+      <>
+        <AppHeader />
+        <div className="mx-auto max-w-content px-4 pt-16">
+          <EmptyState
+            title={wantsCreate ? "Connect your wallet to open your realm" : "Connect your wallet"}
+            description={
+              wantsCreate
+                ? "Your realm is free on BASIC — one realm per wallet. Connect to set it up."
+                : "Connect to enter your personal space."
+            }
+            action={<ConnectWalletButton />}
+          />
+        </div>
+      </>
     );
   }
 
