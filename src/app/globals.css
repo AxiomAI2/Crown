@@ -392,7 +392,7 @@
   border-radius: 9999px;
 }
 .scroll-thin::-webkit-scrollbar-thumb:hover {
-  background: var(--fg-faint);
+  background: var(--text-faint);
   border: 2px solid transparent;
   background-clip: padding-box;
 }
@@ -421,10 +421,10 @@ input[type="checkbox"] {
   transition: border-color 120ms ease;
 }
 input[type="checkbox"]:hover {
-  border-color: var(--fg-faint);
+  border-color: var(--text-faint);
 }
 input[type="checkbox"]:checked {
-  border-color: var(--fg-faint);
+  border-color: var(--text-faint);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23dfe2ea' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
 }
 input[type="checkbox"]:focus-visible {
@@ -433,5 +433,5 @@ input[type="checkbox"]:focus-visible {
 }
 /* Radio — neutral accent (not used in the app yet, kept for the future). */
 input[type="radio"] {
-  accent-color: var(--fg-muted);
+  accent-color: var(--text-muted);
 }
