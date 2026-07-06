@@ -52,7 +52,7 @@ export default function AdminDashboardPage() {
   });
   const donationsLoading = donationQs.some((q) => q.isLoading);
 
-  const { turnoverEvents, patronEvents } = useMemo(() => {
+  const { turnoverEvents, patronEvents, uniquePatrons } = useMemo(() => {
     const all: Donation[] = donationQs.flatMap((q) => q.data?.items ?? []);
     const turnover = all.map((d) => ({ t: Date.parse(d.ts), v: fromMicro(d.amount) }));
     // Patrons: the first appearance of each donor (v=1) → cumulative count of unique donors.
@@ -72,22 +72,25 @@ export default function AdminDashboardPage() {
       const minT = Math.min(...patrons.map((e) => e.t));
       patrons.unshift({ t: minT - DAY, v: 0 });
     }
-    return { turnoverEvents: turnover, patronEvents: patrons };
+    // uniquePatrons — DISTINCT donors platform-wide (same source as the chart). NOT the sum of per-realm
+    // donorsCount: a donor on N realms would otherwise be counted N times (that was the "102 vs 24" bug).
+    return { turnoverEvents: turnover, patronEvents: patrons, uniquePatrons: firstByDonor.size };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [donationQs.map((q) => q.dataUpdatedAt).join(",")]);
 
   const m = useMemo(() => {
     const totalCrowned = realms.reduce((s, r) => s + r.totalDonated, 0n);
     const crowned7d = realms.reduce((s, r) => s + (r.crowned7d ?? 0n), 0n);
-    const patrons = realms.reduce((s, r) => s + r.donorsCount, 0);
     const active = realms.filter((r) => r.activated).length;
     const live = realms.filter((r) => r.isLive).length;
     const fees = splitAmount(totalCrowned).fee;
     const avg = realms.length ? totalCrowned / BigInt(realms.length) : 0n;
     const largest = realms.reduce((mx, r) => (r.totalDonated > mx ? r.totalDonated : mx), 0n);
 
+    // Attribute each realm to its PRIMARY platform (first link) only — so a realm on N platforms isn't
+    // summed N times (that tripled a 3-link realm's volume). This makes the bars a partition, not overlaps.
     const byPlatform = CHANNEL_PLATFORMS.map((p) => {
-      const rs = realms.filter((r) => (r.links ?? []).some((l) => l.platform === p.key));
+      const rs = realms.filter((r) => (r.links ?? [])[0]?.platform === p.key);
       return {
         key: p.key as ChannelLinkPlatform,
         label: p.label,
@@ -109,7 +112,7 @@ export default function AdminDashboardPage() {
       count: realms.filter((r) => b.test(fromMicro(r.totalDonated))).length,
     }));
 
-    return { totalCrowned, crowned7d, patrons, active, live, fees, avg, largest, byPlatform, sizeBuckets };
+    return { totalCrowned, crowned7d, active, live, fees, avg, largest, byPlatform, sizeBuckets };
   }, [realms]);
 
   const [range, setRange] = useState<ChartRange>("ALL");
@@ -134,7 +137,11 @@ export default function AdminDashboardPage() {
         <StatCard label="Total crowned" value={usd(m.totalCrowned)} tone="money" />
         <StatCard label="Last 7 days" value={usd(m.crowned7d)} tone="money" />
         <StatCard label="Platform fees" value={usd(m.fees)} sub="3% of volume" tone="money" />
-        <StatCard label="Patrons" value={m.patrons.toLocaleString("en-US")} sub="across realms" />
+        <StatCard
+          label="Patrons"
+          value={donationsLoading ? "…" : uniquePatrons.toLocaleString("en-US")}
+          sub="unique across realms"
+        />
         <StatCard label="Avg / realm" value={usd(m.avg)} />
         <StatCard label="Largest realm" value={usd(m.largest)} />
         <StatCard label="Live now" value={String(m.live)} sub={`of ${realms.length}`} />

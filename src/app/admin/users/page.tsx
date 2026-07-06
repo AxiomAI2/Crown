@@ -55,7 +55,10 @@ export default function AdminUsersPage() {
       for (const e of (b.data ?? []) as LeaderboardEntry[]) {
         const u = map.get(e.donor) ?? { address: e.donor, crowned: 0n, reign: 0, realms: 0 };
         u.crowned += e.totalDonated;
-        u.reign += e.points;
+        // Reign is PER-realm (invariant §4.3) — it is NOT summable across realms (summing just re-derived
+        // Crowned, since 1 USDC = 1 Reign, so the column duplicated Crowned). Show the donor's BEST single-realm
+        // standing instead — a real, meaningful number.
+        u.reign = Math.max(u.reign, e.points);
         u.realms += 1;
         if (!u.name && e.displayName) u.name = e.displayName;
         map.set(e.donor, u);

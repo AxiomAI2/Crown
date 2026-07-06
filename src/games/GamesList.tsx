@@ -6,7 +6,7 @@ import { LockIcon } from "@/components/ui/icons";
 import { GAME_PANELS } from "./panels";
 import { GAMES } from "./registry";
 import type { GameModule } from "./types";
-import { channelHue, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 /**
  * Mini-game catalog: poster cards in a grid (in a row, wrapping when space runs out). Each card is a
@@ -24,12 +24,11 @@ export function GamesList({ enabledGames }: { enabledGames: string[] }) {
           const Icon = GAME_PANELS[game.id]?.Icon ?? LockIcon;
           const enabledHere = enabledGames.includes(game.id);
           const building = game.status === "building";
-          const hue = channelHue(game.id);
           const status = enabledHere
             ? { label: "Live", cls: "text-status" }
             : building
               ? { label: "Soon", cls: "text-fg-faint" }
-              : { label: "Available", cls: "text-money" };
+              : { label: "Available", cls: "text-fg-muted" };
           return (
             <button
               key={game.id}
