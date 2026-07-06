@@ -26,6 +26,7 @@ export function SiteFooter() {
           <FooterCol title="Product">
             <FooterLink href="/">Realms</FooterLink>
             <FooterLink href="/games">Mini-games</FooterLink>
+            <FooterLink href="/for-streamers">For streamers</FooterLink>
           </FooterCol>
 
           <FooterCol title="Legal">

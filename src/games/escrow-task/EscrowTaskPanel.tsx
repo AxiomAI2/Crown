@@ -54,30 +54,30 @@ function useNow(intervalMs = 1000): number {
 /** Обратный отсчёт до iso: «M:SS» посекундно (под короткие окна), ч/дн — для длинных. `now` — живой. */
 function until(iso: string, now: number): string {
   const left = Date.parse(iso) - now;
-  if (left <= 0) return "срок истёк";
+  if (left <= 0) return "expired";
   const s = Math.floor(left / 1000);
   const d = Math.floor(s / 86400);
   const h = Math.floor((s % 86400) / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  if (d > 0) return `осталось ${d}д ${h}ч`;
-  if (h > 0) return `осталось ${h}ч ${m.toString().padStart(2, "0")}м`;
-  return `осталось ${m}:${sec.toString().padStart(2, "0")}`;
+  if (d > 0) return `${d}d ${h}h left`;
+  if (h > 0) return `${h}h ${m.toString().padStart(2, "0")}m left`;
+  return `${m}:${sec.toString().padStart(2, "0")} left`;
 }
 
 /** Какой дедлайн сейчас тикает (по стадии) — живая подпись для карточки. */
 function deadlineLabel(task: EscrowTask, now: number): string | null {
   switch (task.status) {
     case "PENDING":
-      return `Сдать до · ${until(task.executionDeadline, now)}`;
+      return `Deliver by · ${until(task.executionDeadline, now)}`;
     case "ACCEPTED":
-      return `Выполнить · ${until(task.executionDeadline, now)}`;
+      return `Deliver · ${until(task.executionDeadline, now)}`;
     case "DONE":
       return task.disputeWindowEndsAt
-        ? `Оспорить до · ${until(task.disputeWindowEndsAt, now)}`
+        ? `Dispute by · ${until(task.disputeWindowEndsAt, now)}`
         : null;
     case "DISPUTED":
-      return task.dispute ? `Голосование · ${until(task.dispute.votingEndsAt, now)}` : null;
+      return task.dispute ? `Voting · ${until(task.dispute.votingEndsAt, now)}` : null;
     default:
       return null;
   }
@@ -97,14 +97,14 @@ interface GameProps {
 }
 
 const STATUS_LABEL: Record<EscrowTask["status"], string> = {
-  PENDING: "Ждёт стримера",
-  ACCEPTED: "В работе",
-  DONE: "Окно оспаривания",
-  DISPUTED: "Голосование по спору",
-  RESOLVED: "Завершено",
+  PENDING: "Awaiting streamer",
+  ACCEPTED: "In progress",
+  DONE: "Dispute window",
+  DISPUTED: "Dispute voting",
+  RESOLVED: "Completed",
 };
 const outcomeLabel = (o: "to_streamer" | "to_donor") =>
-  o === "to_streamer" ? "стримеру" : "возврат донору";
+  o === "to_streamer" ? "to streamer" : "refund to supporter";
 
 type Run = (op: string, payload?: unknown, okMsg?: string, onDone?: () => void) => void;
 
@@ -121,7 +121,7 @@ function useRun(channelId: string): { run: Run; pending: boolean } {
         onError: (e) =>
           toast({
             variant: "error",
-            title: "Не получилось",
+            title: "Something went wrong",
             description: e instanceof Error ? e.message : String(e),
           }),
       },
@@ -155,7 +155,7 @@ export function EscrowTaskRail({ channelId }: GameProps) {
     : null;
   const belowMin = amountValid && minTaskMicro !== null && toMicro(num) < minTaskMicro;
   const amountError = belowMin
-    ? `Минимум канала для заданий — ${Number(minTaskMicro) / 1_000_000} USDC`
+    ? `Realm minimum for tasks is ${Number(minTaskMicro) / 1_000_000} USDC`
     : undefined;
 
   // §10-порог: право прислать задание. Гейтим форму заранее — иначе донор узнаёт об отказе только
@@ -174,7 +174,7 @@ export function EscrowTaskRail({ channelId }: GameProps) {
   // fast-test = 2 мин, прод = 5 мин. Потолок executionMax = 90 дней ≈ 3 месяца.
   const deadlineError =
     dlValue !== "" && !deadlineValid
-      ? `Срок: от ${Math.round(WINDOWS.executionMin / MIN)} минут до 3 месяцев`
+      ? `Deadline: from ${Math.round(WINDOWS.executionMin / MIN)} minutes to 3 months`
       : undefined;
   // Долгий срок = долгая заморозка: при игноре стримера возврат приходит только по ИСТЕЧЕНИИ срока сдачи
   // (эскроу, no-show/expired) — отдельного 72ч-окна принятия ончейн нет. Предупреждаем от 7 дней (коридор v1.1).
@@ -186,7 +186,7 @@ export function EscrowTaskRail({ channelId }: GameProps) {
     run(
       "create",
       { amount: toMicro(num).toString(), text: text.trim(), executionMs: deadlineMs },
-      "Задание создано",
+      "Task created",
       () => {
         // очищаем и закрываем ТОЛЬКО по успеху — отменил подпись → форма и диалог на месте
         setConfirmOpen(false);
@@ -200,8 +200,8 @@ export function EscrowTaskRail({ channelId }: GameProps) {
     <div className="flex flex-col gap-4 rounded-lg border border-border bg-[var(--bg)] p-4">
       {!viewer ? (
         <>
-          <h3 className="text-h3 text-fg">Задание-донат</h3>
-          <p className="text-small text-fg-muted">Подключи кошелёк, чтобы создать задание.</p>
+          <h3 className="text-h3 text-fg">Crown task</h3>
+          <p className="text-small text-fg-muted">Connect your wallet to create a task.</p>
         </>
       ) : (
         <>
@@ -215,11 +215,11 @@ export function EscrowTaskRail({ channelId }: GameProps) {
 
           <div className="border-t border-border" />
 
-          <h3 className="text-h3 text-fg">Задание-донат</h3>
+          <h3 className="text-h3 text-fg">Crown task</h3>
 
           <div className="flex flex-col gap-2">
             <Input
-              label="Сумма, USDC"
+              label="Amount, USDC"
               mono
               inputMode="decimal"
               placeholder="0.00"
@@ -244,8 +244,8 @@ export function EscrowTaskRail({ channelId }: GameProps) {
           </div>
 
           <Textarea
-            label="Задание"
-            placeholder="Что сделать стримеру…"
+            label="Task"
+            placeholder="What the streamer should do…"
             maxLength={config?.messageMaxLen ?? 280}
             showCount
             value={text}
@@ -254,13 +254,13 @@ export function EscrowTaskRail({ channelId }: GameProps) {
           />
           {lowRep ? (
             <p className="text-small text-fg-muted">
-              Задания на этом канале — с {formatPoints(minRep)} очков репутации (у тебя{" "}
-              {formatPoints(standingQ.data?.points ?? 0)}). Репутация набирается обычными донатами.
+              Tasks on this realm start at {formatPoints(minRep)} Reign (you have{" "}
+              {formatPoints(standingQ.data?.points ?? 0)}). Reign builds up from regular Crowns.
             </p>
           ) : null}
 
           <div className="flex flex-col gap-1">
-            <span className="text-small text-fg-muted">Срок на выполнение</span>
+            <span className="text-small text-fg-muted">Time to deliver</span>
             <div className="flex items-start gap-2">
               <Input
                 mono
@@ -274,20 +274,20 @@ export function EscrowTaskRail({ channelId }: GameProps) {
               <Select
                 value={dlUnit}
                 onChange={(e) => setDlUnit(e.target.value as "m" | "h" | "d")}
-                aria-label="Единица срока"
+                aria-label="Deadline unit"
                 className="w-28 bg-[var(--bg)]"
               >
-                <option value="m">минут</option>
-                <option value="h">часов</option>
-                <option value="d">дней</option>
+                <option value="m">minutes</option>
+                <option value="h">hours</option>
+                <option value="d">days</option>
               </Select>
             </div>
             {longDeadline ? (
               <p className="text-small text-warn">
-                Долгий срок — долгая заморозка: если стример просто проигнорирует задание, деньги
-                пролежат в эскроу до {Math.round(deadlineMs / DAY)} дней и вернутся только по
-                истечении срока. Отменить можно лишь в первые ~{Math.round(WINDOWS.grace / MIN)} мин
-                после создания.
+                A long deadline means a long freeze: if the streamer simply ignores the task, the
+                money sits in escrow for up to {Math.round(deadlineMs / DAY)} days and only comes
+                back once the deadline passes. You can cancel only in the first ~
+                {Math.round(WINDOWS.grace / MIN)} min after creating it.
               </p>
             ) : null}
           </div>
@@ -298,7 +298,7 @@ export function EscrowTaskRail({ channelId }: GameProps) {
             onClick={() => setConfirmOpen(true)}
             className="border-border-strong bg-[var(--bg)] hover:bg-surface-raised"
           >
-            Создать задание
+            Create task
           </Button>
 
           {/* Подтверждение с разбивкой — как у обычного доната (donate.tsx), но копирайт честный для
@@ -311,32 +311,32 @@ export function EscrowTaskRail({ channelId }: GameProps) {
           >
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Подтверждение</DialogTitle>
+                <DialogTitle>Confirm</DialogTitle>
                 <DialogDescription>
-                  Деньги замораживаются в эскроу. Стримеру — если выполнит; тебе полностью — если не
-                  успеет в срок.
+                  The money is frozen in escrow. To the streamer if they deliver; fully back to you
+                  if they miss the deadline.
                 </DialogDescription>
               </DialogHeader>
               {amountValid ? <FeeSplit amount={toMicro(num)} /> : null}
               <p className="text-small text-fg-muted">
                 {pending
-                  ? "Подпиши в кошельке и подожди финализации в сети (~15–30с) — задание появится, когда эскроу подтвердится."
-                  : "Разбивка — если стример выполнит. Не успеет в срок — вернём всю сумму без комиссии."}
+                  ? "Sign in your wallet and wait for on-chain finalization (~15–30s) — the task appears once the escrow is confirmed."
+                  : "The breakdown applies if the streamer delivers. If they miss the deadline, we refund the full amount with no fee."}
               </p>
               {!pending && longDeadline ? (
                 <p className="text-small text-warn">
-                  Срок {Math.round(deadlineMs / DAY)} дней: если стример проигнорирует задание,
-                  возврат придёт только после его истечения — забрать деньги раньше нельзя.
+                  Deadline of {Math.round(deadlineMs / DAY)} days: if the streamer ignores the task,
+                  the refund only arrives after it passes — you can&apos;t pull the money out sooner.
                 </p>
               ) : null}
               <DialogFooter>
                 <DialogClose asChild>
                   <Button variant="ghost" disabled={pending}>
-                    Отмена
+                    Cancel
                   </Button>
                 </DialogClose>
                 <Button variant="money" loading={pending} onClick={confirmCreate}>
-                  {pending ? "Финализируем…" : "Подтвердить и подписать"}
+                  {pending ? "Finalizing…" : "Confirm and sign"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -363,19 +363,19 @@ export function EscrowTaskHub({ channelId, ownerAddress, handle }: GameProps) {
     <div className="flex flex-col gap-6">
       <section className="flex flex-col gap-3">
         <div className="text-caption uppercase tracking-wide text-fg-faint">
-          Активные задания · {active.length}
+          Active tasks · {active.length}
         </div>
         {tasksQ.isLoading ? (
           <Skeleton className="h-24 w-full rounded-lg" />
         ) : tasksQ.error ? (
           <ErrorState
-            description="Не удалось загрузить задания."
+            description="Failed to load tasks."
             onRetry={() => tasksQ.refetch()}
           />
         ) : active.length === 0 ? (
           <EmptyState
-            title="Нет активных заданий"
-            description="Создай задание справа. Завершённые — в ленте «Донаты»."
+            title="No active tasks"
+            description="Create a task on the right. Completed ones are in the Crowns feed."
           />
         ) : (
           <div className="flex flex-col [&>:last-child]:border-b-0">
@@ -399,7 +399,7 @@ export function EscrowTaskHub({ channelId, ownerAddress, handle }: GameProps) {
 
 /** Человекочитаемое окно из WINDOWS — правила не хардкодят длительности (fast-режим и калибровка). */
 const fmtWindow = (ms: number) =>
-  ms >= 3_600_000 ? `${Math.round(ms / 3_600_000)} ч` : `${Math.round(ms / 60_000)} мин`;
+  ms >= 3_600_000 ? `${Math.round(ms / 3_600_000)} h` : `${Math.round(ms / 60_000)} min`;
 
 /**
  * Правила игры — показываются в модалке «i» пикера игр (GameActionRail). Внешний контейнер даёт модалка.

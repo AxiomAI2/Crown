@@ -8,6 +8,7 @@ import { CHANNEL_PLATFORMS, platformDef } from "@/lib/channel-links";
 import { CheckIcon } from "@/components/ui/icons";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { ExpandingSearch } from "@/components/ui/expanding-search";
+import { SortToggle, type RealmSort } from "@/components/domain/realm-filters";
 import { demoAddress } from "@/lib/data/dev-identity";
 import { useDevControls, useDiscovery, useSession } from "@/lib/data/hooks";
 import type { ChannelCard, ChannelLinkPlatform } from "@/lib/data/types";
@@ -83,7 +84,7 @@ function GuestIntro() {
         inside their community that&apos;s earned, never bought or sold.
       </p>
       <p className="text-small text-fg-faint">
-        Crown&nbsp;→ earn Reign&nbsp;→ climb from Squire to King.
+        Crown&nbsp;→ earn Reign&nbsp;→ climb the realm&apos;s tiers.
       </p>
     </div>
   );
@@ -94,6 +95,7 @@ function RealmsShowcase() {
   const realms = useMemo(() => data?.items ?? [], [data]);
   const [query, setQuery] = useState("");
   const [platforms, setPlatforms] = useState<Set<ChannelLinkPlatform>>(new Set());
+  const [sort, setSort] = useState<RealmSort>("all"); // All-time / 7 days (crowned volume)
 
   // Show in the filter only the platforms that actually appear among the realms (no dead options),
   // in CHANNEL_PLATFORMS order.
@@ -105,7 +107,8 @@ function RealmsShowcase() {
 
   const q = query.trim().toLowerCase();
   const visible = useMemo(() => {
-    const metric = (c: ChannelCard) => c.totalDonated;
+    // Sort by crowned volume: 7 days (momentum — the top isn't frozen forever) or all-time.
+    const metric = (c: ChannelCard) => (sort === "7d" ? (c.crowned7d ?? 0n) : c.totalDonated);
     return realms
       .filter((c) => !q || `${c.handle} ${c.displayName ?? ""}`.toLowerCase().includes(q))
       // Social filter: a realm passes if it has a link to ANY of the selected platforms (union).
@@ -116,7 +119,7 @@ function RealmsShowcase() {
         const bv = metric(b);
         return bv > av ? 1 : bv < av ? -1 : 0;
       });
-  }, [realms, q, platforms]);
+  }, [realms, q, sort, platforms]);
 
   const togglePlatform = (p: ChannelLinkPlatform) =>
     setPlatforms((prev) => {
@@ -128,9 +131,11 @@ function RealmsShowcase() {
 
   const hasRealms = !isLoading && !error && realms.length > 0;
 
-  // Grid crossfade on sort/filter/search change: we render a `shown` snapshot; when the controls change
-  // the old layout fades out (animate-list-out) → on onAnimationEnd we swap in the new one → cascade-in.
-  const sig = `${q}|${[...platforms].sort().join(",")}`;
+  // Grid crossfade ONLY on sort / platform change (a real reorder): render a `shown` snapshot; when it
+  // changes the old layout fades out (animate-list-out) → onAnimationEnd swaps in the new one → cascade-in.
+  // Search is deliberately NOT in the signature — it filters live, so typing doesn't re-trigger the
+  // animation on every keystroke (that jerked the grid).
+  const sig = `${sort}|${[...platforms].sort().join(",")}`;
   const [shown, setShown] = useState<ChannelCard[]>(visible);
   const [shownSig, setShownSig] = useState(sig);
   const [leaving, setLeaving] = useState(false);
@@ -170,6 +175,8 @@ function RealmsShowcase() {
         <h2 className="text-h3 text-fg">The realms</h2>
         {hasRealms ? (
           <div className="flex flex-wrap items-center gap-2">
+            {/* Sort by crowned volume — all-time vs 7-day momentum (so the top isn't frozen forever). */}
+            <SortToggle value={sort} onChange={setSort} />
             {/* Social filter — collapsed into a dropdown so it doesn't take up a row */}
             {availablePlatforms.length > 0 ? (
               <PlatformFilterMenu
@@ -372,7 +379,15 @@ function RealmCard({ realm }: { realm: ChannelCard }) {
           )}
         </span>
         <div className="flex min-w-0 flex-col">
-          <span className="mono truncate text-fg">@{realm.handle}</span>
+          <div className="flex items-center gap-2">
+            <span className="mono truncate text-fg">@{realm.handle}</span>
+            {realm.isLive ? (
+              <span className="inline-flex flex-none items-center gap-1 rounded-full border border-danger px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-danger" aria-hidden />
+                Live
+              </span>
+            ) : null}
+          </div>
           {realm.displayName && (
             <span className="truncate text-small text-fg-faint">{realm.displayName}</span>
           )}
@@ -403,9 +418,15 @@ function RealmCard({ realm }: { realm: ChannelCard }) {
         </div>
       )}
 
-      <div className="mt-auto border-t border-border pt-4">
-        <div className="text-caption text-fg-faint">Crowned</div>
-        <div className="mono text-money">{usd(amount)}</div>
+      <div className="mt-auto flex items-end justify-between gap-2 border-t border-border pt-4">
+        <div>
+          <div className="text-caption text-fg-faint">Crowned</div>
+          <div className="mono text-money">{usd(amount)}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-caption text-fg-faint">Supporters</div>
+          <div className="mono text-fg">{realm.donorsCount.toLocaleString("en-US")}</div>
+        </div>
       </div>
     </div>
   );

@@ -85,7 +85,7 @@ export function RealmFilterToolbar({ filter }: { filter: RealmFilter }) {
   );
 }
 
-function SortToggle({ value, onChange }: { value: RealmSort; onChange: (v: RealmSort) => void }) {
+export function SortToggle({ value, onChange }: { value: RealmSort; onChange: (v: RealmSort) => void }) {
   const opts: { k: RealmSort; label: string }[] = [
     { k: "all", label: "All-time" },
     { k: "7d", label: "7 days" },

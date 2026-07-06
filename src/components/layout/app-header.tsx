@@ -34,6 +34,13 @@ export function AppHeader() {
           <NavLink href="/games" active={isActive("/games")}>
             Mini-games
           </NavLink>
+          {/* Streamer funnel: a discoverable entry to open a realm — shown to anyone who isn't a creator yet
+              (guests included). Creators already have a realm, so it's hidden for them. */}
+          {!session?.isCreator ? (
+            <NavLink href="/for-streamers" active={isActive("/for-streamers")}>
+              For streamers
+            </NavLink>
+          ) : null}
           {session?.isOperator && (
             <NavLink href="/ops" active={isActive("/ops")}>
               Ops
