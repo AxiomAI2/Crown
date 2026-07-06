@@ -63,14 +63,14 @@ export function DisputePage({ handle, taskId }: { handle: string; taskId: string
                 <Amount micro={BigInt(data.task.amount)} variant="money" />
                 <span className="text-caption rounded-pill border border-border px-2 py-0.5 text-fg-faint">
                   {data.task.resolution
-                    ? `Outcome: ${data.task.resolution.outcome === "to_streamer" ? "to streamer" : "refund to donor"}`
+                    ? `Outcome: ${data.task.resolution.outcome === "to_streamer" ? "to streamer" : "refund to supporter"}`
                     : "Voting in progress"}
                 </span>
               </div>
               <p className="text-body break-words text-fg">{data.task.text}</p>
               <div className="flex flex-col gap-1 border-t border-border pt-3">
                 <Party label="Streamer (performed)" address={channel.ownerAddress} />
-                <Party label="Donor (paid)" address={data.task.donor} />
+                <Party label="Supporter (paid)" address={data.task.donor} />
                 <Party label="Disputing" address={data.dispute.by} />
               </div>
             </div>

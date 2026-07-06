@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Amount } from "./amount";
 import { ChannelLinkButtons } from "./channel-links";
 import { HeaderActions, Monogram } from "./header-actions";
+import { CrownLogo } from "@/components/crown-logo";
 import { useProfile } from "@/lib/data/hooks";
 import type { Channel, ChannelConfig } from "@/lib/data/types";
 import { cn } from "@/lib/utils";
@@ -151,7 +152,7 @@ export function ChannelHero({
                   }}
                   aria-hidden
                 >
-                  👑
+                  <CrownLogo size={22} className="text-[#1a1206]" />
                 </span>
                 <div className="flex min-w-0 flex-col">
                   <span className="text-caption uppercase tracking-wide text-status">

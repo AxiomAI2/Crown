@@ -4,7 +4,7 @@ import { CHANNEL_DESC_MAX, sanitizeChannelLinks } from "../channel-links";
 import { computePoints, computePointsAsOf, pointsForAmount, resolveTier } from "../reputation";
 import { isLikelyBase58Address, toMicro } from "../utils";
 import { dispatchGame, GAME_HANDLERS, GameBusError, type GameContext } from "../../games";
-import { DEMO_CHANNELS, DEMO_NAMES, demoAddress } from "./demo-seed";
+import { DEMO_CHANNELS, DEMO_NAMES, DEMO_TASKS, demoAddress } from "./demo-seed";
 import { defaultChannelConfig, MAX_TIERS, TIER_DESC_MAX } from "./fixtures";
 import { classifyTaskText, resolveAutoModerator, runPipeline, taskTextCommitment } from "./moderation";
 import {
@@ -247,6 +247,79 @@ export class MockDataProvider implements DataProvider {
         this.donations.push(donation);
       }
     }
+
+    // Demo escrow tasks (mini-game G3a): a stable spread of statuses so the Games tab and /admin/games show real
+    // activity, not zeros. Deadlines are set weeks out ON PURPOSE — the mock's FAST_TEST_WINDOWS (2-min windows)
+    // only governs how FRESHLY-created tasks are timed; these carry their own long deadlines, so dueResolution keeps
+    // each one in its seeded state instead of expiring ~2 min after load.
+    const DAY_MS = 86_400_000;
+    const now = Date.now();
+    const tasks: EscrowTask[] = [];
+    for (const dt of DEMO_TASKS) {
+      const channelId = this.handleToId.get(dt.channel);
+      if (!channelId) continue; // handle typo / realm without the game — skip defensively
+      const createdMs = now - dt.createdDaysAgo * DAY_MS;
+      const microStr = toMicro(dt.usdc).toString();
+      const task: EscrowTask = {
+        id: this.nextId("task"),
+        channelId,
+        donor: demoAddress(dt.donor),
+        amount: microStr,
+        text: dt.text,
+        createdAt: new Date(createdMs).toISOString(),
+        // Far-future delivery deadline → PENDING/ACCEPTED stay open (dueResolution keys on this).
+        executionDeadline: new Date(now + 30 * DAY_MS).toISOString(),
+        status: dt.status,
+        textState: dt.textState ?? "SHOWN",
+      };
+      if (dt.status === "PENDING" || dt.status === "ACCEPTED") {
+        task.graceUntil = new Date(createdMs + 3_600_000).toISOString(); // cancel window long closed
+      }
+      if (dt.status === "DONE") {
+        task.disputeWindowEndsAt = new Date(now + 7 * DAY_MS).toISOString(); // window open → not auto-resolved
+      }
+      if (dt.status === "DISPUTED" && dt.dispute) {
+        task.disputeWindowEndsAt = new Date(createdMs + 3_600_000).toISOString();
+        task.dispute = {
+          by: demoAddress(dt.dispute.by),
+          openedAt: new Date(now - dt.dispute.openedDaysAgo * DAY_MS).toISOString(),
+          votingEndsAt: new Date(now + 5 * DAY_MS).toISOString(), // voting open → not auto-resolved
+          quorum: dt.dispute.quorum,
+          votes: dt.dispute.votes.map((v) => ({
+            voter: demoAddress(v.voter),
+            choice: v.choice,
+            weight: v.weight,
+            at: new Date(now - v.daysAgo * DAY_MS).toISOString(),
+          })),
+        };
+      }
+      if (dt.status === "RESOLVED" && dt.resolution) {
+        const resolvedAt = new Date(now - dt.resolution.resolvedDaysAgo * DAY_MS).toISOString();
+        task.resolution = {
+          outcome: dt.resolution.outcome,
+          reason: dt.resolution.reason,
+          resolvedAt,
+          claimed: true,
+        };
+        // A delivered task credits the donor's Reign in this realm — bank it like the game bus does (repEffects →
+        // DONATION → bankLedger), so the leaderboard matches the donor's points log. A refund grants nothing (§8).
+        if (dt.resolution.outcome === "to_streamer") {
+          const micro = toMicro(dt.usdc);
+          this.ledger.push({
+            id: this.nextId("gl"),
+            donor: task.donor,
+            creator: channelId,
+            type: "DONATION",
+            amount: micro,
+            pointsDelta: pointsForAmount(micro),
+            configVersion: 1,
+            ts: resolvedAt,
+          });
+        }
+      }
+      tasks.push(task);
+    }
+    this.gameState.set("escrow-task", { tasks });
   }
   private async gate(method: string): Promise<void> {
     // On the server latencyScale=0 and failMode is off → no delay, no fault injection: we skip all the work

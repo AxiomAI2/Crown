@@ -10,11 +10,28 @@ import {
   type ChartRange,
 } from "@/components/domain/area-chart";
 import { ErrorState, Skeleton } from "@/components/ui/feedback";
+import { GAMES } from "@/games/registry";
+import type { EscrowTask } from "@/games/escrow-task/types";
 import { splitAmount } from "@/lib/chain/addresses";
 import { useData } from "@/lib/data/context";
 import { useDiscovery } from "@/lib/data/hooks";
-import type { ChannelLinkPlatform, Donation } from "@/lib/data/types";
+import type { ChannelConfig, ChannelLinkPlatform, Donation } from "@/lib/data/types";
 import { cn, fromMicro } from "@/lib/utils";
+
+const TASK_STATUS_LABEL: Record<EscrowTask["status"], string> = {
+  PENDING: "Pending",
+  ACCEPTED: "Accepted",
+  DONE: "Delivered",
+  DISPUTED: "Disputed",
+  RESOLVED: "Resolved",
+};
+const TASK_STATUS_ORDER: EscrowTask["status"][] = [
+  "PENDING",
+  "ACCEPTED",
+  "DONE",
+  "DISPUTED",
+  "RESOLVED",
+];
 
 const DAY = 86_400_000;
 
@@ -51,6 +68,52 @@ export default function AdminDashboardPage() {
     })),
   });
   const donationsLoading = donationQs.some((q) => q.isLoading);
+
+  // Per-realm config (enabledGames → adoption) + escrow-tasks (status distribution). Same query keys as
+  // useChannelConfig / useEscrowTasks → React Query dedupes. Moved here from /admin/games (the games page
+  // is now the task HISTORY list); this dashboard owns the platform-wide game distribution charts.
+  const configQs = useQueries({
+    queries: realms.map((r) => ({
+      queryKey: ["channelConfig", r.channelId] as const,
+      queryFn: () => provider.getChannelConfig(r.channelId),
+      staleTime: 30_000,
+    })),
+  });
+  const taskQs = useQueries({
+    queries: realms.map((r) => ({
+      queryKey: ["game", "escrow-task", r.channelId] as const,
+      queryFn: () =>
+        provider.gameQuery({ gameId: "escrow-task", channelId: r.channelId, op: "list" }) as Promise<{
+          tasks: EscrowTask[];
+        }>,
+      staleTime: 30_000,
+    })),
+  });
+  const gamesLoading = configQs.some((q) => q.isLoading) || taskQs.some((q) => q.isLoading);
+
+  const games = useMemo(() => {
+    const configs = configQs.map((q) => q.data).filter(Boolean) as ChannelConfig[];
+    const tasks = taskQs.flatMap((q) => q.data?.tasks ?? []);
+    const adoption = GAMES.map((g) => ({
+      key: g.id,
+      label: g.title + (g.status === "building" ? " · in dev" : ""),
+      value: configs.filter((c) => c.enabledGames?.includes(g.id)).length,
+    }));
+    const byStatus = TASK_STATUS_ORDER.map((st) => ({
+      key: st,
+      label: TASK_STATUS_LABEL[st],
+      value: tasks.filter((t) => t.status === st).length,
+    }));
+    const resolved = tasks.filter((t) => t.resolution);
+    return {
+      adoption,
+      byStatus,
+      taskCount: tasks.length,
+      toStreamer: resolved.filter((t) => t.resolution?.outcome === "to_streamer").length,
+      toDonor: resolved.filter((t) => t.resolution?.outcome === "to_donor").length,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configQs.map((q) => q.dataUpdatedAt).join(","), taskQs.map((q) => q.dataUpdatedAt).join(",")]);
 
   const { turnoverEvents, patronEvents, uniquePatrons } = useMemo(() => {
     const all: Donation[] = donationQs.flatMap((q) => q.data?.items ?? []);
@@ -138,7 +201,7 @@ export default function AdminDashboardPage() {
         <StatCard label="Last 7 days" value={usd(m.crowned7d)} tone="money" />
         <StatCard label="Platform fees" value={usd(m.fees)} sub="3% of volume" tone="money" />
         <StatCard
-          label="Patrons"
+          label="Supporters"
           value={donationsLoading ? "…" : uniquePatrons.toLocaleString("en-US")}
           sub="unique across realms"
         />
@@ -178,14 +241,14 @@ export default function AdminDashboardPage() {
             </div>
             <div className="flex flex-col gap-2">
               <span className="text-caption uppercase tracking-wide text-fg-faint">
-                {view === "bars" ? "New patrons / day" : "Patrons"}
+                {view === "bars" ? "New supporters / day" : "Supporters"}
               </span>
               <GrowthChart
                 events={patronEvents}
                 range={range}
                 color="var(--info)"
                 formatValue={(v) => Math.round(v).toLocaleString("en-US")}
-                emptyHint="Patrons appear after the first donation."
+                emptyHint="Supporters appear after the first donation."
               />
             </div>
           </div>
@@ -207,6 +270,7 @@ export default function AdminDashboardPage() {
         </ChartCard>
         <ChartCard title="Realms by size" hint="Distribution of realm crowned totals">
           <BarList
+            tone="count"
             rows={m.sizeBuckets.map((b) => ({
               key: b.label,
               label: b.label,
@@ -214,6 +278,47 @@ export default function AdminDashboardPage() {
               display: String(b.count),
             }))}
           />
+        </ChartCard>
+      </div>
+
+      {/* Mini-games distribution — moved here from /admin/games (that page is now the task history list). */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ChartCard title="Adoption by game" hint="How many realms have each game turned on">
+          {gamesLoading ? (
+            <Skeleton className="h-24 w-full rounded" />
+          ) : (
+            <BarList
+              tone="count"
+              rows={games.adoption.map((a) => ({
+                key: a.key,
+                label: a.label,
+                value: a.value,
+                display: String(a.value),
+              }))}
+            />
+          )}
+        </ChartCard>
+        <ChartCard
+          title="Escrow tasks by status"
+          hint={
+            games.taskCount > 0
+              ? `${games.toStreamer} paid to streamer · ${games.toDonor} refunded to supporter`
+              : "No escrow tasks yet — streamers enable games per realm."
+          }
+        >
+          {gamesLoading ? (
+            <Skeleton className="h-24 w-full rounded" />
+          ) : (
+            <BarList
+              tone="count"
+              rows={games.byStatus.map((s) => ({
+                key: s.key,
+                label: s.label,
+                value: s.value,
+                display: String(s.value),
+              }))}
+            />
+          )}
         </ChartCard>
       </div>
     </div>
@@ -291,14 +396,18 @@ function ChartCard({ title, hint, children }: { title: string; hint?: string; ch
   );
 }
 
-/** Simple horizontal bar chart (no external libs): bar width is proportional to max. */
+/** Simple horizontal bar chart (no external libs): bar width is proportional to max.
+ *  `money` bars are gold (a $ magnitude); `count` bars are neutral — gold is rationed for money, not tallies. */
 function BarList({
   rows,
+  tone = "money",
 }: {
   rows: { key: string; label: string; value: number; display: string; iconPath?: string }[];
+  tone?: "money" | "count";
 }) {
   if (rows.length === 0) return <p className="text-small text-fg-faint">No data.</p>;
   const max = Math.max(1, ...rows.map((r) => r.value));
+  const barCls = tone === "money" ? "bg-money" : "bg-fg-faint";
   return (
     <div className="flex flex-col gap-2.5">
       {rows.map((r) => (
@@ -312,7 +421,7 @@ function BarList({
             <span className="truncate">{r.label}</span>
           </div>
           <div className="h-2 flex-1 overflow-hidden rounded-pill bg-[var(--bg)]">
-            <div className="h-full rounded-pill bg-money" style={{ width: `${(r.value / max) * 100}%` }} />
+            <div className={cn("h-full rounded-pill", barCls)} style={{ width: `${(r.value / max) * 100}%` }} />
           </div>
           <span className="mono w-14 flex-none text-right text-small text-fg">{r.display}</span>
         </div>

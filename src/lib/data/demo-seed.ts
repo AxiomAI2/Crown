@@ -9,6 +9,7 @@
  *
  * Numbers/texts are arbitrary demo content, not the spec. Edit freely to suit the UI.
  */
+import type { ResolutionReason, TaskOutcome, TaskStatus, VoteChoice } from "../../games/escrow-task/types";
 import type { ChannelLinkPlatform } from "./types";
 
 export interface DemoLink {
@@ -42,6 +43,33 @@ export interface DemoChannel {
   donations: DemoDonation[];
   /** Mini-games turned on for this realm — ids from the `src/games` registry (e.g. "escrow-task"). Omitted = none. */
   enabledGames?: string[];
+}
+
+/** A juror's vote inside a demo dispute (weight = reputation snapshot, display-only in the mock). */
+export interface DemoTaskVote {
+  voter: string; // supporter label → deterministic address
+  choice: VoteChoice; // "completed" | "not_completed"
+  weight: number; // reputation at the snapshot (any plausible number — mock display)
+  daysAgo: number;
+}
+
+/**
+ * A demo escrow task (mini-game G3a). `channel` MUST be a realm with escrow-task enabled. Timings are relative
+ * (…DaysAgo); the mock builder turns them into a task with LONG deadlines so it survives the 2-min FAST_TEST_WINDOWS
+ * and stays in its seeded state (a fresh task would otherwise expire ~2 min after load).
+ */
+export interface DemoTask {
+  channel: string; // realm handle
+  donor: string; // supporter label
+  usdc: number;
+  text: string;
+  status: TaskStatus;
+  createdDaysAgo: number;
+  textState?: "SHOWN" | "HELD" | "HIDDEN"; // default SHOWN
+  /** DISPUTED only: the open dispute + its live tally. */
+  dispute?: { by: string; openedDaysAgo: number; quorum: number; votes: DemoTaskVote[] };
+  /** RESOLVED only: the final outcome (to_streamer is banked to the ledger; a to_donor refund is reputation-neutral). */
+  resolution?: { outcome: TaskOutcome; reason: ResolutionReason; resolvedDaysAgo: number };
 }
 
 /** Supporter names by label — shown in the leaderboard/feed if the realm allows display names. */
@@ -506,5 +534,113 @@ export const DEMO_CHANNELS: DemoChannel[] = [
       { donor: "cosmo", usdc: 600, daysAgo: 6, text: "kill the lich already", state: "SHOWN" },
       { donor: "luna", usdc: 50, daysAgo: 2 },
     ],
+  },
+];
+
+/**
+ * DEMO escrow tasks (mini-game G3a) — a stable spread of statuses on the realms that have the game enabled, so the
+ * realm Games tab and /admin/games show real activity (task counts, value in escrow, a live dispute, resolved
+ * outcomes) instead of zeros. Every `channel` here MUST be a realm whose DemoChannel has `enabledGames:
+ * ["escrow-task"]`. The mock builder (MockDataProvider.seedDemo) gives each task long deadlines so it survives the
+ * 2-min FAST_TEST_WINDOWS, and banks the one delivered (to_streamer) task to the ledger like the real game bus.
+ */
+export const DEMO_TASKS: DemoTask[] = [
+  // raidboss — one awaiting a response, one delivered and in its dispute window
+  {
+    channel: "raidboss",
+    donor: "kirill",
+    usdc: 25,
+    text: "Beat the next boss on a dance pad — no keyboard, live on stream.",
+    status: "PENDING",
+    createdDaysAgo: 1,
+  },
+  {
+    channel: "raidboss",
+    donor: "vika",
+    usdc: 40,
+    text: "No-hit run of the tutorial area tonight.",
+    status: "DONE",
+    createdDaysAgo: 4,
+  },
+  // devbyte — one in progress, one delivered (reputation banked to the donor)
+  {
+    channel: "devbyte",
+    donor: "artem",
+    usdc: 30,
+    text: "Refactor the auth module live and explain each step.",
+    status: "ACCEPTED",
+    createdDaysAgo: 2,
+  },
+  {
+    channel: "devbyte",
+    donor: "lena",
+    usdc: 50,
+    text: "Review my open-source PR on stream and merge it if it holds up.",
+    status: "RESOLVED",
+    createdDaysAgo: 12,
+    resolution: { outcome: "to_streamer", reason: "completed", resolvedDaysAgo: 10 },
+  },
+  // flashrun — a live dispute (community voting, quorum met, currently leaning "not delivered")
+  {
+    channel: "flashrun",
+    donor: "oleg",
+    usdc: 60,
+    text: "Sub-20 any% run of level 1, no shortcuts.",
+    status: "DISPUTED",
+    createdDaysAgo: 6,
+    dispute: {
+      by: "grisha",
+      openedDaysAgo: 1,
+      quorum: 40,
+      votes: [
+        { voter: "grisha", choice: "not_completed", weight: 22, daysAgo: 1 },
+        { voter: "felix", choice: "not_completed", weight: 14, daysAgo: 1 },
+        { voter: "nastya", choice: "completed", weight: 9, daysAgo: 0 },
+      ],
+    },
+  },
+  // rooknroll — one awaiting, one refunded to the supporter (streamer never delivered)
+  {
+    channel: "rooknroll",
+    donor: "dana",
+    usdc: 10,
+    text: "Solve today's puzzle rush blindfolded.",
+    status: "PENDING",
+    createdDaysAgo: 1,
+  },
+  {
+    channel: "rooknroll",
+    donor: "roma",
+    usdc: 15,
+    text: "Win a game opening with the bongcloud.",
+    status: "RESOLVED",
+    createdDaysAgo: 9,
+    resolution: { outcome: "to_donor", reason: "no_show", resolvedDaysAgo: 7 },
+  },
+  // retroarcade — delivered, in its dispute window
+  {
+    channel: "retroarcade",
+    donor: "mia",
+    usdc: 20,
+    text: "Clear the first loop of Pac-Man on the cabinet.",
+    status: "DONE",
+    createdDaysAgo: 3,
+  },
+  // codegolf — one in progress, one just posted
+  {
+    channel: "codegolf",
+    donor: "zoe",
+    usdc: 35,
+    text: "Golf FizzBuzz under 60 bytes and explain the tricks.",
+    status: "ACCEPTED",
+    createdDaysAgo: 2,
+  },
+  {
+    channel: "codegolf",
+    donor: "cosmo",
+    usdc: 10,
+    text: "Walk through yesterday's shortest-path one-liner.",
+    status: "PENDING",
+    createdDaysAgo: 0,
   },
 ];

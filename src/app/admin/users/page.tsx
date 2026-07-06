@@ -106,7 +106,7 @@ export default function AdminUsersPage() {
       ) : realmsError || boardsError ? (
         <ErrorState description="Couldn't load users." onRetry={() => refetch()} />
       ) : users.length === 0 ? (
-        <EmptyState title="No users yet" description="Patrons appear once realms receive crowns." />
+        <EmptyState title="No users yet" description="Supporters appear once realms receive crowns." />
       ) : visible.length === 0 ? (
         <EmptyState title="No users found" description="Try a different search." />
       ) : (
@@ -117,7 +117,7 @@ export default function AdminUsersPage() {
                 <th className="px-4 py-2.5 text-left font-medium">#</th>
                 <th className="px-4 py-2.5 text-left font-medium">User</th>
                 <th className="px-4 py-2.5 text-right font-medium">Crowned</th>
-                <th className="px-4 py-2.5 text-right font-medium">Reign</th>
+                <th className="px-4 py-2.5 text-right font-medium">Top Reign</th>
                 <th className="px-4 py-2.5 text-right font-medium">Realms</th>
               </tr>
             </thead>
@@ -147,7 +147,7 @@ export default function AdminUsersPage() {
 function UserSortToggle({ value, onChange }: { value: UserSort; onChange: (v: UserSort) => void }) {
   const opts: { k: UserSort; label: string }[] = [
     { k: "crowned", label: "Crowned" },
-    { k: "reign", label: "Reign" },
+    { k: "reign", label: "Top Reign" },
     { k: "realms", label: "Realms" },
   ];
   return (

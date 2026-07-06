@@ -49,7 +49,7 @@ export default function AdminRealmsPage() {
                 <th className="px-4 py-2.5 text-left font-medium">Socials</th>
                 <th className="px-4 py-2.5 text-right font-medium">Crowned</th>
                 <th className="px-4 py-2.5 text-right font-medium">7d</th>
-                <th className="px-4 py-2.5 text-right font-medium">Patrons</th>
+                <th className="px-4 py-2.5 text-right font-medium">Supporters</th>
                 <th className="px-4 py-2.5 text-left font-medium">Status</th>
               </tr>
             </thead>

@@ -171,7 +171,7 @@ export function RealmGamesSettings() {
         <p className="text-small text-fg-faint">
           {IS_ICP
             ? "The dispute reputation gate is set in Dispute governance (canister) below."
-            : "A high dispute threshold means less trolling but fewer challenges. Set it very high and you effectively turn disputes off — donors will see that."}
+            : "A high dispute threshold means less trolling but fewer challenges. Set it very high and you effectively turn disputes off — supporters will see that."}
         </p>
         <div>
           <Button

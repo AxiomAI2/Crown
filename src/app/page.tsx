@@ -383,7 +383,7 @@ function RealmCard({ realm }: { realm: ChannelCard }) {
                 rel="noopener noreferrer"
                 title={def.label}
                 onClick={(e) => e.stopPropagation()}
-                className="grid h-7 w-7 place-items-center rounded-md border border-border text-fg-faint transition-colors hover:border-border-strong hover:text-fg"
+                className="grid h-7 w-7 place-items-center rounded-md border border-transparent bg-surface-2 text-fg-faint transition-colors hover:bg-surface-raised hover:text-fg"
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5" aria-hidden="true">
                   <path d={def.iconPath} />

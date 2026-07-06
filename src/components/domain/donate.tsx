@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Amount, FeeSplit } from "./amount";
 import { StandingHeadline, TierBadge } from "./standing";
+import { CrownLogo } from "@/components/crown-logo";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { Button } from "@/components/ui/button";
 import {
@@ -360,8 +361,8 @@ export function FinalityMoment({ result }: { result: DonationResult }) {
   const gain = pointsForAmount(result.donation.amount);
   return (
     <div className="animate-stamp flex flex-col items-center gap-3 rounded-lg border border-money bg-money-bg p-6 text-center">
-      <span className="text-4xl leading-none" aria-hidden>
-        👑
+      <span className="leading-none text-money" aria-hidden>
+        <CrownLogo size={40} />
       </span>
       <div className="flex flex-col items-center gap-1">
         <span className="font-display text-[2.75rem] font-semibold leading-none text-money">

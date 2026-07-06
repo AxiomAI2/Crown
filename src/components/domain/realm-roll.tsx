@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CrownLogo } from "@/components/crown-logo";
 import { Skeleton } from "@/components/ui/feedback";
 import { useLeaderboard } from "@/lib/data/hooks";
 import type { Address } from "@/lib/data/types";
@@ -71,10 +72,10 @@ export function RealmRoll({
                 <span className="mono w-3 shrink-0 text-caption text-fg-faint">{i + 1}</span>
                 {i === 0 ? (
                   <span
-                    className="animate-crown grid h-6 w-6 flex-none place-items-center text-small"
+                    className="animate-crown grid h-6 w-6 flex-none place-items-center text-money"
                     aria-hidden
                   >
-                    👑
+                    <CrownLogo size={20} />
                   </span>
                 ) : (
                   // Tier dot — colored by this realm's own tier (creator-defined; no global rank).

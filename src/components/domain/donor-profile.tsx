@@ -8,6 +8,7 @@ import { OpenCycles } from "./open-cycles";
 import { ProfileForm } from "./profile-form";
 import { TierBadge } from "./standing";
 import { CumulativeAreaChart, RangeTabs, type ChartRange } from "./area-chart";
+import { CrownLogo } from "@/components/crown-logo";
 import {
   Dialog,
   DialogContent,
@@ -246,7 +247,13 @@ function PositionRow({ s }: { s: DonorChannelStanding }) {
           s.rank === 1 ? "text-base" : "text-small text-fg-faint",
         )}
       >
-        {s.rank === 1 ? "👑" : s.rank ? `#${s.rank}` : "—"}
+        {s.rank === 1 ? (
+          <CrownLogo size={16} className="inline-block text-money" />
+        ) : s.rank ? (
+          `#${s.rank}`
+        ) : (
+          "—"
+        )}
       </span>
       <div
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-display text-small"

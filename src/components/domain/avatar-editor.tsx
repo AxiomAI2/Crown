@@ -220,12 +220,12 @@ export function AvatarEditor({
             </div>
           </div>
 
-          {/* Accept — green button at the bottom right */}
+          {/* Accept — primary action, brand gold (matches Button `primary`); no off-palette green. */}
           <button
             type="button"
             onClick={accept}
             aria-label="Accept"
-            className="absolute bottom-8 right-8 grid h-14 w-14 place-items-center rounded-full bg-[#22c55e] text-white shadow-lg shadow-black/40 transition-[filter] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#22c55e]"
+            className="absolute bottom-8 right-8 grid h-14 w-14 place-items-center rounded-full bg-status text-[#1a1206] shadow-lg shadow-black/40 transition-[filter] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-status"
           >
             <CheckIcon className="h-6 w-6" />
           </button>

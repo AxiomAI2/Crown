@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Amount } from "@/components/domain/amount";
 import { CumulativeAreaChart, DailyBars, RangeTabs, type ChartRange } from "@/components/domain/area-chart";
 import { CreateChannelForm } from "@/components/domain/create-channel-form";
+import { CrownLogo } from "@/components/crown-logo";
 import { DonationHistory } from "@/components/domain/donation-history";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
@@ -19,7 +20,7 @@ import {
 import type { LeaderboardEntry } from "@/lib/data/types";
 import { cn, formatUSDCNumber as usd, fromMicro, plural, shortAddress } from "@/lib/utils";
 
-const DONORS = ["patron", "patrons", "patrons"] as const;
+const SUPPORTERS = ["supporter", "supporters", "supporters"] as const;
 const DAY = 86_400_000;
 
 /** "$12,480" from micro-USDC (bigint). */
@@ -147,7 +148,7 @@ export function RealmDashboard() {
         <Kpi label="Crowned" value={money(turnover)} tone="money" />
         <Kpi label="Net earned" value={money(net)} sub="97%" tone="money" />
         <Kpi label="Last 7 days" value={money(last7d)} tone="money" />
-        <Kpi label="Patrons" value={num(patrons)} />
+        <Kpi label="Supporters" value={num(patrons)} />
         <Kpi label="Crowns" value={num(crowns)} />
         <Kpi label="The Crown" value={topPatronName} crown />
       </div>
@@ -171,10 +172,10 @@ export function RealmDashboard() {
             />
           </ChartCard>
           <ChartCard
-            title="Patrons"
+            title="Supporters"
             headline={
               <span className="font-display text-h2 text-fg">
-                {patrons} <span className="text-h3 text-fg-muted">{plural(patrons, DONORS)}</span>
+                {patrons} <span className="text-h3 text-fg-muted">{plural(patrons, SUPPORTERS)}</span>
               </span>
             }
           >
@@ -182,8 +183,8 @@ export function RealmDashboard() {
               events={donorEvents}
               range={range}
               color="var(--info)"
-              formatValue={(v) => `${Math.round(v)} ${plural(Math.round(v), DONORS)}`}
-              emptyHint="Patrons appear after the first crown."
+              formatValue={(v) => `${Math.round(v)} ${plural(Math.round(v), SUPPORTERS)}`}
+              emptyHint="Supporters appear after the first crown."
             />
           </ChartCard>
         </div>
@@ -192,9 +193,9 @@ export function RealmDashboard() {
       {/* The Crown + Tier distribution */}
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="flex flex-col gap-3">
-          <SectionHead title="The Crown" hint="Your biggest patrons" />
+          <SectionHead title="The Crown" hint="Your biggest supporters" />
           {board.length === 0 ? (
-            <p className="text-small text-fg-faint">No patrons yet — crowns build your court.</p>
+            <p className="text-small text-fg-faint">No supporters yet — crowns build your court.</p>
           ) : (
             <div className="flex flex-col gap-2">
               {board.slice(0, 6).map((e, i) => (
@@ -205,7 +206,7 @@ export function RealmDashboard() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <SectionHead title="Tier distribution" hint="Patrons per rank" />
+          <SectionHead title="Tier distribution" hint="Supporters per rank" />
           {tierCounts.length === 0 ? (
             <p className="text-small text-fg-faint">Configure tiers in Customization.</p>
           ) : (
@@ -262,7 +263,9 @@ function Kpi({
         )}
         title={value}
       >
-        {crown && value !== "—" ? "👑 " : ""}
+        {crown && value !== "—" ? (
+          <CrownLogo size={18} className="mr-1 inline-block align-[-3px] text-money" />
+        ) : null}
         {value}
       </span>
       {sub ? <span className="text-caption text-fg-faint">{sub}</span> : null}
@@ -287,7 +290,9 @@ function TopPatronRow({ e, rank }: { e: LeaderboardEntry; rank: number }) {
       </span>
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-small text-fg">
-          {rank === 1 ? "👑 " : ""}
+          {rank === 1 ? (
+            <CrownLogo size={14} className="mr-1 inline-block align-[-2px] text-money" />
+          ) : null}
           {e.displayName ?? shortAddress(e.donor)}
         </span>
         <span className="text-caption text-fg-faint">{e.tier?.name ?? "No tier"}</span>

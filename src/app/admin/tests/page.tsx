@@ -11,7 +11,7 @@ import { useDevControls, useDiscovery } from "@/lib/data/hooks";
 
 // Quick sign-in as demo identities (address is deterministic from the label via demoAddress).
 const QUICK = [
-  { label: "Max · donor", who: "max" },
+  { label: "Max · supporter", who: "max" },
   { label: "WhaleMoon · whale", who: "whalemoon" },
   { label: "PixelQueen · realm owner", who: "owner-pixel" },
   { label: "RaidBoss · realm owner", who: "owner-raid" },
@@ -118,7 +118,7 @@ export default function AdminTestsPage() {
       }
       setAddr(null);
       qc.invalidateQueries();
-      toast({ variant: "success", title: `Seeded ${realms} demo realms`, description: "with patrons." });
+      toast({ variant: "success", title: `Seeded ${realms} demo realms`, description: "with supporters." });
     } catch (e) {
       qc.invalidateQueries();
       toast({
@@ -169,7 +169,7 @@ export default function AdminTestsPage() {
             </div>
             <p className="text-caption text-fg-faint">
               «Seed» wipes then rebuilds 6 demo realms (pixelqueen, lofimira, raidboss, marinacooks, devbyte,
-              latenight) with their patrons via the public API; «Wipe» removes every test realm and user.
+              latenight) with their supporters via the public API; «Wipe» removes every test realm and user.
             </p>
           </section>
 

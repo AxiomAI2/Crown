@@ -37,18 +37,17 @@ export function GamesList({ enabledGames }: { enabledGames: string[] }) {
               aria-label={game.title}
               className="group relative block aspect-[3/4] overflow-hidden rounded-lg border border-border text-left transition-colors hover:border-border-strong"
             >
-              {/* Cover (placeholder): gradient by the game's hue + a watermark icon. Replace with <img>. */}
+              {/* Cover (placeholder): brand gradient (black + gold), NOT a per-id rainbow — the game icon is the
+                  differentiator. Replace with a real <img> later. */}
               <span
                 className="absolute inset-0"
                 style={{
-                  backgroundImage: `linear-gradient(155deg, hsl(${hue} 42% 20%), hsl(${hue} 34% 9%) 62%, #000)`,
+                  backgroundImage:
+                    "linear-gradient(155deg, var(--surface-2), var(--surface) 55%, #000)",
                 }}
               />
-              <span
-                className="absolute inset-0 grid place-items-center"
-                style={{ color: `hsl(${hue} 45% 68%)` }}
-              >
-                <Icon className="h-12 w-12 opacity-25 transition-opacity duration-200 group-hover:opacity-10" />
+              <span className="absolute inset-0 grid place-items-center text-status-dim">
+                <Icon className="h-12 w-12 opacity-30 transition-opacity duration-200 group-hover:opacity-15" />
               </span>
 
               {/* Caption — reveals on hover */}
