@@ -34,9 +34,10 @@ export function AppHeader() {
           <NavLink href="/games" active={isActive("/games")}>
             Mini-games
           </NavLink>
-          {/* Streamer funnel: a discoverable entry to open a realm — shown to anyone who isn't a creator yet
-              (guests included). Creators already have a realm, so it's hidden for them. */}
-          {!session?.isCreator ? (
+          {/* Creator funnel: ONE entrance per audience. Guests (not connected) → the "For content makers"
+              landing here in the nav; a connected non-creator gets the gold "Create realm" button on the
+              right instead (no duplicate nav link). Creators already have a realm — neither shows. */}
+          {!session?.address ? (
             <NavLink href="/for-streamers" active={isActive("/for-streamers")}>
               For content makers
             </NavLink>
