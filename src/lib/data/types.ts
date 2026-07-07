@@ -82,6 +82,16 @@ export interface ChannelLink {
   url: string;
 }
 
+/** Public realm-page look (Customization → Page). Full freedom by owner's choice; bounds are enforced in
+ *  updateChannelConfig. `bgType` selects which background field is used. */
+export interface PageTheme {
+  bgType?: "color" | "gradient" | "image";
+  bgColor?: string; // any CSS color, e.g. "#1F1F1F"
+  bgGradient?: string; // full CSS gradient string
+  bgImage?: string; // http(s) or data:image URL
+  accent?: string; // CTA / accent color
+}
+
 export interface ChannelConfig {
   channelId: string;
   version: number;
@@ -90,6 +100,14 @@ export interface ChannelConfig {
   // links by ownerAddress), so that a person has one nickname and one set of links. Realm-specific is only the
   // description (the realm tagline). Moderated as UGC; inert for Reign (the formula doesn't read it, §4.4).
   description?: string;
+  /** Optional fundraising goal for the OBS "goal" overlay. `goalTarget` is in micro-USDC; 0/undefined → no goal
+   *  (the overlay renders nothing). `goalLabel` is an optional caption. Inert for Reign, like `description` (§4.4). */
+  goalTarget?: MicroUSDC;
+  goalLabel?: string;
+  /** Streamer-customizable look of the public realm page (`/c/[handle]`, builder in Customization → Page).
+   *  Applies to the realm CARD + its Crown CTA, NOT the app chrome. Undefined → the default Crown look.
+   *  Display-only, inert for Reign (§4.4). */
+  pageTheme?: PageTheme;
   tiers: Tier[];
   minDonation: MicroUSDC;
   minDonationWithText: MicroUSDC;
@@ -106,6 +124,10 @@ export interface ChannelConfig {
   /** Realm-specific banned words/symbols in crown text (owner-set). A case-insensitive substring match holds
    *  the text for review (never auto-published) — the crown & Reign still count (§4.7 money ≠ text). */
   blockedWords?: string[];
+  /** Spam filter: strip links (URLs/domains, best-effort `stripLinks`) from crown text at ingest — the queue,
+   *  feed and widgets all see the cleaned text. Text that was ONLY a link is treated as no text. Applied after
+   *  the chain memo hash check (the donor signed the original); the crown & Reign still count (§4.7). */
+  removeLinks?: boolean;
   /** Mini-games enabled on the realm — ids from the `src/games` registry (ADR 0016). Empty by default: the streamer
    *  enables a game when the community is ready (cold-start, game spec §8). Stored as opaque strings —
    *  the core doesn't know about specific games; id validation is at the games layer (game-bus, G1.2). */
@@ -382,6 +404,9 @@ export type ConfigPatch = Partial<
   Pick<
     ChannelConfig,
     | "description"
+    | "goalTarget"
+    | "goalLabel"
+    | "pageTheme"
     | "tiers"
     | "minDonation"
     | "minDonationWithText"
@@ -392,6 +417,7 @@ export type ConfigPatch = Partial<
     | "textShowMode"
     | "moderators"
     | "blockedWords"
+    | "removeLinks"
     | "enabledGames"
   >
 >;

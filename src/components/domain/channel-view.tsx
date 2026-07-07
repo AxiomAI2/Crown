@@ -19,7 +19,7 @@ import {
   useSession,
   useStanding,
 } from "@/lib/data/hooks";
-import { shortAddress } from "@/lib/utils";
+import { pageThemeStyle, shortAddress } from "@/lib/utils";
 
 /**
  * The public realm page body — hero · Reign strip · Games/Feed · Crown-action sidebar — keyed by `handle`.
@@ -72,7 +72,11 @@ export function ChannelView({ handle }: { handle: string }) {
   return (
     // The whole page is ONE block: an outer frame with flat sections inside, separated by thin dividers (no
     // "islands"). The only raised card inside is the Crown widget (the action).
-    <div className="mx-auto w-full max-w-[1200px] overflow-hidden rounded-2xl border border-border bg-surface">
+    // Streamer's page theme (Customization → Page) styles THIS card (bg + `--realm-accent`); undefined → default look.
+    <div
+      className="mx-auto w-full max-w-[1200px] overflow-hidden rounded-2xl border border-border bg-surface"
+      style={pageThemeStyle(configQ.data?.pageTheme)}
+    >
       {/* Section: hero */}
       <div className="border-b border-border">
         <ChannelHero

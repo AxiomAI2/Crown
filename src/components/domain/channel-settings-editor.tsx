@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { IS_CHAIN } from "@/lib/chain/addresses";
@@ -186,12 +187,44 @@ export function ChannelSettingsEditor({ title = "Realm settings" }: { title?: st
             micro={draft.minDonationWithText}
             onMicro={(v) => set("minDonationWithText", v)}
           />
-          <Input
-            label="Message length limit"
-            mono
-            value={String(draft.messageMaxLen)}
-            onChange={(e) => set("messageMaxLen", Number(e.target.value) || 0)}
-          />
+        </div>
+      </Section>
+
+      <Section title="Text messages">
+        <label className="flex flex-col gap-2">
+          <span className="text-small text-fg-muted">Character limit</span>
+          <div className="flex items-center gap-4">
+            <input
+              type="range"
+              min={20}
+              max={500}
+              step={10}
+              value={draft.messageMaxLen}
+              onChange={(e) => set("messageMaxLen", Number(e.target.value))}
+              aria-label="Character limit"
+              className="h-1.5 flex-1 cursor-pointer appearance-none rounded-pill bg-surface-raised accent-[var(--money)]"
+            />
+            <span className="mono w-16 shrink-0 rounded-md border border-border bg-surface px-2 py-1 text-center text-small text-fg">
+              {draft.messageMaxLen}
+            </span>
+          </div>
+          <span className="text-caption text-fg-faint">Number of characters allowed in a crown message.</span>
+        </label>
+      </Section>
+
+      <Section title="Audio messages">
+        <p className="text-small text-fg-muted">
+          Lets your supporters record their own audio with a microphone — an alternative to classic text
+          messages.
+        </p>
+        <p className="text-small text-fg-faint">
+          Tip: a well-set minimum crown for audio helps keep unwanted content out.
+        </p>
+        <div className="flex items-center gap-3 pt-1">
+          <Switch checked={false} onCheckedChange={() => {}} disabled label="Enabled" />
+          <span className="rounded-pill border border-border px-1.5 text-[10px] uppercase leading-tight tracking-wide text-fg-faint">
+            Soon
+          </span>
         </div>
       </Section>
 

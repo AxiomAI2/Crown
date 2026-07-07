@@ -11,6 +11,7 @@ import type {
   LightProfile,
   MessageRef,
   OperatorAction,
+  PageTheme,
 } from "@/lib/data/types";
 
 // ReportRecord — an internal store type (not exported); we take its shape from the snapshot.
@@ -81,12 +82,13 @@ export async function saveConfigs(
         `INSERT INTO channel_configs
            (channel_id, version, hash, description, tiers, min_donation, min_donation_with_text,
             message_max_len, name_mode, text_show_mode, moderators, enabled_games,
-            min_reputation_to_task, min_reputation_to_dispute, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+            min_reputation_to_task, min_reputation_to_dispute, goal_target, goal_label, updated_at, page_theme)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
          ON CONFLICT (channel_id, version) DO UPDATE SET
            hash=$3, description=$4, tiers=$5, min_donation=$6, min_donation_with_text=$7,
            message_max_len=$8, name_mode=$9, text_show_mode=$10, moderators=$11, enabled_games=$12,
-           min_reputation_to_task=$13, min_reputation_to_dispute=$14, updated_at=$15`,
+           min_reputation_to_task=$13, min_reputation_to_dispute=$14, goal_target=$15, goal_label=$16,
+           updated_at=$17, page_theme=$18`,
         [
           cfg.channelId,
           cfg.version,
@@ -102,7 +104,10 @@ export async function saveConfigs(
           JSON.stringify(cfg.enabledGames ?? []),
           cfg.minReputationToTask,
           cfg.minReputationToDispute,
+          cfg.goalTarget != null ? String(cfg.goalTarget) : null,
+          cfg.goalLabel ?? null,
           cfg.updatedAt,
+          cfg.pageTheme != null ? JSON.stringify(cfg.pageTheme) : null,
         ],
       );
     }
@@ -120,6 +125,9 @@ export async function loadConfigs(db: PGlite): Promise<Map<string, ChannelConfig
       version: Number(row.version),
       hash: row.hash as string,
       description: (row.description as string | null) ?? undefined,
+      goalTarget: row.goal_target != null ? BigInt(row.goal_target as string) : undefined,
+      goalLabel: (row.goal_label as string | null) ?? undefined,
+      pageTheme: asJson<PageTheme | undefined>(row.page_theme, undefined),
       tiers: asJson(row.tiers, []),
       minDonation: BigInt(row.min_donation as string),
       minDonationWithText: BigInt(row.min_donation_with_text as string),

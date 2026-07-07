@@ -65,6 +65,7 @@ export function defaultChannelConfig(channelId: string): ChannelConfig {
     textShowMode: "manual",
     moderators: [],
     blockedWords: [], // owner-set banned words/symbols in crown text (empty = none)
+    removeLinks: false, // spam filter: strip links from crown text (off = links pass through)
     enabledGames: [], // mini-games are disabled by default (cold-start; ADR 0016)
     updatedAt: new Date().toISOString(),
   };

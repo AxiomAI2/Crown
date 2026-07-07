@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useId, useMemo, useState } from "react";
+import { useQueries } from "@tanstack/react-query";
 import { Monogram } from "@/components/domain/header-actions";
 import { AppHeader } from "@/components/layout/app-header";
 import { SiteFooter } from "@/components/layout/site-footer";
@@ -10,9 +11,13 @@ import { CheckIcon } from "@/components/ui/icons";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { ExpandingSearch } from "@/components/ui/expanding-search";
 import { SortToggle, type RealmSort } from "@/components/domain/realm-filters";
+import { useData } from "@/lib/data/context";
 import { demoAddress } from "@/lib/data/dev-identity";
 import { useDevControls, useDiscovery, useSession } from "@/lib/data/hooks";
+import type { EscrowTask } from "@/games/escrow-task/types";
 import type { ChannelCard, ChannelLinkPlatform } from "@/lib/data/types";
+
+const GAME_TITLE = "Tasks for a Crown"; // the only mini-game (escrow-task) — shown as the "which game" filter label
 import { channelHue, cn, fromMicro, shortAddress } from "@/lib/utils";
 
 /** Whole-dollar format for aggregates: "$12,480". */
@@ -73,7 +78,35 @@ function RealmsShowcase() {
   const [query, setQuery] = useState("");
   const [platforms, setPlatforms] = useState<Set<ChannelLinkPlatform>>(new Set());
   const [sort, setSort] = useState<RealmSort>("all"); // All-time / 7 days (crowned volume)
-  const [liveOnly, setLiveOnly] = useState(false); // show only realms that are live right now
+  const [status, setStatus] = useState<"all" | "game" | "dispute">("all"); // realm activity filter
+
+  // Per-realm mini-game state (escrow-task): which realms have a game in progress / a dispute in progress.
+  const provider = useData();
+  const taskQs = useQueries({
+    queries: realms.map((r) => ({
+      queryKey: ["game", "escrow-task", r.channelId] as const,
+      queryFn: () =>
+        provider.gameQuery({ gameId: "escrow-task", channelId: r.channelId, op: "list" }) as Promise<{
+          tasks: EscrowTask[];
+        }>,
+      staleTime: 30_000,
+    })),
+  });
+  const { activeGameIds, disputeIds } = useMemo(() => {
+    const active = new Set<string>(); // realm has a non-terminal task → "in a mini-game"
+    const disp = new Set<string>(); // realm has a DISPUTED task → "in a dispute"
+    taskQs.forEach((query_, i) => {
+      const cid = realms[i]?.channelId;
+      if (!cid) return;
+      for (const t of query_.data?.tasks ?? []) {
+        if (t.hidden) continue;
+        if (t.status !== "RESOLVED") active.add(cid);
+        if (t.status === "DISPUTED") disp.add(cid);
+      }
+    });
+    return { activeGameIds: active, disputeIds: disp };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskQs.map((query_) => query_.dataUpdatedAt).join(","), realms]);
 
   // Show in the filter only the platforms that actually appear among the realms (no dead options),
   // in CHANNEL_PLATFORMS order.
@@ -105,15 +138,21 @@ function RealmsShowcase() {
       .filter((c) => !q || `${c.handle} ${c.displayName ?? ""}`.toLowerCase().includes(q))
       // Social filter: a realm passes if it has a link to ANY of the selected platforms (union).
       .filter((c) => platforms.size === 0 || (c.links ?? []).some((l) => platforms.has(l.platform)))
-      // Live filter: only realms currently live.
-      .filter((c) => !liveOnly || !!c.isLive)
+      // Activity filter: realms with a mini-game in progress, or with a dispute in progress.
+      .filter((c) =>
+        status === "all"
+          ? true
+          : status === "game"
+            ? activeGameIds.has(c.channelId)
+            : disputeIds.has(c.channelId),
+      )
       .slice()
       .sort((a, b) => {
         const av = metric(a);
         const bv = metric(b);
         return bv > av ? 1 : bv < av ? -1 : 0;
       });
-  }, [realms, q, sort, platforms, liveOnly]);
+  }, [realms, q, sort, platforms, status, activeGameIds, disputeIds]);
 
   const togglePlatform = (p: ChannelLinkPlatform) =>
     setPlatforms((prev) => {
@@ -129,7 +168,7 @@ function RealmsShowcase() {
   // changes the old layout fades out (animate-list-out) → onAnimationEnd swaps in the new one → cascade-in.
   // Search is deliberately NOT in the signature — it filters live, so typing doesn't re-trigger the
   // animation on every keystroke (that jerked the grid).
-  const sig = `${sort}|${liveOnly}|${[...platforms].sort().join(",")}`;
+  const sig = `${sort}|${status}|${[...platforms].sort().join(",")}`;
   const [shown, setShown] = useState<ChannelCard[]>(visible);
   const [shownSig, setShownSig] = useState(sig);
   const [leaving, setLeaving] = useState(false);
@@ -191,8 +230,10 @@ function RealmsShowcase() {
           <FiltersPanel
             sort={sort}
             onSort={setSort}
-            liveOnly={liveOnly}
-            onLiveOnly={setLiveOnly}
+            status={status}
+            onStatus={setStatus}
+            gameCount={activeGameIds.size}
+            disputeCount={disputeIds.size}
             platforms={availablePlatforms}
             counts={platformCounts}
             selected={platforms}
@@ -224,11 +265,15 @@ function RealmsShowcase() {
 }
 
 /** Left filter panel: sort, live-only, and a platform checklist. Sticky on desktop. */
+type RealmStatus = "all" | "game" | "dispute";
+
 function FiltersPanel({
   sort,
   onSort,
-  liveOnly,
-  onLiveOnly,
+  status,
+  onStatus,
+  gameCount,
+  disputeCount,
   platforms,
   counts,
   selected,
@@ -237,14 +282,22 @@ function FiltersPanel({
 }: {
   sort: RealmSort;
   onSort: (v: RealmSort) => void;
-  liveOnly: boolean;
-  onLiveOnly: (v: boolean) => void;
+  status: RealmStatus;
+  onStatus: (v: RealmStatus) => void;
+  gameCount: number;
+  disputeCount: number;
   platforms: ChannelLinkPlatform[];
   counts: Map<ChannelLinkPlatform, number>;
   selected: Set<ChannelLinkPlatform>;
   onToggle: (p: ChannelLinkPlatform) => void;
   onClearPlatforms: () => void;
 }) {
+  // Status options: any realm / in a mini-game (which = "Tasks for a Crown", the only game) / in a dispute.
+  const statusOpts: { k: RealmStatus; label: string; count?: number }[] = [
+    { k: "all", label: "Any" },
+    { k: "game", label: GAME_TITLE, count: gameCount },
+    { k: "dispute", label: "In a dispute", count: disputeCount },
+  ];
   return (
     <aside className="flex flex-col gap-6 lg:sticky lg:top-[calc(var(--header-h)+1rem)]">
       <FilterGroup title="Sort">
@@ -252,24 +305,35 @@ function FiltersPanel({
       </FilterGroup>
 
       <FilterGroup title="Status">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={liveOnly}
-          onClick={() => onLiveOnly(!liveOnly)}
-          className={cn(
-            "flex w-fit items-center gap-2 rounded-lg border px-3 py-2 text-small transition-colors",
-            liveOnly
-              ? "border-money-dim bg-money-bg/60 text-money"
-              : "border-border text-fg-muted hover:border-border-strong hover:text-fg",
-          )}
-        >
-          <span
-            className={cn("h-2 w-2 rounded-full", liveOnly ? "animate-pulse bg-danger" : "bg-fg-faint")}
-            aria-hidden
-          />
-          Live now
-        </button>
+        <div className="flex flex-col gap-0.5">
+          {statusOpts.map((o) => {
+            const active = status === o.k;
+            return (
+              <button
+                key={o.k}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => onStatus(o.k)}
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-small transition-colors",
+                  active ? "bg-money-bg/60 text-money" : "text-fg-muted hover:bg-surface hover:text-fg",
+                )}
+              >
+                {o.k === "dispute" ? (
+                  <span
+                    className={cn("h-2 w-2 rounded-full", active ? "bg-danger" : "bg-fg-faint")}
+                    aria-hidden
+                  />
+                ) : null}
+                <span className="flex-1 text-left">{o.label}</span>
+                {o.count !== undefined ? (
+                  <span className="mono text-caption text-fg-faint">{o.count}</span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
       </FilterGroup>
 
       {platforms.length > 0 ? (

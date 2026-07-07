@@ -11,11 +11,7 @@ const GROUP_MAIN = [
   { href: "/admin/users", label: "Users" },
   { href: "/admin/games", label: "Mini-games" },
 ];
-const GROUP_OPS = [
-  { href: "/admin/tests", label: "Tests" },
-  { href: "/admin/moderation", label: "Moderation" },
-];
-const GROUP_SETTINGS = [{ href: "/admin/settings", label: "Settings" }];
+const GROUP_OPS = [{ href: "/admin/tests", label: "Tests" }];
 
 /**
  * Full-height admin sidebar (as in the reference): logo on top, vertical border on the right (top-to-bottom).
@@ -65,10 +61,6 @@ export function AdminSidebar({ collapsed = false }: { collapsed?: boolean }) {
         ))}
         <div className="my-2 hidden h-px bg-border md:block" />
         {GROUP_OPS.map((it) => (
-          <NavItem key={it.href} {...it} active={isActive(it.href)} />
-        ))}
-        <div className="my-2 hidden h-px bg-border md:block" />
-        {GROUP_SETTINGS.map((it) => (
           <NavItem key={it.href} {...it} active={isActive(it.href)} />
         ))}
       </nav>

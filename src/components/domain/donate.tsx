@@ -88,6 +88,9 @@ export function DonateWidget({
   });
 
   const connected = Boolean(session.address);
+  // Streamer's page-theme accent (Customization → Page): tints the Crown CTA + the selected preset. Undefined → default.
+  const accent = config.pageTheme?.accent;
+  const accentStyle = accent ? { background: accent, borderColor: accent, color: "#0d0d0d" } : undefined;
   const isBasic = channel.status === "BASIC";
   const amountNum = Number(amount);
   const amountPositive = amount !== "" && Number.isFinite(amountNum) && amountNum > 0;
@@ -235,6 +238,7 @@ export function DonateWidget({
                 size="sm"
                 aria-pressed={selected}
                 className={cn("w-full", !selected && "bg-[var(--bg)]")}
+                style={selected ? accentStyle : undefined}
                 onClick={() => setAmount(String(p))}
               >
                 ${p}
@@ -291,6 +295,7 @@ export function DonateWidget({
         disabled={!canDonate}
         onClick={openFlow}
         className="border-border-strong bg-[var(--bg)] hover:bg-surface-raised"
+        style={accentStyle}
       >
         Crown
       </Button>

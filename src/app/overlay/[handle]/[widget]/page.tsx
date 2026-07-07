@@ -48,6 +48,7 @@ export default function OverlayPage() {
       {widget === "alerts" ? <AlertsWidget channelId={channelId} /> : null}
       {widget === "top" ? <TopWidget channelId={channelId} /> : null}
       {widget === "total" ? <TotalWidget channelId={channelId} /> : null}
+      {widget === "goal" ? <GoalWidget channelId={channelId} /> : null}
     </div>
   );
 }
@@ -77,6 +78,10 @@ function AlertsWidget({ channelId }: { channelId: string }) {
   const seen = useRef<Set<string> | null>(null); // null → not seeded yet
   const [queue, setQueue] = useState<Donation[]>([]);
   const [current, setCurrent] = useState<Donation | null>(null);
+  // Text-to-speech: opt-in via `?tts=1` on the browser-source URL (OBS has no UI to toggle it live).
+  const [tts] = useState(
+    () => typeof window !== "undefined" && /[?&]tts=(1|true)\b/.test(window.location.search),
+  );
 
   // Diff each poll: on the FIRST load, mark everything as seen (don't replay history when OBS starts).
   useEffect(() => {
@@ -99,6 +104,17 @@ function AlertsWidget({ channelId }: { channelId: string }) {
     const t = window.setTimeout(() => setCurrent(null), ALERT_MS);
     return () => window.clearTimeout(t);
   }, [queue, current]);
+
+  // Read the alert aloud (opt-in). Speak name + amount, and the message ONLY if it's been shown (§4.6).
+  useEffect(() => {
+    if (!current || !tts || typeof window === "undefined" || !window.speechSynthesis) return;
+    const dollars = Math.round(fromMicro(current.amount));
+    const spokenName = current.donorName?.trim() || "Someone"; // never read out a raw wallet address
+    const spokenMsg = current.message?.state === "SHOWN" ? current.message.text?.trim() : "";
+    const phrase = `${spokenName} crowned ${dollars} dollar${dollars === 1 ? "" : "s"}${spokenMsg ? `. ${spokenMsg}` : ""}`;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(phrase));
+  }, [current, tts]);
 
   if (!current) return null;
 
@@ -174,6 +190,45 @@ function TotalWidget({ channelId }: { channelId: string }) {
         <CrownLogo size={14} className="text-money" /> Crowned
       </span>
       <span className="mono font-display text-5xl font-semibold text-money">{usd(total)}</span>
+    </div>
+  );
+}
+
+// — Donation goal progress bar (target set in Widgets → Customization) ————————————————————————————————
+function GoalWidget({ channelId }: { channelId: string }) {
+  const data = useData();
+  const cfgQ = useQuery({
+    queryKey: ["overlay", "config", channelId],
+    queryFn: () => data.getChannelConfig(channelId),
+    refetchInterval: 30_000,
+  });
+  const boardQ = useQuery({
+    queryKey: ["overlay", "board", channelId],
+    queryFn: () => data.getLeaderboard(channelId, "all_time"),
+    refetchInterval: 10_000,
+  });
+
+  const target = cfgQ.data?.goalTarget ?? 0n;
+  if (target <= 0n) return null; // no goal set → render nothing
+
+  const total = (boardQ.data ?? []).reduce((s, e) => s + e.totalDonated, 0n);
+  // Integer percent via bigint math (no float) — capped at 100.
+  const pct = total >= target ? 100 : Number((total * 100n) / target);
+  const label = cfgQ.data?.goalLabel?.trim() || "Goal";
+
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl border border-money-dim bg-black/70 p-5 backdrop-blur-sm" style={{ maxWidth: 520 }}>
+      <div className="flex items-center justify-between gap-2 text-body text-fg" style={SHADOW}>
+        <span className="flex items-center gap-1.5 font-medium">
+          <CrownLogo size={16} className="text-money" /> {label}
+        </span>
+        <span className="mono text-money">
+          {usd(total)} <span className="text-fg-faint">/ {usd(target)}</span>
+        </span>
+      </div>
+      <div className="h-3 w-full overflow-hidden rounded-pill bg-black/60">
+        <div className="h-full rounded-pill bg-money transition-[width] duration-500" style={{ width: `${pct}%` }} />
+      </div>
     </div>
   );
 }

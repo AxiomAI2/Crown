@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/feedback";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { resolveTier } from "@/lib/reputation";
-import { cn, formatPoints, formatPointsCompact } from "@/lib/utils";
+import { cn, formatPointsCompact } from "@/lib/utils";
 import type { Tier, ViewerStanding } from "@/lib/data/types";
 
 /** Compact tier badge shown next to a handle / in the feed / on the leaderboard. */
@@ -20,78 +20,6 @@ export function TierBadge({ tier, className }: { tier: Tier; className?: string 
       <span className="h-1.5 w-1.5 rounded-pill" style={{ background: tier.color }} />
       {tier.name}
     </span>
-  );
-}
-
-/**
- * The product's signature: a "minted seal of status". A viewer's standing as a dense, tactile mark
- * that visually CAN'T be bought and sold (a computed seal, not a token). Alongside it there are NEVER
- * any "transfer/sell" actions (invariant §4.3 + legal lock).
- */
-export function StandingSeal({
-  standing,
-  fallbackTier,
-  loading,
-}: {
-  standing?: ViewerStanding | null;
-  fallbackTier?: Tier;
-  loading?: boolean;
-}) {
-  if (loading) {
-    return <Skeleton className="h-28 w-full rounded-lg" />;
-  }
-  const tier = standing?.tier ?? fallbackTier;
-  if (!tier) return null;
-  const points = standing?.points ?? 0;
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div
-          tabIndex={0}
-          role="img"
-          aria-label={`Reign — ${tier.name}, ${formatPoints(points)} Reign. Non-transferable.`}
-          className="flex w-full cursor-help flex-col gap-1 rounded-lg border-2 bg-status-bg p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-info"
-          style={{ borderColor: tier.color, boxShadow: `inset 0 0 0 1px ${tier.color}33` }}
-        >
-          <span className="text-caption" style={{ color: tier.color }}>
-            {tier.name}
-          </span>
-          <span className="mono text-display-l leading-none" style={{ color: tier.color }}>
-            {formatPoints(points)}
-          </span>
-          <span className="text-small" style={{ color: tier.color, opacity: 0.85 }}>
-            Reign
-          </span>
-        </div>
-      </TooltipTrigger>
-      <TooltipContent>
-        Reign can&apos;t be bought or transferred — it&apos;s computed from your crowns to this realm.
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-/** Progress to the next tier (0..1) + "N points remaining". */
-export function ReputationProgress({ standing }: { standing: ViewerStanding }) {
-  if (!standing.nextTier) return null; // top tier — no separate bar
-  const remaining = Math.max(0, standing.nextTier.threshold - standing.points);
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center justify-between text-small text-fg-muted">
-        <span>to {standing.nextTier.name}</span>
-        <span className="mono">{formatPoints(remaining)} Reign</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-pill bg-surface-raised">
-        <div
-          className="h-full rounded-pill"
-          style={{
-            width: `${Math.round(standing.progressToNext * 100)}%`,
-            background: standing.nextTier.color,
-          }}
-        />
-      </div>
-    </div>
   );
 }
 
@@ -178,7 +106,19 @@ export function StandingHeadline({
     <div className="flex flex-col gap-3">
       <div className="flex items-end justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-caption text-fg-faint">My Reign</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                tabIndex={0}
+                className="w-fit cursor-help text-caption text-fg-faint underline decoration-dotted decoration-fg-faint/50 underline-offset-2"
+              >
+                My Reign
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              Reign can&apos;t be bought or transferred — it&apos;s computed from your crowns to this realm.
+            </TooltipContent>
+          </Tooltip>
           <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
             <span className="mono max-w-full break-all text-h1 leading-none text-fg">
               {formatPointsCompact(rolled)}
@@ -232,35 +172,3 @@ export function StandingHeadline({
   );
 }
 
-/** The realm's tier ladder with thresholds and perks. */
-export function TierLadder({ tiers, currentTierName }: { tiers: Tier[]; currentTierName?: string }) {
-  const sorted = [...tiers].sort((a, b) => a.threshold - b.threshold);
-  return (
-    <ul className="flex flex-col gap-2">
-      {sorted.map((t) => (
-        <li
-          key={t.name}
-          className={cn(
-            "flex flex-col gap-1 rounded border border-border bg-surface px-3 py-2",
-            t.name === currentTierName && "border-status",
-          )}
-        >
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <TierBadge tier={t} />
-              {t.perks.length > 0 ? (
-                <span className="text-small text-fg-faint">
-                  {t.perks.map((p) => p.label).join(" · ")}
-                </span>
-              ) : null}
-            </div>
-            <span className="mono text-small text-fg-muted">{formatPoints(t.threshold)}</span>
-          </div>
-          {t.description?.trim() ? (
-            <p className="whitespace-pre-wrap break-words text-small text-fg-muted">{t.description}</p>
-          ) : null}
-        </li>
-      ))}
-    </ul>
-  );
-}

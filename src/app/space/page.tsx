@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChannelSettingsEditor } from "@/components/domain/channel-settings-editor";
 import { ChannelStatusBanner } from "@/components/domain/channel-status";
+import { CustomizationTab } from "@/components/domain/customization-tab";
 import { ChannelView } from "@/components/domain/channel-view";
 import { CreateChannelForm } from "@/components/domain/create-channel-form";
+import { DonorProfile } from "@/components/domain/donor-profile";
 import { ModerationQueue } from "@/components/domain/moderation-queue";
 import { RealmBlocklist } from "@/components/domain/realm-blocklist";
 import { RealmDashboard } from "@/components/domain/realm-dashboard";
@@ -28,6 +29,7 @@ import { useDevControls, useMyChannel, useSession } from "@/lib/data/hooks";
 import { cn } from "@/lib/utils";
 
 type SectionKey =
+  | "profile"
   | "realm-create"
   | "realm-view"
   | "realm-dashboard"
@@ -52,6 +54,8 @@ const REALM_NONE: { key: SectionKey; label: string }[] = [{ key: "realm-create",
 
 // Deep-link aliases (including legacy ?tab values).
 const TAB_ALIAS: Record<string, SectionKey> = {
+  profile: "profile",
+  me: "profile",
   dashboard: "realm-dashboard",
   create: "realm-create",
   "realm-create": "realm-create",
@@ -85,7 +89,7 @@ export default function SpacePage() {
   const myChannelQ = useMyChannel();
   const hasRealm = !!myChannelQ.data;
   const realmKnown = !myChannelQ.isLoading;
-  const [section, setSection] = useState<SectionKey>("realm-view");
+  const [section, setSection] = useState<SectionKey>("profile");
   const { collapsed, toggle } = useRailCollapsed("space-rail");
   const searchParams = useSearchParams();
 
@@ -169,6 +173,7 @@ export default function SpacePage() {
               <ChannelStatusBanner />
             </div>
           ) : null}
+          {section === "profile" ? <DonorProfile address={address} editable /> : null}
           {section === "realm-create" ? <CreateChannelForm /> : null}
           {section === "realm-view" ? (
             myChannelQ.data ? (
@@ -181,7 +186,7 @@ export default function SpacePage() {
           {section === "realm-queue" ? <ModerationQueue /> : null}
           {section === "realm-games" ? <RealmGamesSettings /> : null}
           {section === "realm-widgets" ? <RealmWidgets /> : null}
-          {section === "realm-customization" ? <ChannelSettingsEditor title="Customization" /> : null}
+          {section === "realm-customization" ? <CustomizationTab /> : null}
           {section === "realm-blocklist" ? <RealmBlocklist /> : null}
           {section === "settings" ? <SettingsSection address={address} /> : null}
         </main>
@@ -261,6 +266,10 @@ function SpaceSidebar({
           collapsed && "md:hidden",
         )}
       >
+        {/* Profile — the patron/trophy page (same as /me), above My Realm. */}
+        {item({ key: "profile", label: "Profile" }, false)}
+        <div className="my-1 border-t border-border" aria-hidden />
+
         {/* My Realm — Create realm while there is no realm; after creation Dashboard + Customization */}
         <div className="mb-2 flex flex-col gap-0.5">
           <div className="px-3 pb-1 pt-1 text-caption uppercase tracking-wide text-fg-faint">

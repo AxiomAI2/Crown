@@ -818,6 +818,29 @@ export class MockDataProvider implements DataProvider {
         "CHANNEL_BLOCKED",
         "The description did not pass moderation (banned/hard content).",
       );
+    // Donation goal (display-only overlay, inert for Reign): non-negative amount; label = moderated UGC like the description.
+    if (patch.goalTarget !== undefined && patch.goalTarget < 0n)
+      throw new DataError("BAD_CONFIG", "Goal target must be a non-negative amount.");
+    if (patch.goalLabel !== undefined && patch.goalLabel.length > CHANNEL_DESC_MAX)
+      throw new DataError("TOO_LONG", `Goal label — up to ${CHANNEL_DESC_MAX} characters.`);
+    if (
+      patch.goalLabel &&
+      (await resolveAutoModerator().classify(patch.goalLabel, "")) === "HARD_BLOCK"
+    )
+      throw new DataError("CHANNEL_BLOCKED", "The goal label did not pass moderation.");
+    // Public page theme (display-only, owner's own page): bound the sizes (an image data-URL could be huge).
+    if (patch.pageTheme) {
+      const t = patch.pageTheme;
+      if ((t.bgImage?.length ?? 0) > 700_000)
+        throw new DataError("TOO_LONG", "Background image is too large (use a URL or a smaller file).");
+      for (const [k, v] of [
+        ["bgColor", t.bgColor],
+        ["bgGradient", t.bgGradient],
+        ["accent", t.accent],
+      ] as const)
+        if (v !== undefined && v.length > 200)
+          throw new DataError("BAD_CONFIG", `Theme ${k} value is too long.`);
+    }
     // Banned words/symbols (owner-set): trim, drop empties, dedupe (case-insensitive), cap count & length.
     let cleanBlocked: string[] | undefined;
     if (patch.blockedWords !== undefined) {

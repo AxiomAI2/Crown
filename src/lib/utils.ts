@@ -1,4 +1,5 @@
 import { clsx, type ClassValue } from "clsx";
+import type { CSSProperties } from "react";
 import { twMerge } from "tailwind-merge";
 
 /** Merge Tailwind classes with conflict resolution. */
@@ -84,6 +85,28 @@ export function channelHue(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
   return h;
+}
+
+/** Turn a realm's PageTheme into inline CSS for the public card (+ `--realm-accent` var). Shared by the public
+ *  realm page and the builder's live preview so they render identically. Undefined theme → no override. */
+export function pageThemeStyle(theme?: {
+  bgType?: "color" | "gradient" | "image";
+  bgColor?: string;
+  bgGradient?: string;
+  bgImage?: string;
+  accent?: string;
+}): CSSProperties {
+  if (!theme) return {};
+  const s: CSSProperties & Record<string, string | undefined> = {};
+  if (theme.bgType === "color" && theme.bgColor) s.background = theme.bgColor;
+  else if (theme.bgType === "gradient" && theme.bgGradient) s.background = theme.bgGradient;
+  else if (theme.bgType === "image" && theme.bgImage) {
+    s.backgroundImage = `url("${theme.bgImage.replace(/"/g, "%22")}")`;
+    s.backgroundSize = "cover";
+    s.backgroundPosition = "center";
+  }
+  if (theme.accent) s["--realm-accent"] = theme.accent;
+  return s;
 }
 
 const BASE58_ALPHABET = /^[1-9A-HJ-NP-Za-km-z]+$/;

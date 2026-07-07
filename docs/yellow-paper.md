@@ -671,13 +671,13 @@ SIWS-токен === оператор (fail-closed при пустом OPERATOR_A
 |---|---|
 | `/` | залогинен → `DonorProfile editable` (личная база ADR 0018: OpenCycles «Требует тебя» + донаты + журнал очков); гость → LiveNow (живые каналы по участникам) |
 | `/discovery` | каталог каналов (`ChannelBrowser`: поиск, пагинация 6/12/24/48), параметр `?q` |
-| `/overlay/[handle]/[widget]` | публичные OBS-оверлеи (browser source), только чтение по handle, без сессии, прозрачный фон: `alerts` (анимированный алерт на каждый новый Crown, текст — только при SHOWN §4.6), `top` (топ-5 саппортеров), `total` (счётчик Crowned). Живость — polling (§18.1) |
+| `/overlay/[handle]/[widget]` | публичные OBS-оверлеи (browser source), только чтение по handle, без сессии, прозрачный фон: `alerts` (анимированный алерт на каждый новый Crown, текст — только при SHOWN §4.6; опц. TTS по `?tts=1`), `goal` (полоса цели по `ChannelConfig.goalTarget`), `top` (топ-5 саппортеров), `total` (счётчик Crowned). Живость — polling (§18.1) |
 | `/c/[handle]` | канал: сворачивающаяся шапка (имя/ссылки из профиля владельца), правый рейл `GameActionRail` (донат + пикер игр), табы «Активные» (игры) / «Донаты» (единая лента донатов+заданий, поиск) / «Тиры»; SUSPENDED/BANNED → «Канал недоступен»; внизу — ссылка §4.4 на экспорт |
 | `/c/[handle]/donors` | лидерборд (периоды all_time/month, фильтр по тиру, подсветка себя) |
 | `/c/[handle]/dispute/[taskId]` | страница спора (пагинация голосов по 50) |
 | `/me`, `/u/[address]` | свой (editable) / публичный профиль донора |
 | `/me/profile` | редактор профиля (гидрация один раз на адрес) |
-| `/space` | **Personal Space** (владелец + патрон, бренд Crown, ADR 0022). **My Holdings** — Dashboard донора (`PersonalDashboard`). **My Realm** — нет канала → `CreateChannelForm`; есть → Dashboard (`RealmDashboard`: кумулятивные графики Crowned/Patrons, диапазоны 1Д..Всё, история), **Customization** (`ChannelSettingsEditor`: Payout address [аттестация H1, только chain] / Description / Tiers / Crowns [минимумы, лимит текста] / Names & display / Moderators; draft-модель с плавающим «Save»), **Mini-games** (`RealmGamesSettings` — единый дом настроек игр: тумблеры игр + пороги §10 [задание/спор] + исход спора по Reign [+win/−loss: read-only вне icp, редактируемо в icp] + **Dispute params** [icp: кворум/окна/вес/мин.реп/награды — подпись владельца → канистра, таймлок §8.9, канон `v: 3`, §18.5-8c]), **Widgets** (`RealmWidgets` — OBS browser-source оверлеи `alerts`/`top`/`total`: копируемые публичные URL + превью, §18.1), **Moderation queue** (HELD, FLAG первыми; HARD_BLOCK — карантин; + задания), **Blocklist** (канальные блоки, 7 причин). **Settings** — Profile |
+| `/space` | **Personal Space** (владелец + патрон, бренд Crown, ADR 0022). **My Holdings** — Dashboard донора (`PersonalDashboard`). **My Realm** — нет канала → `CreateChannelForm`; есть → Dashboard (`RealmDashboard`: кумулятивные графики Crowned/Patrons, диапазоны 1Д..Всё, история), **Customization** (`CustomizationTab` — контейнер под-вкладок: **Page** = `RealmPageBuilder` [конструктор публичной страницы: ссылка+Copy, тема фона color/gradient/image + accent-цвет, живое телефон-превью; полная свобода цветов по решению владельца; сохраняется в `ChannelConfig.pageTheme`, применяется к КАРТЕ `/c/[handle]` и Crown-CTA, НЕ к чрому приложения] + **Settings** = `ChannelSettingsEditor`: Payout address [аттестация H1, только chain] / Description / Tiers / Crowns [минимумы, лимит текста] / Names & display / Moderators; draft-модель с плавающим «Save»), **Mini-games** (`RealmGamesSettings` — единый дом настроек игр: тумблеры игр + пороги §10 [задание/спор] + исход спора по Reign [+win/−loss: read-only вне icp, редактируемо в icp] + **Dispute params** [icp: кворум/окна/вес/мин.реп/награды — подпись владельца → канистра, таймлок §8.9, канон `v: 3`, §18.5-8c]), **Widgets** (`RealmWidgets` — OBS browser-source оверлеи `alerts`/`top`/`total`: копируемые публичные URL + превью, §18.1), **Moderation queue** (HELD, FLAG первыми; HARD_BLOCK — карантин; + задания), **Blocklist** (канальные блоки, 7 причин). **Settings** — Profile |
 | `/admin`, `/admin/{realms,users,games,moderation,tests,settings}` | платформенная консоль оператора (read-only аналитика + dev-инструменты): Dashboard (KPI по всем realms), Realms (таблица), Users, Mini-games (статистика escrow-task), Moderation (песочница → `/api/dev/moderation`, тот же конвейер), Tests (dev-логин за адрес, только mock), Settings |
 | `/ops` | консоль T&S enforcement (гейт isOperator): лестница наказаний, форма действия с подтверждением, инцидент-лог с «Разобрать →» |
 | `/dev/db`, `/dev/kitchen-sink` | смотрелка БД (оператор), витрина компонентов; серверный гейт `IS_PROD → 404` |
@@ -851,12 +851,18 @@ SIWS. Дизайн-токены: тёмная тема, CSS-переменные
 > Их расхождения с кодом, всё ещё значимые как решения, сведены ниже; остальное — закрыто.
 
 1. Оверлеи ВЕРНУЛИСЬ как публичные polling-виджеты для OBS (не SSE): роут `/overlay/[handle]/[widget]`
-   (`alerts`/`top`/`total`), только чтение по handle, без сессии/кошелька; фон принудительно прозрачный
+   (`alerts`/`goal`/`top`/`total`), только чтение по handle, без сессии/кошелька; фон принудительно прозрачный
    (страница правит `document.body.background`). Управление — вкладка **Widgets** в `/space` My Realm
    (`RealmWidgets`: копируемые browser-source URL + превью). Живость — `refetchInterval` react-query
    (alerts 4с, top 15с, total 10с), НЕ realtime SSE (это следующий шаг, если понадобится). Инвариант §4.6
    держится: alerts показывает сумму/имя всегда, а текст доната — ТОЛЬКО при `message.state === "SHOWN"`.
    Мок-стор пер-браузерный → реальный OBS-захват работает на api/chain, не на локальном mock.
+   **TTS** (`alerts`): опционально по `?tts=1` в URL — браузерный `speechSynthesis` зачитывает имя+сумму,
+   а текст доната — ТОЛЬКО при SHOWN (§4.6); адрес кошелька вслух не читается (fallback «Someone»).
+   **Donation goal** (`goal`): новые поля конфига `ChannelConfig.goalTarget` (micro-USDC, 0/undefined → нет
+   цели) и `goalLabel` — инертны для Reign, как `description` (§4.4); задаются в `/space` → Widgets
+   (`GoalEditor` → `updateChannelConfig`); прогресс = Σ`totalDonated` лидерборда / target. Персист —
+   колонки `channel_configs.goal_target/goal_label` (миграция `ADD COLUMN IF NOT EXISTS`, db.ts §13).
 2. Формула репутации ФИКСИРОВАНА: 1 USDC = 1 очко (ADR 0007), стример настраивает только пороги
    тиров; настраиваемых кривых/decay из ранних спек в коде нет и не планируется.
 3. Версионирование конфига канала в коде отсутствует — версия навсегда 1 (§18.4-1).

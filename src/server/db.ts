@@ -61,6 +61,9 @@ async function ensureSchema(db: PGlite): Promise<void> {
       version                integer NOT NULL,
       hash                   text NOT NULL,
       description            text,
+      goal_target            numeric(20,0),
+      goal_label             text,
+      page_theme             jsonb,
       tiers                  jsonb NOT NULL,
       min_donation           numeric(20,0) NOT NULL,
       min_donation_with_text numeric(20,0) NOT NULL,
@@ -84,6 +87,11 @@ async function ensureSchema(db: PGlite): Promise<void> {
     -- §10: Reign thresholds to submit a task / to earn the right to raise a dispute (streamer levers).
     ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS min_reputation_to_task double precision NOT NULL DEFAULT 0;
     ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS min_reputation_to_dispute double precision NOT NULL DEFAULT 0;
+    -- Donation goal for the OBS "goal" overlay (nullable → no goal). Inert for Reign, like description.
+    ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS goal_target numeric(20,0);
+    ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS goal_label text;
+    -- Public realm-page theme (Customization → Page). Display-only, inert for Reign.
+    ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS page_theme jsonb;
 
     -- The Reign ledger — the append-only source of truth.
     CREATE TABLE IF NOT EXISTS ledger_events (

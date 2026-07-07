@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CrownLogo } from "@/components/crown-logo";
+import { Button } from "@/components/ui/button";
 import { EmptyState, Skeleton } from "@/components/ui/feedback";
 import { CheckIcon, CopyIcon, ExternalLinkIcon } from "@/components/ui/icons";
+import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/toast";
 import { useCopied } from "@/components/ui/use-copied";
-import { useMyChannel } from "@/lib/data/hooks";
+import { useChannelConfig, useMyChannel, useUpdateConfig } from "@/lib/data/hooks";
+import { fromMicro, toMicro } from "@/lib/utils";
 
 /** OBS browser-source widgets for the realm. Each links to a public, read-only overlay under /overlay/[handle]. */
 const WIDGETS: { key: string; name: string; desc: string; size: string }[] = [
@@ -14,6 +18,12 @@ const WIDGETS: { key: string; name: string; desc: string; size: string }[] = [
     name: "Crown alerts",
     desc: "An animated card pops up on every new crown — donor, amount and their message (only after you show it in moderation).",
     size: "800 × 240",
+  },
+  {
+    key: "goal",
+    name: "Donation goal",
+    desc: "A progress bar toward a target you set below. Hidden on stream until a target is set.",
+    size: "520 × 90",
   },
   {
     key: "top",
@@ -31,11 +41,12 @@ const WIDGETS: { key: string; name: string; desc: string; size: string }[] = [
 
 export function RealmWidgets() {
   const channelQ = useMyChannel();
-  const handle = channelQ.data?.handle;
+  const channel = channelQ.data;
   const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const [ttsOn, setTtsOn] = useState(false);
 
   if (channelQ.isLoading) return <Skeleton className="h-64 w-full rounded-lg" />;
-  if (!handle) {
+  if (!channel) {
     return <EmptyState title="No realm yet" description="Create your realm to get stream widgets." />;
   }
 
@@ -51,13 +62,36 @@ export function RealmWidgets() {
       </div>
 
       <div className="flex flex-col gap-4">
-        {WIDGETS.map((w) => (
-          <WidgetCard key={w.key} widget={w} url={`${origin}/overlay/${handle}/${w.key}`} />
-        ))}
+        {WIDGETS.map((w) => {
+          const url = `${origin}/overlay/${channel.handle}/${w.key}`;
+          if (w.key === "alerts") {
+            return (
+              <WidgetCard key={w.key} widget={w} url={ttsOn ? `${url}?tts=1` : url}>
+                <label className="flex w-fit items-center gap-2 text-small text-fg-muted">
+                  <input
+                    type="checkbox"
+                    checked={ttsOn}
+                    onChange={(e) => setTtsOn(e.target.checked)}
+                    className="h-4 w-4 accent-[var(--money)]"
+                  />
+                  Read alerts aloud (Text-to-Speech) — appends <code className="mono">?tts=1</code>
+                </label>
+              </WidgetCard>
+            );
+          }
+          if (w.key === "goal") {
+            return (
+              <WidgetCard key={w.key} widget={w} url={url}>
+                <GoalEditor channelId={channel.id} />
+              </WidgetCard>
+            );
+          }
+          return <WidgetCard key={w.key} widget={w} url={url} />;
+        })}
       </div>
 
       <p className="max-w-2xl text-caption text-fg-faint">
-        Tip: set the Browser Source to the recommended size and enable “Shutdown source when not visible” off, so
+        Tip: set the Browser Source to the recommended size and turn OFF “Shutdown source when not visible”, so
         alerts keep polling. Overlays read your live realm data — in local dev (mock) a separate OBS window has its
         own empty data; use the preview here or the hosted backend.
       </p>
@@ -68,21 +102,17 @@ export function RealmWidgets() {
 function WidgetCard({
   widget,
   url,
+  children,
 }: {
   widget: { key: string; name: string; desc: string; size: string };
   url: string;
+  children?: React.ReactNode;
 }) {
   const [copied, markCopied] = useCopied();
-  const [busy, setBusy] = useState(false);
 
   async function copy() {
-    setBusy(true);
-    try {
-      await navigator.clipboard.writeText(url);
-      markCopied();
-    } finally {
-      setBusy(false);
-    }
+    await navigator.clipboard.writeText(url);
+    markCopied();
   }
 
   return (
@@ -108,6 +138,7 @@ function WidgetCard({
       </div>
 
       <p className="text-small text-fg-muted">{widget.desc}</p>
+      {children}
 
       <div className="flex items-center gap-2">
         <code className="mono min-w-0 flex-1 truncate rounded-md border border-border bg-[var(--bg)] px-3 py-2 text-small text-fg-muted">
@@ -116,14 +147,75 @@ function WidgetCard({
         <button
           type="button"
           onClick={copy}
-          disabled={busy}
           aria-label="Copy overlay URL"
-          className="inline-flex h-9 flex-none items-center gap-1.5 rounded-md border border-border px-3 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg disabled:opacity-50"
+          className="inline-flex h-9 flex-none items-center gap-1.5 rounded-md border border-border px-3 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
         >
           {copied ? <CheckIcon className="h-4 w-4 text-status" /> : <CopyIcon className="h-4 w-4" />}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
+    </div>
+  );
+}
+
+/** Set the donation goal target ($) and caption — stored in the realm config, read by the `goal` overlay. */
+function GoalEditor({ channelId }: { channelId: string }) {
+  const configQ = useChannelConfig(channelId);
+  const update = useUpdateConfig(channelId);
+
+  const savedTarget = configQ.data?.goalTarget ?? 0n;
+  const savedLabel = configQ.data?.goalLabel ?? "";
+  const [amount, setAmount] = useState("");
+  const [label, setLabel] = useState("");
+
+  // Seed the fields from the saved config once it loads.
+  useEffect(() => {
+    if (!configQ.data) return;
+    setAmount(savedTarget > 0n ? String(Math.round(fromMicro(savedTarget))) : "");
+    setLabel(savedLabel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configQ.data]);
+
+  const amountNum = Number(amount);
+  const nextTarget = amount.trim() && Number.isFinite(amountNum) && amountNum > 0 ? toMicro(amountNum) : 0n;
+  const dirty = nextTarget !== savedTarget || label.trim() !== savedLabel.trim();
+
+  function save() {
+    update.mutate(
+      { goalTarget: nextTarget, goalLabel: label.trim() || undefined },
+      {
+        onSuccess: () =>
+          toast({ variant: "success", title: nextTarget > 0n ? "Goal saved" : "Goal cleared" }),
+        onError: (e) => toast({ variant: "error", title: "Couldn't save goal", description: String(e) }),
+      },
+    );
+  }
+
+  if (configQ.isLoading) return <Skeleton className="h-10 w-full rounded-md" />;
+
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-md border border-border bg-[var(--bg)] p-3">
+      <div className="w-32">
+        <Input
+          label="Target (USDC)"
+          mono
+          inputMode="decimal"
+          placeholder="2000"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+        />
+      </div>
+      <div className="min-w-[10rem] flex-1">
+        <Input
+          label="Caption (optional)"
+          placeholder="New streaming PC"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+        />
+      </div>
+      <Button size="sm" onClick={save} loading={update.isPending} disabled={!dirty}>
+        {nextTarget > 0n ? "Save goal" : "Clear goal"}
+      </Button>
     </div>
   );
 }

@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 // Mono (JetBrains) — only for numbers/amounts/addresses (tabular-nums). No decorative serifs.
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { PageTransitions } from "@/components/layout/page-transitions";
 import { Providers } from "./providers";
 
 const body = Inter({
@@ -31,11 +30,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       suppressHydrationWarning
     >
       <body>
-        {/* Crossfade between pages (the native View Transitions API). */}
-        <PageTransitions />
         <div className="flex min-h-screen flex-col">
           {/* animate-enter — a soft fade-in on the FIRST arrival at the site (the layout does not remount →
-              just once; page-to-page transitions are handled by View Transitions). opacity only — safe
+              just once; page-to-page transitions are handled by template.tsx). opacity only — safe
               for the sticky header / fixed elements. */}
           <div className="flex-1 animate-enter">
             <Providers>{children}</Providers>
