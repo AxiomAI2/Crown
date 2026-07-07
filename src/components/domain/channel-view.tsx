@@ -5,7 +5,6 @@ import { ChannelFeed } from "@/components/domain/channel-feed";
 import { ChannelHero } from "@/components/domain/channel-hero";
 import { RealmInfo } from "@/components/domain/realm-info";
 import { RealmRoll } from "@/components/domain/realm-roll";
-import { ReignStrip } from "@/components/domain/reign-strip";
 import { ChannelGames } from "@/games/ChannelGames";
 import { GameActionRail } from "@/games/GameActionRail";
 import { useEscrowTasks } from "@/games/escrow-task/hooks";
@@ -19,13 +18,18 @@ import {
   useSession,
   useStanding,
 } from "@/lib/data/hooks";
-import { pageThemeStyle, shortAddress } from "@/lib/utils";
+import { cn, pageThemeStyle, shortAddress } from "@/lib/utils";
+
+// One shared "island" panel: rounded, hairline border, a faint top-light and a soft drop shadow so the
+// card lifts off the black background instead of everything reading as one flat block.
+const PANEL =
+  "rounded-2xl border border-border shadow-[0_1px_1px_rgba(0,0,0,0.35),0_22px_50px_-34px_rgba(0,0,0,0.9)]";
+const panelBg = { background: "linear-gradient(180deg, rgba(255,255,255,0.022), transparent 42%), var(--surface)" };
 
 /**
- * The public realm page body — hero · Reign strip · Games/Feed · Crown-action sidebar — keyed by `handle`.
- * Extracted from the `/c/[handle]` route so it can be reused: the owner previews their own realm inside
- * Personal Space → My Realm ("Realm page"), seeing exactly what visitors get. The route wraps this in
- * AppHeader + <main>; here we render only the body (loading/error/not-found included).
+ * The public realm page body — a set of distinct islands (hero · activity feed · action rail) rather than one
+ * monolithic block. Keyed by `handle`; reused by the owner's preview in Personal Space. The route wraps this
+ * in AppHeader + <main>; here we render only the body (loading/error/not-found included).
  */
 export function ChannelView({ handle }: { handle: string }) {
   const channelQ = useChannel(handle);
@@ -43,10 +47,9 @@ export function ChannelView({ handle }: { handle: string }) {
   const [tabState, setTabState] = useState<string | null>(null);
   const activeTab = tabState ?? (hasGames ? "games" : "feed");
 
-  // Owner viewing their own realm → moderation/ban is available in the feed (moderators — from the studio/queue).
+  // Owner viewing their own realm → moderation/ban is available in the feed.
   const canManage = !!address && channel?.ownerAddress === address;
 
-  // Stats for the hero (from loaded Crowns) + The Crown (leaderboard top-1).
   const allDonations = donationsQ.data?.items ?? [];
   const stats = donationsQ.data
     ? {
@@ -57,7 +60,7 @@ export function ChannelView({ handle }: { handle: string }) {
   const topEntry = boardQ.data?.[0];
   const topPatron = topEntry ? (topEntry.displayName ?? shortAddress(topEntry.donor)) : null;
 
-  if (channelQ.isLoading) return <Skeleton className="h-64 w-full rounded-xl" />;
+  if (channelQ.isLoading) return <Skeleton className="mx-auto h-64 w-full max-w-[1200px] rounded-2xl" />;
   if (channelQ.error)
     return <ErrorState description="Couldn't load the realm." onRetry={() => channelQ.refetch()} />;
   if (!channel) return <EmptyState title="Realm not found" description={`No realm @${handle} exists.`} />;
@@ -70,15 +73,13 @@ export function ChannelView({ handle }: { handle: string }) {
     );
 
   return (
-    // The whole page is ONE block: an outer frame with flat sections inside, separated by thin dividers (no
-    // "islands"). The only raised card inside is the Crown widget (the action).
-    // Streamer's page theme (Customization → Page) styles THIS card (bg + `--realm-accent`); undefined → default look.
+    // Islands with gaps. The streamer's page theme (Customization → Page) provides `--realm-accent` here.
     <div
-      className="mx-auto w-full max-w-[1200px] overflow-hidden rounded-2xl border border-border bg-surface"
+      className="mx-auto flex w-full max-w-[1200px] flex-col gap-4"
       style={pageThemeStyle(configQ.data?.pageTheme)}
     >
-      {/* Section: hero */}
-      <div className="border-b border-border">
+      {/* Hero island */}
+      <section className={cn(PANEL, "overflow-hidden")} style={panelBg}>
         <ChannelHero
           channel={channel}
           config={configQ.data}
@@ -86,18 +87,12 @@ export function ChannelView({ handle }: { handle: string }) {
           totalDonated={stats?.total}
           topPatron={topPatron}
         />
-      </div>
+      </section>
 
-      {/* Section: your Reign (full-width strip). */}
-      <div className="border-b border-border">
-        <ReignStrip standing={standingQ.data} loading={standingQ.isLoading} />
-      </div>
-
-      {/* Body: live feed on the left, sidebar on the right (Crown → leaderboard → reference). Separated
-          by a vertical hairline; the sidebar sections — by horizontal ones. All in a shared frame. */}
-      <div className="flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_340px]">
-        {/* Center: activity. Tabs only when there are games (Games ↔ Feed); otherwise just Feed. */}
-        <div className="min-w-0 p-4 sm:p-5">
+      {/* Body: activity on the left, action rail on the right. */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        {/* Left: the feed (Games ↔ Feed tabs when the realm runs a game). */}
+        <section className={cn(PANEL, "min-w-0 p-4 sm:p-5")} style={panelBg}>
           <Tabs value={activeTab} onValueChange={setTabState} className="flex flex-col gap-3">
             {hasGames ? (
               <TabsList className="w-full">
@@ -132,14 +127,11 @@ export function ChannelView({ handle }: { handle: string }) {
               )}
             </TabsContent>
           </Tabs>
-        </div>
+        </section>
 
-        {/* Sidebar: Crown action → leaderboard → realm reference, sections separated by dividers. */}
-        <aside
-          id="crown"
-          className="flex scroll-mt-20 flex-col border-t border-border lg:border-l lg:border-t-0"
-        >
-          <div className="p-4">
+        {/* Right rail — sticky on desktop so Crown stays in reach. Crown widget self-cards; roll & info are islands. */}
+        <aside className="flex flex-col gap-4 lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:self-start">
+          <div id="crown" className="scroll-mt-20">
             {configQ.data && sessionQ.data ? (
               <GameActionRail
                 channel={channel}
@@ -151,19 +143,19 @@ export function ChannelView({ handle }: { handle: string }) {
                 enabledGames={enabledGames}
               />
             ) : (
-              <Skeleton className="h-72 w-full rounded-lg" />
+              <Skeleton className="h-72 w-full rounded-2xl" />
             )}
           </div>
-          <div className="border-t border-border">
+          <section className={PANEL} style={panelBg}>
             <RealmRoll channelId={channel.id} handle={handle} currentAddress={address} />
-          </div>
-          <div className="border-t border-border">
+          </section>
+          <section className={PANEL} style={panelBg}>
             <RealmInfo
               channel={channel}
               config={configQ.data}
               currentTierName={standingQ.data?.tier?.name}
             />
-          </div>
+          </section>
         </aside>
       </div>
     </div>
