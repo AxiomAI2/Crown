@@ -190,7 +190,7 @@ export default function AdminDashboardPage() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-1">
-        <h1 className="text-h2 text-fg">Dashboard</h1>
+        <h1 className="text-display-l text-fg">Dashboard</h1>
         <p className="text-small text-fg-faint">Platform overview across all realms.</p>
       </div>
 

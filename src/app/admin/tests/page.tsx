@@ -140,7 +140,7 @@ export default function AdminTestsPage() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-1">
-        <h1 className="text-h2 text-fg">Tests</h1>
+        <h1 className="text-display-l text-fg">Tests</h1>
         <p className="text-small text-fg-faint">
           Sign in without a wallet and manage test data. Dev only — works in mock/api mode.
         </p>

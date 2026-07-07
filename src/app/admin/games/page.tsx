@@ -93,7 +93,7 @@ export default function AdminGamesPage() {
     <div className="flex flex-col gap-6 pb-10">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h1 className="text-h2 text-fg">Mini-games</h1>
+          <h1 className="text-display-l text-fg">Mini-games</h1>
           <p className="text-small text-fg-faint">
             Every escrow task across all realms — {rows.length} total · {usd(value)} in play. Adoption and
             status charts are on the Dashboard.

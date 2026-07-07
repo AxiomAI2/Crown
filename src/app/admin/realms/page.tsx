@@ -22,7 +22,7 @@ export default function AdminRealmsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h1 className="text-h2 text-fg">Realms</h1>
+          <h1 className="text-display-l text-fg">Realms</h1>
           <p className="text-small text-fg-faint">
             {realms.length} total
             {f.visible.length !== realms.length ? ` · ${f.visible.length} shown` : ""}
