@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { applyPalette, DEFAULT_PALETTE_ID, PALETTES } from "@/lib/palettes";
 import { cn } from "@/lib/utils";
 
-const STORAGE_KEY = "crown-palette";
+// v2: key bumped when the default moved to dark gray — an old saved "black" would silently keep
+// overriding the new default at startup.
+const STORAGE_KEY = "crown-palette-2";
 
 /**
  * Dev tool: live cycling through the site's color palettes. Floating 🎨 button → list; clicking a palette

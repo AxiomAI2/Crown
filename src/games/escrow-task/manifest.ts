@@ -8,8 +8,7 @@ import type { GameModule } from "../types";
 export const escrowTask: GameModule = {
   id: "escrow-task",
   title: "Tasks for a Crown",
-  tagline:
-    "A crown with a task in escrow: the content maker completes it, the community verifies, otherwise — a refund to the donor.",
+  tagline: "Paid tasks: complete it or the money returns.",
   status: "available",
   specDoc: "docs/yellow-paper.md",
 };

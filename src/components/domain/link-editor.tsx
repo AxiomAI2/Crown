@@ -48,10 +48,14 @@ export function inputsFromLinks(links: ChannelLink[] | undefined): LinkInputs {
 export function LinkEditor({
   value,
   onChange,
+  size = "md",
 }: {
   value: LinkInputs;
   onChange: (v: LinkInputs) => void;
+  /** "lg" — roomier rows for pages where the links are the main content (create-realm Socials step). */
+  size?: "md" | "lg";
 }) {
+  const lg = size === "lg";
   const atMax = value.length >= MAX_CHANNEL_LINKS;
   const setRow = (i: number, patch: Partial<LinkInputRow>) =>
     onChange(value.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -67,9 +71,9 @@ export function LinkEditor({
         const invalid = row.url.trim().length > 0 && !normalizeChannelLink(row.platform, row.url);
         return (
           <div key={i} className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <PlatformIcon platform={row.platform} brand className="h-5 w-5 shrink-0" />
-              <div className="w-32 shrink-0">
+            <div className={lg ? "flex items-center gap-3" : "flex items-center gap-2"}>
+              <PlatformIcon platform={row.platform} brand className={lg ? "h-6 w-6 shrink-0" : "h-5 w-5 shrink-0"} />
+              <div className={lg ? "w-44 shrink-0" : "w-32 shrink-0"}>
                 <Select
                   className="w-full"
                   value={row.platform}
@@ -113,18 +117,13 @@ export function LinkEditor({
       })}
 
       <div className="flex items-center justify-between gap-2">
-        <Button type="button" variant="secondary" size="sm" onClick={addRow} disabled={atMax}>
+        <Button type="button" variant="secondary" size={lg ? "md" : "sm"} onClick={addRow} disabled={atMax}>
           + Add link
         </Button>
         <span className="mono text-small text-fg-faint">
           {value.length}/{MAX_CHANNEL_LINKS}
         </span>
       </div>
-
-      <p className="text-small text-fg-faint">
-        The https:// is optional. Only a profile/channel link is accepted (not youtube.com/watch). Multiple
-        links to the same app are allowed.
-      </p>
     </div>
   );
 }

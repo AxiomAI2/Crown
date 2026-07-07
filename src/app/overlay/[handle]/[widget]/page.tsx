@@ -4,9 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CrownLogo } from "@/components/crown-logo";
+import { GoalBar } from "@/components/domain/goal-bar";
 import { useData } from "@/lib/data/context";
 import type { Donation, LeaderboardEntry } from "@/lib/data/types";
-import { fromMicro } from "@/lib/utils";
+import { fromMicro, renderRowTemplate } from "@/lib/utils";
 
 /**
  * Public OBS overlays (browser sources). Read-only by realm handle — no wallet/session, so they can be dropped
@@ -49,12 +50,17 @@ export default function OverlayPage() {
       {widget === "top" ? <TopWidget channelId={channelId} /> : null}
       {widget === "total" ? <TotalWidget channelId={channelId} /> : null}
       {widget === "goal" ? <GoalWidget channelId={channelId} /> : null}
+      {widget === "list" ? <ListWidget channelId={channelId} /> : null}
     </div>
   );
 }
 
 function usd(micro: bigint): string {
   return "$" + Math.round(fromMicro(micro)).toLocaleString("en-US");
+}
+
+function shortAddr(a: string): string {
+  return `${a.slice(0, 4)}…${a.slice(-4)}`;
 }
 
 /** Text shadow so the widget stays legible over ANY stream background. */
@@ -194,7 +200,7 @@ function TotalWidget({ channelId }: { channelId: string }) {
   );
 }
 
-// — Donation goal progress bar (target set in Widgets → Customization) ————————————————————————————————
+// — Donation goal progress bar (target/look set in Widgets → Donation goal) ———————————————————————————
 function GoalWidget({ channelId }: { channelId: string }) {
   const data = useData();
   const cfgQ = useQuery({
@@ -208,27 +214,101 @@ function GoalWidget({ channelId }: { channelId: string }) {
     refetchInterval: 10_000,
   });
 
-  const target = cfgQ.data?.goalTarget ?? 0n;
+  const cfg = cfgQ.data;
+  const target = cfg?.goalTarget ?? 0n;
   if (target <= 0n) return null; // no goal set → render nothing
 
   const total = (boardQ.data ?? []).reduce((s, e) => s + e.totalDonated, 0n);
-  // Integer percent via bigint math (no float) — capped at 100.
-  const pct = total >= target ? 100 : Number((total * 100n) / target);
-  const label = cfgQ.data?.goalLabel?.trim() || "Goal";
+  const raised = (cfg?.goalStart ?? 0n) + total; // head-start baseline + crowned
+  // Chroma-key background if the streamer set one (e.g. #00ff00 to key out); else the transparent-friendly card.
+  const bg = cfg?.goalTheme?.bgColor?.trim();
 
   return (
-    <div className="flex flex-col gap-2 rounded-2xl border border-money-dim bg-black/70 p-5 backdrop-blur-sm" style={{ maxWidth: 520 }}>
-      <div className="flex items-center justify-between gap-2 text-body text-fg" style={SHADOW}>
-        <span className="flex items-center gap-1.5 font-medium">
-          <CrownLogo size={16} className="text-money" /> {label}
-        </span>
-        <span className="mono text-money">
-          {usd(total)} <span className="text-fg-faint">/ {usd(target)}</span>
-        </span>
-      </div>
-      <div className="h-3 w-full overflow-hidden rounded-pill bg-black/60">
-        <div className="h-full rounded-pill bg-money transition-[width] duration-500" style={{ width: `${pct}%` }} />
-      </div>
+    <div
+      className="rounded-2xl p-5 backdrop-blur-sm"
+      style={{ maxWidth: 560, background: bg || "rgba(0,0,0,0.7)" }}
+    >
+      <GoalBar
+        raised={raised}
+        target={target}
+        label={cfg?.goalLabel}
+        deadlineIso={cfg?.goalDeadline}
+        theme={cfg?.goalTheme}
+      />
+    </div>
+  );
+}
+
+// — Configurable donations list (data type / period / count / row template), driven by URL query params ————
+interface ListConfig {
+  title: string;
+  type: "last" | "top";
+  period: "all" | "month";
+  count: number;
+  tpl: string;
+}
+function parseListConfig(): ListConfig {
+  const p =
+    typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const count = Math.min(20, Math.max(1, Number(p.get("count")) || 5));
+  return {
+    title: p.get("title") ?? "",
+    type: p.get("type") === "top" ? "top" : "last",
+    period: p.get("period") === "month" ? "month" : "all",
+    count,
+    tpl: p.get("tpl") || "{username} - {amount}",
+  };
+}
+
+function ListWidget({ channelId }: { channelId: string }) {
+  const data = useData();
+  const [cfg] = useState(parseListConfig); // config is static per browser-source URL
+  const isTop = cfg.type === "top";
+
+  const boardQ = useQuery({
+    queryKey: ["overlay", "list-board", channelId, cfg.period],
+    queryFn: () => data.getLeaderboard(channelId, cfg.period === "month" ? "month" : "all_time"),
+    refetchInterval: 15_000,
+    enabled: isTop,
+  });
+  const donQ = useQuery({
+    queryKey: ["overlay", "list-don", channelId],
+    queryFn: () => data.listDonations(channelId),
+    refetchInterval: 6_000,
+    enabled: !isTop,
+  });
+
+  const rows = useMemo(() => {
+    if (isTop) {
+      return (boardQ.data ?? []).slice(0, cfg.count).map((e) => ({
+        username: e.displayName?.trim() || shortAddr(e.donor),
+        amount: usd(e.totalDonated),
+        message: "",
+      }));
+    }
+    const cutoff = cfg.period === "month" ? Date.now() - 30 * 86_400_000 : 0;
+    return [...(donQ.data?.items ?? [])]
+      .filter((d) => Date.parse(d.ts) >= cutoff)
+      .sort((a, b) => Date.parse(b.ts) - Date.parse(a.ts))
+      .slice(0, cfg.count)
+      .map((d) => ({
+        username: d.donorName?.trim() || shortAddr(d.donor),
+        amount: usd(d.amount),
+        // Message only if the streamer has shown it (§4.6); otherwise the {message} tag renders empty.
+        message: d.message?.state === "SHOWN" ? (d.message.text?.trim() ?? "") : "",
+      }));
+  }, [isTop, boardQ.data, donQ.data, cfg]);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="flex w-fit flex-col gap-1.5" style={SHADOW}>
+      {cfg.title ? <div className="mb-1 font-display text-xl font-semibold text-fg">{cfg.title}</div> : null}
+      {rows.map((r, i) => (
+        <div key={i} className="text-lg font-semibold text-fg">
+          {renderRowTemplate(cfg.tpl, r)}
+        </div>
+      ))}
     </div>
   );
 }

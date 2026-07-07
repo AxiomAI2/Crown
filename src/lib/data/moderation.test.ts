@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyTaskText, hashContent } from "./moderation";
+import { classifyTaskText, hashContent, stripLinks } from "./moderation";
 
 /**
  * Test of TASK TEXT moderation (escrow-task). The keyword-backstop wordlist was REMOVED (it produced false blocks
@@ -41,5 +41,30 @@ describe("hashContent — cryptographically strong SHA-256 (onchain text anchor 
     const h = await hashContent("hello");
     expect(h).toMatch(/^[0-9a-f]{64}$/);
     expect(await hashContent("hello!")).not.toBe(h);
+  });
+});
+
+describe("stripLinks — spam filter «Remove links» (ChannelConfig.removeLinks)", () => {
+  it("strips scheme/www URLs, keeping the surrounding text", () => {
+    expect(stripLinks("check https://evil.example/promo?x=1 out")).toBe("check out");
+    expect(stripLinks("go to www.spam.site now")).toBe("go to now");
+  });
+  it("strips bare domains with and without a path (t.me/x, bit.ly, example.com)", () => {
+    expect(stripLinks("join t.me/scamchan for gifts")).toBe("join for gifts");
+    expect(stripLinks("bit.ly/3xYzAbC")).toBe("");
+    expect(stripLinks("my site example.com, welcome!")).toBe("my site , welcome!");
+    expect(stripLinks("сайт пример.рф зацени")).toBe("сайт зацени");
+  });
+  it("does not touch prose with dots (т.е., ул.Ленина, versions, sentence ends)", () => {
+    expect(stripLinks("т.е. всё хорошо")).toBe("т.е. всё хорошо");
+    expect(stripLinks("живу на ул.Ленина")).toBe("живу на ул.Ленина");
+    expect(stripLinks("gg. nice stream")).toBe("gg. nice stream");
+  });
+  it("text that was only a link collapses to empty (→ treated as a textless crown)", () => {
+    expect(stripLinks("https://spam.example")).toBe("");
+    expect(stripLinks("  www.spam.example  ")).toBe("");
+  });
+  it("collapses the whitespace left behind", () => {
+    expect(stripLinks("a https://x.example b   c")).toBe("a b c");
   });
 });

@@ -296,6 +296,23 @@ export async function taskTextCommitment(text: string, nonceHex: string): Promis
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// Spam filter "Remove links" (ChannelConfig.removeLinks): scheme/www URLs, then bare domains — a dot-separated
+// label chain ending in a TLD (2–24 LATIN letters, or "рф"), with an optional /path tail. The latin-or-рф TLD is
+// what keeps prose with dots intact ("т.е.", "ул.Ленина" — cyrillic after the dot → not a link). Deliberately
+// eager on real links (t.me/x, bit.ly, пример.рф) — the owner opted in; a missed link is worse than an over-strip.
+const LINK_SCHEME_RE = /(?:https?:\/\/|www\.)\S+/gi;
+const LINK_DOMAIN_RE =
+  /(?:^|(?<=[\s(«"']))[\p{L}\d](?:[\p{L}\d-]*[\p{L}\d])?(?:\.[\p{L}\d](?:[\p{L}\d-]*[\p{L}\d])?)*\.(?:[a-z]{2,24}|рф)(?:\/\S*)?(?=[\s)»"'.,!?:;]|$)/giu;
+
+/**
+ * Best-effort link removal from crown text (Moderation → Remove links). Runs at ingest, AFTER the chain
+ * memo-hash check (ingest verifies the text the donor signed; what we PUBLISH is the realm's call).
+ * Whitespace left behind is collapsed; text that was only a link collapses to "".
+ */
+export function stripLinks(text: string): string {
+  return text.replace(LINK_SCHEME_RE, "").replace(LINK_DOMAIN_RE, "").replace(/\s+/g, " ").trim();
+}
+
 export interface ModerationOutcome {
   verdict: ModerationVerdict;
   lang: string;

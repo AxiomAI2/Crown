@@ -63,6 +63,9 @@ async function ensureSchema(db: PGlite): Promise<void> {
       description            text,
       goal_target            numeric(20,0),
       goal_label             text,
+      goal_start             numeric(20,0),
+      goal_deadline          timestamptz,
+      goal_theme             jsonb,
       page_theme             jsonb,
       tiers                  jsonb NOT NULL,
       min_donation           numeric(20,0) NOT NULL,
@@ -73,6 +76,8 @@ async function ensureSchema(db: PGlite): Promise<void> {
       name_mode              text NOT NULL,
       text_show_mode         text NOT NULL,
       moderators             jsonb NOT NULL DEFAULT '[]',
+      blocked_words          jsonb NOT NULL DEFAULT '[]',
+      remove_links           boolean NOT NULL DEFAULT false,
       enabled_games          jsonb NOT NULL DEFAULT '[]',
       updated_at             timestamptz NOT NULL DEFAULT now(),
       PRIMARY KEY (channel_id, version)
@@ -90,8 +95,15 @@ async function ensureSchema(db: PGlite): Promise<void> {
     -- Donation goal for the OBS "goal" overlay (nullable → no goal). Inert for Reign, like description.
     ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS goal_target numeric(20,0);
     ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS goal_label text;
+    -- Goal head-start baseline, optional deadline, and the goal-widget look. Display-only, inert for Reign.
+    ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS goal_start numeric(20,0);
+    ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS goal_deadline timestamptz;
+    ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS goal_theme jsonb;
     -- Public realm-page theme (Customization → Page). Display-only, inert for Reign.
     ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS page_theme jsonb;
+    -- Realm spam filter: owner-set banned words (hold for review) + strip links from crown text.
+    ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS blocked_words jsonb NOT NULL DEFAULT '[]';
+    ALTER TABLE channel_configs ADD COLUMN IF NOT EXISTS remove_links boolean NOT NULL DEFAULT false;
 
     -- The Reign ledger — the append-only source of truth.
     CREATE TABLE IF NOT EXISTS ledger_events (

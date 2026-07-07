@@ -48,6 +48,9 @@ export function ChannelHero({
   const name = ownerProfile.data?.displayName?.trim() || `@${channel.handle}`;
   const avatarUrl = ownerProfile.data?.avatarUrl;
   const links = ownerProfile.data?.links ?? [];
+  // Streamer's page theme (Customization → Page): whether to show the avatar + an optional greeting line.
+  const showAvatar = config?.pageTheme?.showAvatar !== false;
+  const pageText = config?.pageTheme?.pageText?.trim();
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -94,7 +97,7 @@ export function ChannelHero({
         <div
           aria-hidden
           className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full opacity-70"
-          style={{ background: "radial-gradient(circle, var(--money-bg), transparent 70%)" }}
+          style={{ background: "radial-gradient(circle, rgba(228,179,76,0.07), transparent 70%)" }}
         />
         {/* Actions — in the panel corner. */}
         <div className="absolute right-4 top-4 z-10">
@@ -104,7 +107,9 @@ export function ChannelHero({
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
           {/* Identity */}
           <div className="flex min-w-0 items-start gap-4">
-            <Monogram name={name} avatarUrl={avatarUrl} size="xl" className="flex-none" />
+            {showAvatar ? (
+              <Monogram name={name} avatarUrl={avatarUrl} size="xl" className="flex-none" />
+            ) : null}
             <div className="flex min-w-0 flex-col gap-1.5 pr-10 lg:pr-0">
               <div className="flex flex-col gap-0.5">
                 <Link
@@ -124,6 +129,9 @@ export function ChannelHero({
                 <p className="line-clamp-2 max-w-md whitespace-pre-wrap break-words text-small text-fg-muted">
                   {config.description}
                 </p>
+              ) : null}
+              {pageText ? (
+                <p className="max-w-md whitespace-pre-wrap break-words text-small text-fg">{pageText}</p>
               ) : null}
               {links.length > 0 ? <ChannelLinkButtons links={links} variant="pill" /> : null}
             </div>

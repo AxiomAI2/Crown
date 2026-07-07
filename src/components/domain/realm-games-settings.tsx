@@ -98,10 +98,7 @@ export function RealmGamesSettings() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h1 className="text-display-l text-fg">Mini-games</h1>
-        <p className="text-fg-muted">
-          Mechanics on top of Reign. Turn them on once your community has weight — on a cold realm
-          there&apos;s no one to play dispute games with (cold-start).
-        </p>
+        <p className="text-fg-muted">Games your community plays with crowns.</p>
       </div>
 
       {/* Game catalog from the registry — only READY games (in-development ones are hidden here). */}
@@ -133,12 +130,8 @@ export function RealmGamesSettings() {
           Reign is earned by crowning → the threshold = a money barrier against zero-wallets. */}
       <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
         <div className="flex flex-col gap-1">
-          <h2 className="font-display text-fg">Reputation thresholds (limits)</h2>
-          <p className="text-small text-fg-muted">
-            Reign is earned by crowning. Thresholds keep zero-wallets out: to send a task
-            {IS_ICP ? "" : " or raise a dispute"} a viewer needs status — a realm they actually
-            backed. 0 = no threshold.
-          </p>
+          <h2 className="font-display text-fg">Reputation thresholds</h2>
+          <p className="text-small text-fg-muted">0 = no threshold.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
@@ -157,11 +150,11 @@ export function RealmGamesSettings() {
             />
           ) : null}
         </div>
-        <p className="text-small text-fg-faint">
-          {IS_ICP
-            ? "The dispute reputation gate is set in Dispute governance (canister) below."
-            : "A high dispute threshold means less trolling but fewer challenges. Set it very high and you effectively turn disputes off — supporters will see that."}
-        </p>
+        {IS_ICP ? (
+          <p className="text-small text-fg-faint">
+            The dispute reputation gate is set in Dispute governance below.
+          </p>
+        ) : null}
         <div>
           <Button
             variant="secondary"
@@ -179,11 +172,7 @@ export function RealmGamesSettings() {
         <div className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
           <div className="flex flex-col gap-1">
             <h2 className="font-display text-fg">Dispute outcomes (Reign)</h2>
-            <p className="text-small text-fg-muted">
-              When a task-crown dispute resolves, the raiser&apos;s Reign moves by a fixed protocol
-              amount. On this data source it&apos;s not editable; on-chain (icp) you tune it in Dispute
-              governance below.
-            </p>
+            <p className="text-small text-fg-muted">Fixed by the protocol.</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-lg border border-border bg-[var(--bg)] p-3">
@@ -328,9 +317,7 @@ function DisputeParamsSection({ channelId }: { channelId: string }) {
   return (
     <Card>
       <p className="text-small text-fg-muted">
-        Rules for task-crown disputes live in the ICP canister, not with the platform: only your
-        wallet signature can change them, and they take effect on a timelock — disputes already
-        running keep the old rules. The platform cannot tweak these.
+        Only your wallet signature can change these rules; they activate on a timelock.
       </p>
       {info.pending ? (
         <p className="text-small text-info">
@@ -444,10 +431,7 @@ function DisputeParamsSection({ channelId }: { channelId: string }) {
         <Button variant="money" loading={save.isPending} disabled={!valid} onClick={submit}>
           Sign and send to the canister
         </Button>
-        <p className="text-small text-fg-faint">
-          This is a message signature, not a transaction: no money moves, no gas is spent. Rules
-          version: {info.version}.
-        </p>
+        <p className="text-small text-fg-faint">Signature only — no money moves. v{info.version}.</p>
       </div>
     </Card>
   );

@@ -3,21 +3,25 @@
 import { useState } from "react";
 import { ChannelFeed } from "@/components/domain/channel-feed";
 import { ChannelHero } from "@/components/domain/channel-hero";
+import { ChannelLinkButtons } from "@/components/domain/channel-links";
 import { RealmInfo } from "@/components/domain/realm-info";
 import { RealmRoll } from "@/components/domain/realm-roll";
 import { ChannelGames } from "@/games/ChannelGames";
 import { GameActionRail } from "@/games/GameActionRail";
 import { useEscrowTasks } from "@/games/escrow-task/hooks";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
+import { ExternalLinkIcon } from "@/components/ui/icons";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useChannel,
   useChannelConfig,
   useDonations,
   useLeaderboard,
+  useProfile,
   useSession,
   useStanding,
 } from "@/lib/data/hooks";
+import { pageWidgets } from "@/lib/page-widgets";
 import { cn, pageThemeStyle, shortAddress } from "@/lib/utils";
 
 // One shared "island" panel: rounded, hairline border, a faint top-light and a soft drop shadow so the
@@ -59,6 +63,8 @@ export function ChannelView({ handle }: { handle: string }) {
     : null;
   const topEntry = boardQ.data?.[0];
   const topPatron = topEntry ? (topEntry.displayName ?? shortAddress(topEntry.donor)) : null;
+  // Owner's profile links — for the "socials" widget block in the rail (hero shows them too; the block is opt-in).
+  const ownerLinks = useProfile(channel?.ownerAddress ?? null).data?.links ?? [];
 
   if (channelQ.isLoading) return <Skeleton className="mx-auto h-64 w-full max-w-[1200px] rounded-2xl" />;
   if (channelQ.error)
@@ -129,23 +135,60 @@ export function ChannelView({ handle }: { handle: string }) {
           </Tabs>
         </section>
 
-        {/* Right rail — sticky on desktop so Crown stays in reach. Crown widget self-cards; roll & info are islands. */}
+        {/* Right rail — sticky on desktop so Crown stays in reach. The owner's widget stack (Customization →
+            Page) renders here in order: crown form / social icons / link buttons / text blocks. Roll & info
+            are fixed islands below. */}
         <aside className="flex flex-col gap-4 lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:self-start">
-          <div id="crown" className="scroll-mt-20">
-            {configQ.data && sessionQ.data ? (
-              <GameActionRail
-                channel={channel}
-                config={configQ.data}
-                session={sessionQ.data}
-                standing={standingQ.data}
-                standingLoading={standingQ.isLoading}
-                handle={handle}
-                enabledGames={enabledGames}
-              />
-            ) : (
-              <Skeleton className="h-72 w-full rounded-2xl" />
-            )}
-          </div>
+          {pageWidgets(configQ.data?.pageTheme)
+            .filter((w) => w.enabled)
+            .map((w) => {
+              if (w.type === "donate")
+                return (
+                  <div key={w.id} id="crown" className="scroll-mt-20">
+                    {configQ.data && sessionQ.data ? (
+                      <GameActionRail
+                        channel={channel}
+                        config={configQ.data}
+                        session={sessionQ.data}
+                        standing={standingQ.data}
+                        standingLoading={standingQ.isLoading}
+                        handle={handle}
+                        enabledGames={enabledGames}
+                      />
+                    ) : (
+                      <Skeleton className="h-72 w-full rounded-2xl" />
+                    )}
+                  </div>
+                );
+              if (w.type === "socials")
+                return ownerLinks.length > 0 ? (
+                  <section key={w.id} className={cn(PANEL, "flex justify-center p-4")} style={panelBg}>
+                    <ChannelLinkButtons links={ownerLinks} variant="pill" />
+                  </section>
+                ) : null;
+              if (w.type === "button")
+                return w.url ? (
+                  <a
+                    key={w.id}
+                    href={w.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(
+                      PANEL,
+                      "flex items-center justify-center gap-2 p-3.5 text-small font-medium text-fg transition-colors hover:border-border-strong",
+                    )}
+                    style={panelBg}
+                  >
+                    {w.label?.trim() || w.url} <ExternalLinkIcon className="h-3.5 w-3.5 text-fg-faint" />
+                  </a>
+                ) : null;
+              // text block
+              return w.text?.trim() ? (
+                <section key={w.id} className={cn(PANEL, "p-4")} style={panelBg}>
+                  <p className="whitespace-pre-wrap break-words text-small text-fg-muted">{w.text.trim()}</p>
+                </section>
+              ) : null;
+            })}
           <section className={PANEL} style={panelBg}>
             <RealmRoll channelId={channel.id} handle={handle} currentAddress={address} />
           </section>

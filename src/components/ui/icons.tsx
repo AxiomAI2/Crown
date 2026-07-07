@@ -33,6 +33,94 @@ export function XIcon({ className }: IconProps) {
   );
 }
 
+/** Person silhouette — profile/avatar sections. */
+export function UserIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" />
+    </svg>
+  );
+}
+
+/** Picture frame — image/banner sections. */
+export function ImageIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="8.5" cy="9.5" r="1.5" />
+      <path d="m3 17 5-5 4 4 3-3 6 6" />
+    </svg>
+  );
+}
+
+/** Palette — design/colors sections. */
+export function PaletteIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <path d="M12 3a9 9 0 1 0 0 18h1.5a2.5 2.5 0 0 0 0-5H12a2 2 0 0 1-2-2c0-1.1.9-2 2-2h6.5A2.5 2.5 0 0 0 21 9.5 8 8 0 0 0 12 3Z" />
+      <circle cx="7.5" cy="10.5" r="0.5" />
+      <circle cx="12" cy="7" r="0.5" />
+      <circle cx="16.5" cy="10.5" r="0.5" />
+    </svg>
+  );
+}
+
+/** Chain link — external/social links. */
+export function LinkIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+      <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+    </svg>
+  );
+}
+
+/** Text block — Tt glyph. */
+export function TextIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <path d="M4 7V5h12v2M10 5v14M7 19h6" />
+      <path d="M15 13v-1h6v1M18 12v7" />
+    </svg>
+  );
+}
+
+/** Drag handle — six dots. */
+export function GripIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      <circle cx="9" cy="6" r="1.5" />
+      <circle cx="15" cy="6" r="1.5" />
+      <circle cx="9" cy="12" r="1.5" />
+      <circle cx="15" cy="12" r="1.5" />
+      <circle cx="9" cy="18" r="1.5" />
+      <circle cx="15" cy="18" r="1.5" />
+    </svg>
+  );
+}
+
+/** Trash bin — delete. */
+export function TrashIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M9 7V4h6v3" />
+    </svg>
+  );
+}
+
+/** QR code — share/scan. */
+export function QrIcon({ className }: IconProps) {
+  return (
+    <svg {...stroke} className={className}>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <path d="M14 14h3v3h-3zM21 14v0M14 21h0M18 18h3v3" />
+    </svg>
+  );
+}
+
 /** Chevron right — pagination/"next". */
 export function ChevronRightIcon({ className }: IconProps) {
   return (

@@ -23,7 +23,7 @@ import { cn, isLikelyBase58Address } from "@/lib/utils";
 // Must match the server's canonical rule (mock-provider.createChannel): a–z, 0–9, underscore. The client
 // used to allow hyphens, so hyphenated handles passed the form and were rejected server-side at submit.
 const HANDLE_RE = /^[a-z0-9_]{3,32}$/;
-const STEPS = ["Profile", "Address", "Tiers"] as const;
+const STEPS = ["Profile", "Socials", "Address", "Tiers"] as const;
 
 interface TierDraft {
   name: string;
@@ -51,7 +51,12 @@ export function CreateChannelForm() {
   const [description, setDescription] = useState("");
   // Social links — validated against each platform's OFFICIAL domain (LinkEditor / normalizeChannelLink):
   // a YouTube link must be youtube.com/@…, an X link x.com/… etc. Phishing/scam URLs are rejected inline.
-  const [linkInputs, setLinkInputs] = useState<LinkInputs>([]);
+  // Three streaming platforms are pre-added as empty rows; empty rows are dropped at submit.
+  const [linkInputs, setLinkInputs] = useState<LinkInputs>([
+    { platform: "youtube", url: "" },
+    { platform: "twitch", url: "" },
+    { platform: "kick", url: "" },
+  ]);
   const [tiers, setTiers] = useState<TierDraft[]>(() =>
     DEFAULT_TIERS.map((t) => ({
       name: t.name,
@@ -125,7 +130,7 @@ export function CreateChannelForm() {
   const canNext =
     step === 0
       ? avatarValid
-      : step === 1
+      : step === 2
         ? handleValid && payoutValid && !checkingHandle && handleTaken !== true
         : true;
   const canSubmit = handleValid && payoutValid && avatarValid && handleTaken !== true && !submitting;
@@ -156,9 +161,9 @@ export function CreateChannelForm() {
       channel = await provider.createChannel({ handle, payoutAddress: payout.trim() });
     } catch (e) {
       if (e instanceof DataError && e.code === "HANDLE_TAKEN") {
-        // Someone grabbed it between the inline check and submit — surface it on the Handle step, not a dead toast.
+        // Someone grabbed it between the inline check and submit — surface it on the Address step, not a dead toast.
         setHandleTaken(true);
-        setStep(1);
+        setStep(2);
       }
       toast({
         variant: "error",
@@ -211,10 +216,7 @@ export function CreateChannelForm() {
     <div className="mx-auto flex w-full max-w-xl flex-col gap-8 pt-4 sm:pt-10">
       <div className="flex flex-col gap-1">
         <h1 className="text-display-l text-fg">Create realm</h1>
-        <p className="text-fg-muted">
-          Set up your realm in a few steps. Created with <span className="mono">BASIC</span> status —
-          free; one realm per wallet.
-        </p>
+        <p className="text-fg-muted">Free — one realm per wallet.</p>
       </div>
 
       <Stepper current={step} />
@@ -230,7 +232,6 @@ export function CreateChannelForm() {
               setProfileTouched(true);
               setDisplayName(e.target.value);
             }}
-            helper="Your public name across the app — this is your profile name (one name per wallet), not a realm-only label."
           />
           <div className="flex flex-col gap-1.5">
             <span className="text-small text-fg-muted">Avatar</span>
@@ -250,19 +251,26 @@ export function CreateChannelForm() {
             onChange={(e) => setDescription(e.target.value)}
             maxLength={280}
           />
-          <div className="flex flex-col gap-1.5">
-            <span className="text-small text-fg-muted">Socials (optional)</span>
-            <LinkEditor value={linkInputs} onChange={setLinkInputs} />
-            <p className="text-caption text-fg-faint">
-              Only official profile links are accepted — YouTube must be youtube.com, X must be x.com, etc.
-              Anything else is rejected (no phishing).
-            </p>
-          </div>
         </section>
       ) : null}
 
-      {/* Step 2 — Address */}
+      {/* Step 2 — Socials (optional; official profile links only — LinkEditor validates inline) */}
       {step === 1 ? (
+        <section className="flex flex-col gap-4">
+          <p className="text-body text-fg-muted">Where your community can find you. Optional.</p>
+          <LinkEditor
+            size="lg"
+            value={linkInputs}
+            onChange={(v) => {
+              setProfileTouched(true);
+              setLinkInputs(v);
+            }}
+          />
+        </section>
+      ) : null}
+
+      {/* Step 3 — Address */}
+      {step === 2 ? (
         <section className="flex flex-col gap-4">
           <Input
             label="Handle"
@@ -273,12 +281,12 @@ export function CreateChannelForm() {
               checkingHandle
                 ? "Checking availability…"
                 : handleValid && handleTaken === false
-                  ? `Available — your realm's public URL: /c/${handle.trim()}`
-                  : `Your realm's public URL: /c/${handle.trim() || "your-handle"} — a–z, 0–9, underscore; 3–32 chars. This is a name, not a wallet.`
+                  ? `Available — /c/${handle.trim()}`
+                  : `Public URL: /c/${handle.trim() || "your_handle"}`
             }
             error={
               handle !== "" && !handleValid
-                ? "3–32 lowercase letters, digits or underscores (not a wallet address)"
+                ? "3–32 lowercase letters, digits or underscores"
                 : handleTaken === true
                   ? `@${handle} is already taken — pick another`
                   : undefined
@@ -289,19 +297,15 @@ export function CreateChannelForm() {
             mono
             value={payout}
             onChange={(e) => setPayout(e.target.value)}
-            helper="Solana address where crowns (USDC) land. Defaults to your login address."
+            helper="Where crowns (USDC) land."
             error={payout !== "" && !payoutValid ? "Looks like an incomplete address" : undefined}
           />
         </section>
       ) : null}
 
-      {/* Step 3 — Tiers */}
-      {step === 2 ? (
+      {/* Step 4 — Tiers */}
+      {step === 3 ? (
         <section className="flex flex-col gap-4">
-          <p className="text-small text-fg-faint">
-            Rank ladder inside your realm — pre-filled with sensible defaults, editable anytime in
-            Customization.
-          </p>
           <div className="flex flex-col gap-2">
             <div className="hidden grid-cols-[1fr_100px_44px_36px] gap-2 px-1 text-caption uppercase tracking-wide text-fg-faint sm:grid">
               <span>Name</span>

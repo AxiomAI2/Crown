@@ -89,7 +89,47 @@ export interface PageTheme {
   bgColor?: string; // any CSS color, e.g. "#1F1F1F"
   bgGradient?: string; // full CSS gradient string
   bgImage?: string; // http(s) or data:image URL
+  bgFill?: "cover" | "repeat"; // how the bgImage fills the card (default "cover")
   accent?: string; // CTA / accent color
+  buttonText?: string; // custom label on the Crown CTA (default "Crown")
+  buttonTextColor?: string; // text color on the Crown CTA (default dark, over the accent)
+  headerImage?: string; // optional image shown above the Crown form (http(s) or data:image URL)
+  pageText?: string; // optional greeting shown on the realm page (moderated UGC like the description)
+  showAvatar?: boolean; // show the realm avatar/monogram in the hero (default true)
+  /** Ordered building blocks of the page's action rail (builder: Customization → Page). Undefined → the
+   *  default stack `[crown form]` — exactly the pre-widgets look. Display-only, inert for Reign (§4.4). */
+  widgets?: PageWidget[];
+}
+
+/** One block on the public realm page. `donate` = the Crown form; `socials` = profile-link icons;
+ *  `button` = an external link; `text` = a free-text block (moderated UGC like the description). */
+export interface PageWidget {
+  id: string; // stable id for list edits/reorder
+  type: "donate" | "socials" | "button" | "text";
+  enabled: boolean;
+  label?: string; // button: its caption
+  url?: string; // button: http(s) target
+  text?: string; // text block content
+  amounts?: number[]; // donate: suggested quick-pick amounts (USDC) shown on the Crown form
+}
+
+/** Styling of the donation-goal OBS widget. All fields optional → sensible Crown defaults. Display-only. */
+export interface GoalTheme {
+  titlePos?: "top" | "bottom" | "hidden"; // where the caption sits (default "top")
+  showRemaining?: boolean; // show the "X left" countdown when a deadline is set (default true)
+  /** Format of the progress text inside the bar (default "amount_pct" → "$5,500 (55%)"). */
+  progressLabel?: "amount_pct" | "amount_target" | "pct";
+  showBounds?: boolean; // show the $0 … $target bounds row under the bar (default true)
+  height?: number; // indicator height in px (default 28)
+  radius?: number; // indicator corner radius in px (default 8)
+  borderWidth?: number; // indicator outline width in px (default 0)
+  trackColor?: string; // unfilled track color (default "#424242")
+  fillFrom?: string; // fill gradient start (default "#f57507")
+  fillTo?: string; // fill gradient end (default "#f59c07"); equal to fillFrom → solid
+  fillAngle?: number; // fill gradient angle in degrees (default 0)
+  textSize?: number; // bar text size in px (default 14); the caption scales with it
+  textBold?: boolean; // bold widget text (default true)
+  bgColor?: string; // overlay background — e.g. a chroma-key "#00ff00"; undefined/"" → transparent
 }
 
 export interface ChannelConfig {
@@ -104,6 +144,12 @@ export interface ChannelConfig {
    *  (the overlay renders nothing). `goalLabel` is an optional caption. Inert for Reign, like `description` (§4.4). */
   goalTarget?: MicroUSDC;
   goalLabel?: string;
+  /** Head-start baseline shown before any crowns (DA "начать сбор с"): displayed raised = goalStart + crowned. */
+  goalStart?: MicroUSDC;
+  /** Optional goal end (ISO): the overlay shows the remaining time and stops counting down past it. Display-only. */
+  goalDeadline?: Iso;
+  /** Look of the goal OBS widget (builder in Widgets → Donation goal). Display-only, inert for Reign (§4.4). */
+  goalTheme?: GoalTheme;
   /** Streamer-customizable look of the public realm page (`/c/[handle]`, builder in Customization → Page).
    *  Applies to the realm CARD + its Crown CTA, NOT the app chrome. Undefined → the default Crown look.
    *  Display-only, inert for Reign (§4.4). */
@@ -406,6 +452,9 @@ export type ConfigPatch = Partial<
     | "description"
     | "goalTarget"
     | "goalLabel"
+    | "goalStart"
+    | "goalDeadline"
+    | "goalTheme"
     | "pageTheme"
     | "tiers"
     | "minDonation"

@@ -2,6 +2,7 @@
 
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useData } from "./context";
+import { DEV_ADDRESS_KEY } from "./provider";
 import type { DisputeParamsValues } from "../chain/dispute-params";
 import type {
   Address,
@@ -341,6 +342,14 @@ export function useDevControls() {
     failMode: dev?.__getFailMode() ?? false,
     setAddress: (address: Address | null) => {
       dev?.__setAddress(address);
+      // Persist the dev login so a page reload doesn't sign the tester out (the provider — and its in-memory
+      // sessionAddress — is re-created on every load; restored in createDataProvider).
+      try {
+        if (address) window.localStorage.setItem(DEV_ADDRESS_KEY, address);
+        else window.localStorage.removeItem(DEV_ADDRESS_KEY);
+      } catch {
+        /* localStorage unavailable — the login just won't survive a reload */
+      }
       // Switching identity (sign in/out) in dev — INVALIDATE, not qc.clear(): in TanStack v5 clear() removes
       // queries without refetching active observers, so mounted screens freeze on skeletons forever
       // (same rule as ChainWalletBridge, wallet-provider.tsx). invalidate refetches everything in background.

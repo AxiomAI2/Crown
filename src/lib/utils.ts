@@ -87,6 +87,15 @@ export function channelHue(s: string): number {
   return h;
 }
 
+/** Fill a donations-list row template: {username} {amount} {message} → values (unknown tags left as-is).
+ *  Shared by the OBS list overlay and the builder preview. */
+export function renderRowTemplate(
+  tpl: string,
+  vars: { username: string; amount: string; message: string },
+): string {
+  return tpl.replace(/\{(username|amount|message)\}/g, (_m, k: keyof typeof vars) => vars[k] ?? "");
+}
+
 /** Turn a realm's PageTheme into inline CSS for the public card (+ `--realm-accent` var). Shared by the public
  *  realm page and the builder's live preview so they render identically. Undefined theme → no override. */
 export function pageThemeStyle(theme?: {
@@ -94,6 +103,7 @@ export function pageThemeStyle(theme?: {
   bgColor?: string;
   bgGradient?: string;
   bgImage?: string;
+  bgFill?: "cover" | "repeat";
   accent?: string;
 }): CSSProperties {
   if (!theme) return {};
@@ -102,8 +112,14 @@ export function pageThemeStyle(theme?: {
   else if (theme.bgType === "gradient" && theme.bgGradient) s.background = theme.bgGradient;
   else if (theme.bgType === "image" && theme.bgImage) {
     s.backgroundImage = `url("${theme.bgImage.replace(/"/g, "%22")}")`;
-    s.backgroundSize = "cover";
-    s.backgroundPosition = "center";
+    if (theme.bgFill === "repeat") {
+      s.backgroundRepeat = "repeat";
+      s.backgroundSize = "auto";
+    } else {
+      s.backgroundRepeat = "no-repeat";
+      s.backgroundSize = "cover";
+      s.backgroundPosition = "center";
+    }
   }
   if (theme.accent) s["--realm-accent"] = theme.accent;
   return s;

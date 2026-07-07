@@ -12,7 +12,13 @@ import {
   MAX_TIERS,
   TIER_DESC_MAX,
 } from "./fixtures";
-import { classifyTaskText, resolveAutoModerator, runPipeline, taskTextCommitment } from "./moderation";
+import {
+  classifyTaskText,
+  resolveAutoModerator,
+  runPipeline,
+  stripLinks,
+  taskTextCommitment,
+} from "./moderation";
 import {
   DataError,
   ErrChannelAlreadyExists,
@@ -828,18 +834,68 @@ export class MockDataProvider implements DataProvider {
       (await resolveAutoModerator().classify(patch.goalLabel, "")) === "HARD_BLOCK"
     )
       throw new DataError("CHANNEL_BLOCKED", "The goal label did not pass moderation.");
+    if (patch.goalStart !== undefined && patch.goalStart < 0n)
+      throw new DataError("BAD_CONFIG", "Goal start must be a non-negative amount.");
+    if (patch.goalDeadline !== undefined && Number.isNaN(Date.parse(patch.goalDeadline)))
+      throw new DataError("BAD_CONFIG", "Goal deadline is not a valid date.");
+    // Goal widget theme (display-only): bound numeric sizes and color-string lengths.
+    if (patch.goalTheme) {
+      const g = patch.goalTheme;
+      for (const [k, v, lo, hi] of [
+        ["height", g.height, 4, 200],
+        ["radius", g.radius, 0, 100],
+        ["borderWidth", g.borderWidth, 0, 40],
+        ["fillAngle", g.fillAngle, 0, 360],
+        ["textSize", g.textSize, 8, 40],
+      ] as const)
+        if (v !== undefined && (!Number.isFinite(v) || v < lo || v > hi))
+          throw new DataError("BAD_CONFIG", `Goal theme ${k} is out of range.`);
+      if (g.progressLabel !== undefined && !["amount_pct", "amount_target", "pct"].includes(g.progressLabel))
+        throw new DataError("BAD_CONFIG", "Unknown goal progress-label format.");
+      for (const v of [g.trackColor, g.fillFrom, g.fillTo, g.bgColor])
+        if (v !== undefined && v.length > 200)
+          throw new DataError("BAD_CONFIG", "Goal theme color value is too long.");
+    }
     // Public page theme (display-only, owner's own page): bound the sizes (an image data-URL could be huge).
     if (patch.pageTheme) {
       const t = patch.pageTheme;
-      if ((t.bgImage?.length ?? 0) > 700_000)
-        throw new DataError("TOO_LONG", "Background image is too large (use a URL or a smaller file).");
+      for (const [k, v] of [
+        ["bgImage", t.bgImage],
+        ["headerImage", t.headerImage],
+      ] as const)
+        if ((v?.length ?? 0) > 700_000)
+          throw new DataError("TOO_LONG", `${k} is too large (use a URL or a smaller file).`);
       for (const [k, v] of [
         ["bgColor", t.bgColor],
         ["bgGradient", t.bgGradient],
         ["accent", t.accent],
+        ["buttonTextColor", t.buttonTextColor],
+        ["buttonText", t.buttonText],
       ] as const)
         if (v !== undefined && v.length > 200)
           throw new DataError("BAD_CONFIG", `Theme ${k} value is too long.`);
+      if ((t.pageText?.length ?? 0) > CHANNEL_DESC_MAX)
+        throw new DataError("TOO_LONG", `Page text — up to ${CHANNEL_DESC_MAX} characters.`);
+      // Page text is public UGC (like the description) → moderate it.
+      if (t.pageText && (await resolveAutoModerator().classify(t.pageText, "")) === "HARD_BLOCK")
+        throw new DataError("CHANNEL_BLOCKED", "The page text did not pass moderation.");
+      // Page widgets: bounded list; button links are http(s) ONLY (no javascript: etc.); text is public UGC.
+      if (t.widgets) {
+        if (t.widgets.length > 8)
+          throw new DataError("BAD_CONFIG", "Up to 8 widgets on a page.");
+        for (const w of t.widgets) {
+          if (!["donate", "socials", "button", "text"].includes(w.type))
+            throw new DataError("BAD_CONFIG", `Unknown widget type "${w.type}".`);
+          if ((w.label?.length ?? 0) > 40)
+            throw new DataError("TOO_LONG", "Widget button label — up to 40 characters.");
+          if (w.url !== undefined && (w.url.length > 300 || !/^https?:\/\//i.test(w.url)))
+            throw new DataError("BAD_CONFIG", "Widget link must be an http(s) URL.");
+          if ((w.text?.length ?? 0) > 500)
+            throw new DataError("TOO_LONG", "Widget text — up to 500 characters.");
+          if (w.text && (await resolveAutoModerator().classify(w.text, "")) === "HARD_BLOCK")
+            throw new DataError("CHANNEL_BLOCKED", "A widget text did not pass moderation.");
+        }
+      }
     }
     // Banned words/symbols (owner-set): trim, drop empties, dedupe (case-insensitive), cap count & length.
     let cleanBlocked: string[] | undefined;
@@ -1345,7 +1401,12 @@ export class MockDataProvider implements DataProvider {
       txSignature: p.signature,
       ts,
     });
-    if (p.text && !blocked) await this.buildMessage(donation, p.text, ts);
+    // Spam filter (Moderation → Remove links): strip URLs/domains BEFORE moderation/storage — the queue, feed
+    // and widgets all see the cleaned text. Runs after the chain memo-hash check (ingest verified the signed
+    // original); text that was only a link is treated as no text.
+    let text = p.text;
+    if (text && cfg.removeLinks) text = stripLinks(text) || undefined;
+    if (text && !blocked) await this.buildMessage(donation, text, ts);
     this.donations.push(donation);
     const standing = this.standingFor(p.channelId, p.donor)!;
     const tierChanged = tierBefore !== standing.tier?.name;

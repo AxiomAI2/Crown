@@ -10,11 +10,12 @@
 :root {
   color-scheme: dark;
 
-  /* CROWN — black with gold: the base is pure black, surfaces are NEUTRALLY dark (no warm undertone —
-     gold lives in the text/accents, not in the background) */
-  --bg: #000000;
-  --surface: #0f0f0f; /* cards/panels — raised above the black background */
-  --surface-2: #191919; /* overlays/tracks/hover */
+  /* CROWN — dark gray with gold: the base is a COOL dark gray (owner's call 2026-07-07 — pure black
+     was too harsh, and a neutral gray read warm/yellowish next to all the gold, so the gray carries a
+     slight blue undertone to compensate). Keep the ladder: bg < surface < surface-2. */
+  --bg: #15171a;
+  --surface: #1e2024; /* cards/panels — raised above the dark-gray background */
+  --surface-2: #292b30; /* overlays/tracks/hover */
   --border: #8f7536; /* borders — muted gold */
   --border-strong: #c9a24a; /* accent/hover — bright gold */
 
@@ -23,24 +24,26 @@
   --text-muted: #ada491;
   --text-faint: #726a5a;
 
-  /* STATUS accent (Reign / ranks) — antique gold, muted relative to money */
+  /* STATUS accent (Reign / ranks) — antique gold, muted relative to money.
+     The *-bg tints are rebuilt on the gray base (they were mixed against pure black and read as
+     muddy brown stains on gray): each = surface + a hint of its accent, slightly LIGHTER than surface. */
   --status: #c9a24a;
   --status-dim: #8f7536;
-  --status-bg: #221b10;
+  --status-bg: #2a2517;
 
   /* MONEY accent (Crown / transactions / finality) — bright gold, rationed */
   --money: #e4b34c;
   --money-dim: #b5832f;
-  --money-bg: #241b07;
+  --money-bg: #2c2616;
   --money-bright: #f6d778; /* crown glint / hover */
 
   /* Semantics (separate from the accent) */
   --danger: #cf5a4d;
-  --danger-bg: #2a1512;
+  --danger-bg: #332120;
   --warn: #e0a94b;
   --info: #6e8bff;
   --success: #46b581; /* confirmation / done — the one deliberate green (avatar accept, success ticks) */
-  --success-bg: #10281d;
+  --success-bg: #1d2c25;
 
   /* Space, rhythm, shape */
   --space-1: 4px;

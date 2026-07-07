@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChannelStatusBanner } from "@/components/domain/channel-status";
-import { CustomizationTab } from "@/components/domain/customization-tab";
+import { ChannelSettingsEditor } from "@/components/domain/channel-settings-editor";
+import { RealmPageBuilder } from "@/components/domain/realm-page-builder";
 import { ChannelView } from "@/components/domain/channel-view";
 import { CreateChannelForm } from "@/components/domain/create-channel-form";
 import { DonorProfile } from "@/components/domain/donor-profile";
 import { ModerationQueue } from "@/components/domain/moderation-queue";
-import { RealmBlocklist } from "@/components/domain/realm-blocklist";
 import { RealmDashboard } from "@/components/domain/realm-dashboard";
 import { RealmGamesSettings } from "@/components/domain/realm-games-settings";
 import { RealmWidgets } from "@/components/domain/realm-widgets";
@@ -20,10 +20,11 @@ import { CrownWallet } from "@/components/layout/crown-wallet";
 import { RailToggle, useRailCollapsed } from "@/components/layout/rail-toggle";
 import { Button } from "@/components/ui/button";
 import { EmptyState, Skeleton } from "@/components/ui/feedback";
-import { CheckIcon, CopyIcon, ExternalLinkIcon } from "@/components/ui/icons";
+import { CheckIcon, ChevronDownIcon, CopyIcon, ExternalLinkIcon } from "@/components/ui/icons";
 import { toast } from "@/components/ui/toast";
 import { useCopied } from "@/components/ui/use-copied";
 import { explorerAddressUrl, IS_CHAIN } from "@/lib/chain/addresses";
+import { useData } from "@/lib/data/context";
 import { demoAddress } from "@/lib/data/dev-identity";
 import { useDevControls, useMyChannel, useSession } from "@/lib/data/hooks";
 import { cn } from "@/lib/utils";
@@ -35,21 +36,34 @@ type SectionKey =
   | "realm-dashboard"
   | "realm-queue"
   | "realm-games"
-  | "realm-widgets"
-  | "realm-customization"
-  | "realm-blocklist"
+  | "custom-profile"
+  | "custom-page"
+  | "custom-messages"
+  | "custom-payout"
+  | "widget-overlays"
+  | "widget-goal"
+  | "widget-list"
   | "settings";
 
 // The "My Realm" items depend on whether the user has their own realm. The entire Studio moved here.
 const REALM_OWNED: { key: SectionKey; label: string }[] = [
   { key: "realm-view", label: "Realm page" },
   { key: "realm-dashboard", label: "Dashboard" },
-  { key: "realm-queue", label: "Moderation queue" },
+  { key: "realm-queue", label: "Moderation" },
   { key: "realm-games", label: "Mini-games" },
-  { key: "realm-widgets", label: "Widgets" },
-  { key: "realm-customization", label: "Customization" },
-  { key: "realm-blocklist", label: "Blocklist" },
 ];
+// Collapsible folder: every way to customise the realm + the widgets, split into sub-pages.
+// "custom-payout" is chain-only (off-chain it renders nothing) → filtered at render time.
+const WIDGETS_CUSTOM: { key: SectionKey; label: string }[] = [
+  { key: "custom-profile", label: "Profile" },
+  { key: "custom-page", label: "Page" },
+  { key: "custom-messages", label: "Messages" },
+  { key: "custom-payout", label: "Payout" },
+  { key: "widget-overlays", label: "Overlays" },
+  { key: "widget-goal", label: "Donation goal" },
+  { key: "widget-list", label: "Donations list" },
+];
+const CUSTOM_KEYS: SectionKey[] = WIDGETS_CUSTOM.map((it) => it.key);
 const REALM_NONE: { key: SectionKey; label: string }[] = [{ key: "realm-create", label: "Create realm" }];
 
 // Deep-link aliases (including legacy ?tab values).
@@ -63,18 +77,36 @@ const TAB_ALIAS: Record<string, SectionKey> = {
   "realm-view": "realm-view",
   view: "realm-view",
   "realm-dashboard": "realm-dashboard",
-  customization: "realm-customization",
-  "realm-customization": "realm-customization",
+  customization: "custom-page",
+  "realm-customization": "custom-page",
+  page: "custom-page",
+  "custom-page": "custom-page",
+  "custom-profile": "custom-profile",
+  description: "custom-profile",
+  ranks: "custom-profile",
+  tiers: "custom-profile",
+  crowns: "custom-profile",
+  messages: "custom-messages",
+  "custom-messages": "custom-messages",
+  payout: "custom-payout",
+  "custom-payout": "custom-payout",
   queue: "realm-queue",
   "realm-queue": "realm-queue",
   games: "realm-games",
   "realm-games": "realm-games",
-  widgets: "realm-widgets",
-  "realm-widgets": "realm-widgets",
-  overlays: "realm-widgets",
-  blocklist: "realm-blocklist",
-  "realm-blocklist": "realm-blocklist",
+  widgets: "widget-overlays",
+  "realm-widgets": "widget-overlays",
+  overlays: "widget-overlays",
+  "widget-overlays": "widget-overlays",
+  goal: "widget-goal",
+  "widget-goal": "widget-goal",
+  list: "widget-list",
+  "widget-list": "widget-list",
+  // Blocklist tab removed: blocking/unblocking lives in the "…" moderation menu on donations.
+  blocklist: "realm-queue",
+  "realm-blocklist": "realm-queue",
   settings: "settings",
+  account: "settings",
 };
 
 /**
@@ -185,9 +217,19 @@ export default function SpacePage() {
           {section === "realm-dashboard" ? <RealmDashboard /> : null}
           {section === "realm-queue" ? <ModerationQueue /> : null}
           {section === "realm-games" ? <RealmGamesSettings /> : null}
-          {section === "realm-widgets" ? <RealmWidgets /> : null}
-          {section === "realm-customization" ? <CustomizationTab /> : null}
-          {section === "realm-blocklist" ? <RealmBlocklist /> : null}
+          {section === "custom-profile" ? (
+            <ChannelSettingsEditor title="Profile" group="profile" />
+          ) : null}
+          {section === "custom-page" ? <RealmPageBuilder /> : null}
+          {section === "custom-messages" ? (
+            <ChannelSettingsEditor title="Messages" group="messages" />
+          ) : null}
+          {section === "custom-payout" ? (
+            <ChannelSettingsEditor title="Payout" group="payout" />
+          ) : null}
+          {section === "widget-overlays" ? <RealmWidgets view="overlays" /> : null}
+          {section === "widget-goal" ? <RealmWidgets view="goal" /> : null}
+          {section === "widget-list" ? <RealmWidgets view="list" /> : null}
           {section === "settings" ? <SettingsSection address={address} /> : null}
         </main>
       </div>
@@ -209,6 +251,9 @@ function SpaceSidebar({
   collapsed: boolean;
 }) {
   const realmItems = hasRealm ? REALM_OWNED : REALM_NONE;
+  // The "Widgets & Customization" folder: open when toggled, or auto-open while one of its sub-pages is active.
+  const [customOpen, setCustomOpen] = useState(false);
+  const folderOpen = customOpen || CUSTOM_KEYS.includes(active);
 
   const item = (it: { key: SectionKey; label: string }, nested: boolean) => {
     const isCreate = it.key === "realm-create";
@@ -278,49 +323,68 @@ function SpaceSidebar({
           {realmLoading ? (
             <div className="px-3 py-2 text-small text-fg-faint">…</div>
           ) : (
-            realmItems.map((it) => item(it, true))
+            <>
+              {realmItems.map((it) => item(it, true))}
+              {hasRealm ? (
+                <div className="flex flex-col gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setCustomOpen((o) => !o)}
+                    aria-expanded={folderOpen}
+                    className="flex w-full items-center justify-between gap-2 rounded px-3 py-2 text-left text-small leading-snug text-fg-muted transition-colors duration-fast ease-ease hover:bg-surface-raised hover:text-fg md:pl-5"
+                  >
+                    <span>Widgets &amp; Customization</span>
+                    <ChevronDownIcon
+                      className={cn("h-4 w-4 flex-none transition-transform", folderOpen && "rotate-180")}
+                    />
+                  </button>
+                  {folderOpen ? (
+                    <div className="flex flex-col gap-0.5">
+                      {WIDGETS_CUSTOM.filter((it) => it.key !== "custom-payout" || IS_CHAIN).map((it) => (
+                        <button
+                          key={it.key}
+                          type="button"
+                          onClick={() => onSelect(it.key)}
+                          aria-current={active === it.key ? "page" : undefined}
+                          className={cn(
+                            "flex w-full items-center rounded px-3 py-1.5 text-left text-small transition-colors duration-fast ease-ease md:pl-8",
+                            active === it.key
+                              ? "bg-surface-raised text-fg"
+                              : "text-fg-muted hover:bg-surface-raised hover:text-fg",
+                          )}
+                        >
+                          {it.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
           )}
         </div>
 
         <div className="my-1 border-t border-border" aria-hidden />
-        {item({ key: "settings", label: "Settings" }, false)}
+        {item({ key: "settings", label: "Account" }, false)}
       </nav>
     </aside>
   );
 }
 
+/** "Account" tab — just the wallet (address, copy/explorer, sign out). Profile editing lives in the
+ *  Profile tab, so no duplicate link here. */
 function SettingsSection({ address }: { address: string }) {
   return (
     <div className="flex flex-col gap-8 pb-10">
-      <h1 className="text-display-l text-fg">Settings</h1>
-
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1 border-b border-border pb-3">
-          <h2 className="text-h2 text-fg">Profile</h2>
-          <p className="text-small text-fg-faint">
-            Your public identity (name, avatar, links) lives on your profile page.
-          </p>
-        </div>
-        <Link
-          href="/me"
-          className="inline-flex h-10 w-fit items-center rounded-lg border border-border px-4 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
-        >
-          Edit your profile →
-        </Link>
-      </section>
-
-      <section className="flex flex-col gap-4">
-        <div className="border-b border-border pb-3">
-          <h2 className="text-h2 text-fg">Account</h2>
-        </div>
-        <AccountBlock address={address} />
-      </section>
+      <h1 className="text-display-l text-fg">Account</h1>
+      <AccountBlock address={address} />
     </div>
   );
 }
 
 function AccountBlock({ address }: { address: string }) {
   const dev = useDevControls();
+  const data = useData();
   const [copied, mark] = useCopied();
   const btn =
     "flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface text-fg-muted transition-colors hover:border-border-strong hover:text-fg";
@@ -361,11 +425,13 @@ function AccountBlock({ address }: { address: string }) {
           </a>
         </div>
       </div>
-      {dev.available ? (
-        <Button variant="ghost" className="w-fit" onClick={() => dev.setAddress(null)}>
-          Sign out
-        </Button>
-      ) : null}
+      <Button
+        variant="ghost"
+        className="w-fit text-danger hover:text-danger"
+        onClick={() => (dev.available ? dev.setAddress(null) : void data.disconnect())}
+      >
+        Sign out
+      </Button>
     </div>
   );
 }

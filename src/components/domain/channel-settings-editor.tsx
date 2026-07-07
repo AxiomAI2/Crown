@@ -95,7 +95,18 @@ function UsdcAmountInput({
  * space (Customization) — a single source, no duplication.
  */
 /** Groups the config sections into sub-pages (Widgets & Customization folder). Omit → the whole editor. */
-export type CustomGroup = "description" | "ranks" | "crowns" | "messages" | "payout";
+export type CustomGroup = "profile" | "description" | "ranks" | "crowns" | "messages" | "payout";
+
+// One-line page subtitle per sub-page — so the H1 isn't floating alone and the section below doesn't
+// have to repeat it as its own heading (previously "Crowns" → "Crowns").
+const GROUP_SUBTITLE: Record<CustomGroup, string> = {
+  profile: "What supporters see.",
+  description: "The tagline on your realm page.",
+  ranks: "1 USDC = 1 Reign.",
+  crowns: "Minimum crown amounts.",
+  messages: "Rules for crown messages.",
+  payout: "Where crowns are paid out.",
+};
 
 export function ChannelSettingsEditor({
   title = "Realm settings",
@@ -144,7 +155,11 @@ export function ChannelSettingsEditor({
   const set = <K extends keyof Draft>(key: K, val: Draft[K]) =>
     setDraft({ ...draft, [key]: val } as Draft);
   // Which sub-page (group) to render; omit → the whole editor. Text/Audio/Names/Moderators share "messages".
-  const show = (g: CustomGroup) => !group || group === g;
+  // "profile" is a combined page: description + ranks + crowns together.
+  const inProfile = (g: CustomGroup) => g === "description" || g === "ranks" || g === "crowns";
+  const show = (g: CustomGroup) => !group || group === g || (group === "profile" && inProfile(g));
+  // Single-topic sub-pages hide their section heading (the H1 already says it). The combined "profile" page keeps them.
+  const grouped = !!group && group !== "profile";
 
   function save() {
     update.mutate(patch, {
@@ -155,46 +170,54 @@ export function ChannelSettingsEditor({
 
   return (
     <div className="flex flex-col gap-8 pb-24">
-      <h1 className="text-display-l text-fg">{title}</h1>
+      <div className="flex flex-col gap-1.5">
+        <h1 className="text-display-l text-fg">{title}</h1>
+        {group ? <p className="max-w-2xl text-fg-muted">{GROUP_SUBTITLE[group]}</p> : null}
+      </div>
 
+      {/* Sections. Single-topic sub-pages (Description/Ranks/Crowns/Payout) skip the section heading — the
+          page H1 already says it; a repeated h2 read as a stutter. `group-in-full-editor` keeps them. */}
+      <div className="flex flex-col gap-8 [&>section+section]:border-t [&>section+section]:border-border [&>section+section]:pt-8">
       {/* H1 payout attestation — chain/icp only; pins the payout address by owner signature. */}
       {show("payout") && IS_CHAIN && myChannelQ.data ? (
-        <PayoutAttestationSection channel={myChannelQ.data} />
+        <PayoutAttestationSection channel={myChannelQ.data} titled={!group} />
       ) : null}
 
       {show("description") ? (
-      <Section title="Realm description">
-        <p className="text-small text-fg-muted">
-          Your realm name and links come from your{" "}
+      <Section title={grouped ? undefined : "Realm description"}>
+        <p className="max-w-2xl text-small text-fg-muted">
+          Name and links are set in your{" "}
           <Link href="/space?tab=settings" className="text-info hover:underline">
             profile
-          </Link>{" "}
-          — one handle and one set of links per person. Here it&apos;s only the realm description (tagline); it&apos;s shown
-          on the realm page and moderated as UGC (profanity is fine, illegal content is not).
+          </Link>
+          .
         </p>
-        <Textarea
-          label="Description"
-          maxLength={CHANNEL_DESC_MAX}
-          showCount
-          value={draft.description}
-          onChange={(e) => set("description", e.target.value)}
-        />
+        <div className="max-w-2xl">
+          <Textarea
+            label="Description"
+            maxLength={CHANNEL_DESC_MAX}
+            showCount
+            value={draft.description}
+            onChange={(e) => set("description", e.target.value)}
+          />
+        </div>
       </Section>
       ) : null}
 
       {show("ranks") ? (
-      <Section title="Tiers and participation thresholds">
-        <p className="text-small text-fg-muted">
-          Reign accrues at a fixed rate: <span className="mono">1 USDC = 1 Reign</span>. Here you
-          set thresholds in Reign — how much is needed for a tier, perks and mini-game access.
-        </p>
+      <Section title={grouped ? undefined : "Tiers and participation thresholds"}>
+        {!grouped ? (
+          <p className="max-w-2xl text-small text-fg-muted">
+            <span className="mono">1 USDC = 1 Reign</span>.
+          </p>
+        ) : null}
         <TierEditor value={draft.tiers} onChange={(t) => set("tiers", t)} />
       </Section>
       ) : null}
 
       {show("crowns") ? (
-      <Section title="Crowns">
-        <div className="grid gap-4 sm:grid-cols-2">
+      <Section title={grouped ? undefined : "Crowns"}>
+        <div className="grid max-w-2xl gap-4 sm:grid-cols-2">
           <UsdcAmountInput
             label="Minimum crown, USDC"
             micro={draft.minDonation}
@@ -206,13 +229,16 @@ export function ChannelSettingsEditor({
             onMicro={(v) => set("minDonationWithText", v)}
           />
         </div>
+        <p className="max-w-2xl text-small text-fg-faint">
+          A higher minimum for crowns with text keeps drive-by spam out of your queue.
+        </p>
       </Section>
       ) : null}
 
       {show("messages") ? (
       <>
       <Section title="Text messages">
-        <label className="flex flex-col gap-2">
+        <label className="flex max-w-2xl flex-col gap-2">
           <span className="text-small text-fg-muted">Character limit</span>
           <div className="flex items-center gap-4">
             <input
@@ -229,17 +255,14 @@ export function ChannelSettingsEditor({
               {draft.messageMaxLen}
             </span>
           </div>
-          <span className="text-caption text-fg-faint">Number of characters allowed in a crown message.</span>
+          <span className="text-small text-fg-faint">Number of characters allowed in a crown message.</span>
         </label>
       </Section>
 
       <Section title="Audio messages">
-        <p className="text-small text-fg-muted">
+        <p className="max-w-2xl text-small text-fg-muted">
           Lets your supporters record their own audio with a microphone — an alternative to classic text
           messages.
-        </p>
-        <p className="text-small text-fg-faint">
-          Tip: a well-set minimum crown for audio helps keep unwanted content out.
         </p>
         <div className="flex items-center gap-3 pt-1">
           <Switch checked={false} onCheckedChange={() => {}} disabled label="Enabled" />
@@ -250,7 +273,7 @@ export function ChannelSettingsEditor({
       </Section>
 
       <Section title="Names and text display">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid max-w-2xl gap-4 sm:grid-cols-2">
           <Select
             label="Name mode"
             value={draft.nameMode}
@@ -280,6 +303,7 @@ export function ChannelSettingsEditor({
       </Section>
       </>
       ) : null}
+      </div>
 
       {dirty ? (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-raised">
@@ -300,10 +324,10 @@ export function ChannelSettingsEditor({
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <section className="flex flex-col gap-4 border-t border-border pt-6 first:border-t-0 first:pt-0">
-      <h2 className="text-h2 text-fg">{title}</h2>
+    <section className="flex flex-col gap-4">
+      {title ? <h2 className="text-h2 text-fg">{title}</h2> : null}
       {children}
     </section>
   );
@@ -314,11 +338,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  * it, so a donor verifies it before sending and no one (the platform included) can silently swap it.
  * Channels created before attestations pin the address here with one gasless signature.
  */
-function PayoutAttestationSection({ channel }: { channel: Channel }) {
+function PayoutAttestationSection({ channel, titled = true }: { channel: Channel; titled?: boolean }) {
   const attest = useAttestPayout();
   const attested = Boolean(channel.payoutAttestation);
   return (
-    <Section title="Payout address">
+    <Section title={titled ? "Payout address" : undefined}>
       <div className="flex flex-col gap-3">
         <p className="text-small text-fg-muted">
           Crowns go directly to this address. A wallet signature pins it to you: a donor verifies it
@@ -377,7 +401,7 @@ export function ModeratorEditor({
   const [address, setAddress] = useState("");
   const [scope, setScope] = useState<ModeratorRef["scope"]>("queue");
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex max-w-3xl flex-col gap-3">
       {value.length === 0 ? (
         <p className="text-small text-fg-faint">No moderators yet.</p>
       ) : (

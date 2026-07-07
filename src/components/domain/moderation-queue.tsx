@@ -6,10 +6,10 @@ import { ModeratorEditor } from "./channel-settings-editor";
 import { ModerationItem } from "./moderation";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
-import { ChevronDownIcon } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { Pager, usePager } from "@/components/ui/pager";
 import { Select } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
 import { useEscrowAction, useEscrowTasks } from "@/games/escrow-task/hooks";
 import { dueResolution } from "@/games/escrow-task/machine";
@@ -86,7 +86,7 @@ export function ModerationQueue() {
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-display-l text-fg">Moderation queue</h1>
+            <h1 className="text-display-l text-fg">Moderation</h1>
             {heldCount > 0 ? (
               <span className="inline-flex items-center gap-1.5 rounded-pill bg-money-bg px-2.5 py-0.5 text-small text-money">
                 <span className="h-1.5 w-1.5 rounded-pill bg-money" />
@@ -94,10 +94,7 @@ export function ModerationQueue() {
               </span>
             ) : null}
           </div>
-          <p className="text-fg-muted">
-            Text is private until shown — you only decide its fate. Money is separate: crowns are already
-            credited, and a task&apos;s escrow returns to the supporter on its own timer if left undone.
-          </p>
+          <p className="text-fg-muted">Text is private until you show it. Money is never affected.</p>
         </div>
         {channels.length > 1 ? (
           <Select
@@ -117,21 +114,11 @@ export function ModerationQueue() {
         ) : null}
       </div>
 
-      {/* Settings live right here (owner only) — the policy that governs this very queue. */}
-      {isOwner && channelId ? <ModerationSettings channelId={channelId} /> : null}
-
       {queueQ.isLoading || tasksQ.isLoading ? (
         <Skeleton className="h-40 w-full rounded-lg" />
       ) : queueQ.error ? (
         <ErrorState description="Couldn't load the queue." onRetry={() => queueQ.refetch()} />
-      ) : messages.length === 0 && heldTasks.length === 0 ? (
-        <div className="rounded-lg border border-border bg-surface">
-          <EmptyState
-            title="Queue is clear"
-            description="New crowns-with-text and tasks awaiting your decision will show up here."
-          />
-        </div>
-      ) : (
+      ) : messages.length === 0 && heldTasks.length === 0 ? null : (
         <div className="flex flex-col gap-6">
           {messages.length > 0 ? (
             <section className="flex flex-col gap-3">
@@ -212,6 +199,10 @@ export function ModerationQueue() {
           ) : null}
         </div>
       )}
+
+      {/* Settings BELOW the queue (owner only) — the queue itself is what this page is for; the policy that
+          feeds it is secondary and collapsed by default so pending texts are never below the fold. */}
+      {isOwner && channelId ? <ModerationSettings channelId={channelId} /> : null}
     </div>
   );
 }
@@ -228,13 +219,12 @@ const TEXT_MODES: { value: ChannelConfig["textShowMode"]; label: string; hint: s
 /**
  * Moderation settings, inline in the queue tab (owner only) — the policy that decides what lands in THIS queue:
  * how crown text is published (manual vs auto-if-clean, instant save) and who can moderate (moderators, saved
- * on demand). The same config as Customization → My Realm, surfaced where it's acted on. Collapsed by default.
+ * on demand). The same config as Customization → My Realm, surfaced where it's acted on.
  */
 function ModerationSettings({ channelId }: { channelId: string }) {
   const configQ = useChannelConfig(channelId);
   const update = useUpdateConfig(channelId);
   const config = configQ.data;
-  const [open, setOpen] = useState(false);
 
   const [mods, setMods] = useState<ModeratorRef[]>([]);
   const [words, setWords] = useState<string[]>([]);
@@ -285,6 +275,16 @@ function ModerationSettings({ channelId }: { channelId: string }) {
       },
     );
   }
+  function setRemoveLinks(v: boolean) {
+    update.mutate(
+      { removeLinks: v },
+      {
+        onSuccess: () =>
+          toast({ variant: "success", title: v ? "Links will be removed" : "Links allowed" }),
+        onError: (e) => toast({ variant: "error", title: "Couldn't save", description: String(e) }),
+      },
+    );
+  }
   function saveMods() {
     update.mutate(
       { moderators: mods },
@@ -296,80 +296,68 @@ function ModerationSettings({ channelId }: { channelId: string }) {
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-      >
-        <span className="flex items-center gap-2 text-small text-fg">
-          Moderation settings
-          <span className="text-caption text-fg-faint">
-            {config.textShowMode === "manual" ? "Manual approval" : "Auto-show if clean"}
-            {config.moderators.length > 0 ? ` · ${config.moderators.length} mod` : ""}
-            {(config.blockedWords?.length ?? 0) > 0 ? ` · ${config.blockedWords!.length} banned` : ""}
-          </span>
-        </span>
-        <ChevronDownIcon className={cn("h-4 w-4 text-fg-faint transition-transform", open && "rotate-180")} />
-      </button>
+    <div className="flex flex-col gap-7 rounded-2xl border border-border bg-surface p-6">
+      <div className="border-b border-border pb-4">
+        <h2 className="text-h3 text-fg">Moderation settings</h2>
+      </div>
 
-      {open ? (
-        <div className="flex flex-col gap-6 border-t border-border p-4">
-          {/* Text publishing policy — instant save (like a toggle). */}
-          <div className="flex flex-col gap-2">
-            <span className="text-caption uppercase tracking-wide text-fg-faint">How crown text is published</span>
-            <div className="inline-flex w-fit rounded-lg border border-border bg-[var(--bg)] p-0.5">
-              {TEXT_MODES.map((m) => (
-                <button
-                  key={m.value}
-                  type="button"
-                  onClick={() => setMode(m.value)}
-                  disabled={update.isPending}
-                  aria-pressed={config.textShowMode === m.value}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-small transition-colors",
-                    config.textShowMode === m.value
-                      ? "bg-money-bg text-money"
-                      : "text-fg-muted hover:text-fg",
-                  )}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-small text-fg-faint">
-              {TEXT_MODES.find((m) => m.value === config.textShowMode)?.hint}
-            </p>
+      {/* Text publishing policy — instant save (like a toggle). */}
+      <div className="flex flex-col gap-2.5">
+        <span className="text-caption uppercase tracking-wide text-fg-faint">How crown text is published</span>
+        <div className="inline-flex w-fit rounded-lg border border-border bg-[var(--bg)] p-0.5">
+          {TEXT_MODES.map((m) => (
+            <button
+              key={m.value}
+              type="button"
+              onClick={() => setMode(m.value)}
+              disabled={update.isPending}
+              aria-pressed={config.textShowMode === m.value}
+              className={cn(
+                "rounded-md px-3.5 py-1.5 text-small transition-colors",
+                config.textShowMode === m.value ? "bg-money-bg text-money" : "text-fg-muted hover:text-fg",
+              )}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Remove links — instant save. Label left, switch right. */}
+      <div className="flex items-center justify-between gap-4 border-t border-border pt-5">
+        <div className="flex min-w-0 flex-col">
+          <span className="text-caption uppercase tracking-wide text-fg-faint">Remove links</span>
+          <p className="text-small text-fg-faint">Strip links from crown text.</p>
+        </div>
+        <Switch
+          checked={!!config.removeLinks}
+          disabled={update.isPending}
+          onCheckedChange={setRemoveLinks}
+          label={config.removeLinks ? "On" : "Off"}
+        />
+      </div>
+
+      {/* Moderators — draft + explicit save. */}
+      <div className="flex flex-col gap-2.5 border-t border-border pt-5">
+        <span className="text-caption uppercase tracking-wide text-fg-faint">Moderators</span>
+        <ModeratorEditor value={mods} onChange={setMods} />
+        {modsDirty ? (
+          <div className="flex gap-2 pt-1">
+            <Button variant="money" size="sm" loading={update.isPending} onClick={saveMods}>
+              Save moderators
+            </Button>
+            <Button variant="ghost" size="sm" disabled={update.isPending} onClick={() => setMods(config.moderators)}>
+              Reset
+            </Button>
           </div>
+        ) : null}
+      </div>
 
-          {/* Moderators — draft + explicit save. */}
-          <div className="flex flex-col gap-2">
-            <span className="text-caption uppercase tracking-wide text-fg-faint">Moderators</span>
-            <p className="text-small text-fg-faint">
-              Wallets you trust to work this queue on your behalf.
-            </p>
-            <ModeratorEditor value={mods} onChange={setMods} />
-            {modsDirty ? (
-              <div className="flex gap-2 pt-1">
-                <Button variant="money" size="sm" loading={update.isPending} onClick={saveMods}>
-                  Save moderators
-                </Button>
-                <Button variant="ghost" size="sm" disabled={update.isPending} onClick={() => setMods(config.moderators)}>
-                  Reset
-                </Button>
-              </div>
-            ) : null}
-          </div>
-
-          {/* Banned words / symbols — realm-specific. A hit holds the text; the crown & Reign still count. */}
-          <div className="flex flex-col gap-2">
-            <span className="text-caption uppercase tracking-wide text-fg-faint">Banned words &amp; symbols</span>
-            <p className="text-small text-fg-faint">
-              Crown text containing any of these is held here for your review — it never auto-publishes. The
-              crown and Reign still count. Case-insensitive; matches inside longer text too.
-            </p>
-            {words.length > 0 ? (
+      {/* Banned words / symbols — realm-specific. A hit holds the text; the crown & Reign still count. */}
+      <div className="flex flex-col gap-2.5 border-t border-border pt-5">
+        <span className="text-caption uppercase tracking-wide text-fg-faint">Banned words &amp; symbols</span>
+        <p className="text-small text-fg-faint">Matching text waits for your review.</p>
+        {words.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
                 {words.map((w) => (
                   <span
@@ -422,9 +410,7 @@ function ModerationSettings({ channelId }: { channelId: string }) {
                 </Button>
               </div>
             ) : null}
-          </div>
-        </div>
-      ) : null}
+      </div>
     </div>
   );
 }

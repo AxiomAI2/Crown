@@ -133,6 +133,21 @@ export const ErrTextRequiresActiveChannel = new DataError(
   "A crown with text is only available on an activated realm.",
 );
 
+/** localStorage key of the persisted dev-login address (mock/api only). Written by useDevControls.setAddress;
+ *  restored below so a page reload doesn't sign the tester out (the provider is re-created on every load). */
+export const DEV_ADDRESS_KEY = "crown.dev.address";
+
+/** Browser-only: restore the persisted dev-login into a freshly created provider. No-op on the server. */
+function restoreDevAddress(provider: { __setAddress(address: string | null): void }): void {
+  if (typeof window === "undefined") return;
+  try {
+    const saved = window.localStorage.getItem(DEV_ADDRESS_KEY);
+    if (saved) provider.__setAddress(saved);
+  } catch {
+    /* localStorage unavailable (private mode etc.) — stay signed out */
+  }
+}
+
 /**
  * Implementation selection by ENV flag (CLAUDE.md §3). Moving between phases =
  * add an implementation of the interface, without touching any screen.
@@ -147,10 +162,14 @@ export function createDataProvider(source: string | undefined): DataProvider {
       if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_DEMO_SEED !== "off") {
         provider.seedDemo();
       }
+      restoreDevAddress(provider);
       return provider;
     }
-    case "api":
-      return new ApiDataProvider();
+    case "api": {
+      const provider = new ApiDataProvider();
+      restoreDevAddress(provider);
+      return provider;
+    }
     case "chain":
     case "icp":
       // Chain/IcpDataProvider ARE IMPLEMENTED, but wired up via a separate path (app/providers.tsx →

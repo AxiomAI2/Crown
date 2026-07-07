@@ -1,16 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { Monogram } from "@/components/domain/header-actions";
 import { useDevControls, useDonorOverview, useSession } from "@/lib/data/hooks";
 import { demoAddress } from "@/lib/data/demo-seed";
-import { fromMicro, shortAddress } from "@/lib/utils";
 
 /**
- * Wallet control in the CROWN header.
- * Phase 1 (mock): "Connect wallet" pins the session to the demo supporter `max` (has Reign in every realm) via
- * the engine's dev-controls — we don't duplicate the real wallet logic. Phase 3: ChainConnect (SIWS) will sit here.
+ * Wallet control in the CROWN header. Connected → ONE control: avatar + "Personal Space" (links to /space).
+ * No dropdown — profile, wallet address and Disconnect all live inside Personal Space → Account.
+ * Phase 1 (mock): "Connect wallet" pins the session to the demo supporter `max` via dev-controls.
  */
 export function CrownWallet() {
   const { data: session, isLoading } = useSession();
@@ -32,92 +30,21 @@ export function CrownWallet() {
     );
   }
 
-  return <IdentityMenu address={session.address} onDisconnect={() => dev.setAddress(null)} />;
+  return <IdentityLink address={session.address} />;
 }
 
-function IdentityMenu({ address, onDisconnect }: { address: string; onDisconnect: () => void }) {
-  const [open, setOpen] = useState(false);
+/** Avatar + "Personal Space", one link. Avatar/name come from the connected profile (fallback: the address). */
+function IdentityLink({ address }: { address: string }) {
   const overview = useDonorOverview(address);
-  // Identity for the avatar: the connected profile's name/avatar, not the raw address — otherwise the monogram is
-  // a random letter+hue derived from the wallet string ("B" on olive). Fall back to the address when there's no profile.
   const monoName = overview.data?.displayName?.trim() || address;
   const avatarUrl = overview.data?.avatarUrl;
-
-  // Esc closes the menu.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className="flex h-9 items-center gap-2 rounded-full border border-border bg-surface pl-1.5 pr-3 transition-colors hover:border-border-strong"
-      >
-        <Monogram name={monoName} avatarUrl={avatarUrl} size="xs" />
-        <span className="mono text-small text-fg-muted">{shortAddress(address)}</span>
-      </button>
-
-      {open && (
-        <>
-          <button
-            type="button"
-            aria-label="Close menu"
-            className="fixed inset-0 z-40 cursor-default"
-            onClick={() => setOpen(false)}
-          />
-          <div
-            role="menu"
-            className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-lg border border-border bg-surface shadow-xl shadow-black/40"
-          >
-            <div className="flex items-center gap-3 border-b border-border px-3 py-3">
-              <Monogram name={monoName} avatarUrl={avatarUrl} size="md" />
-              <div className="flex min-w-0 flex-col">
-                {overview.data?.displayName?.trim() ? (
-                  <span className="truncate text-small text-fg">{overview.data.displayName}</span>
-                ) : null}
-                <span className="mono text-caption text-fg-faint">{shortAddress(address)}</span>
-                <span className="text-caption text-fg-faint">
-                  {overview.data ? `$${Math.round(fromMicro(overview.data.totalDonated)).toLocaleString("en-US")} crowned` : "…"}
-                </span>
-              </div>
-            </div>
-            <MenuLink href="/me" onClick={() => setOpen(false)}>
-              My profile &amp; Reign
-            </MenuLink>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                onDisconnect();
-              }}
-              className="w-full border-t border-border px-3 py-2.5 text-left text-small text-fg-muted transition-colors hover:bg-surface-2 hover:text-danger"
-            >
-              Disconnect
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function MenuLink({ href, onClick, children }: { href: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <Link
-      href={href}
-      role="menuitem"
-      onClick={onClick}
-      className="block px-3 py-2.5 text-small text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
+      href="/space"
+      className="flex h-9 items-center gap-2 rounded-full border border-border bg-surface pl-3.5 pr-1.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
     >
-      {children}
+      Personal Space
+      <Monogram name={monoName} avatarUrl={avatarUrl} size="xs" />
     </Link>
   );
 }

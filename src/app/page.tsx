@@ -40,7 +40,7 @@ export default function HomePage() {
         className="pointer-events-none fixed inset-x-0 top-[var(--header-h)] -z-10 h-[520px]"
         style={{
           background:
-            "radial-gradient(60% 60% at 50% 0%, rgba(228,179,76,0.10) 0%, rgba(228,179,76,0.035) 38%, transparent 72%)",
+            "radial-gradient(60% 60% at 50% 0%, rgba(228,179,76,0.07) 0%, rgba(228,179,76,0.025) 38%, transparent 72%)",
         }}
       />
       <main className="mx-auto w-full max-w-[1600px] px-4 py-8 sm:py-10 lg:px-6">
@@ -264,7 +264,7 @@ function RealmsShowcase() {
   );
 }
 
-/** Left filter panel: sort, live-only, and a platform checklist. Sticky on desktop. */
+/** Left filter panel: sort, activity status, and a platform checklist. Sticky on desktop. */
 type RealmStatus = "all" | "game" | "dispute";
 
 function FiltersPanel({
@@ -493,15 +493,7 @@ function RealmCard({ realm }: { realm: ChannelCard }) {
           )}
         </span>
         <div className="flex min-w-0 flex-col">
-          <div className="flex items-center gap-2">
-            <span className="mono truncate text-fg">@{realm.handle}</span>
-            {realm.isLive ? (
-              <span className="inline-flex flex-none items-center gap-1 rounded-full border border-danger/35 bg-danger/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-danger">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-danger" aria-hidden />
-                Live
-              </span>
-            ) : null}
-          </div>
+          <span className="mono truncate text-fg">@{realm.handle}</span>
           {realm.displayName && (
             <span className="truncate text-small text-fg-faint">{realm.displayName}</span>
           )}

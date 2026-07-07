@@ -9,6 +9,8 @@ import { CrownLogo } from "@/components/crown-logo";
 import { DonationHistory } from "@/components/domain/donation-history";
 import { ConnectWalletButton } from "@/components/layout/connect-wallet-button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
+import { CheckIcon, CopyIcon } from "@/components/ui/icons";
+import { useCopied } from "@/components/ui/use-copied";
 import {
   useChannelConfig,
   useDonations,
@@ -104,28 +106,18 @@ export function RealmDashboard() {
 
   const GrowthChart = view === "bars" ? DailyBars : CumulativeAreaChart;
 
+  // Fundraising goal — same math as the OBS "goal" overlay: progress = all-time turnover / target.
+  const goalTarget = configQ.data?.goalTarget ?? 0n;
+  const goalLabel = configQ.data?.goalLabel?.trim() || "Goal";
+  const goalPct =
+    goalTarget > 0n ? (turnover >= goalTarget ? 100 : Number((turnover * 100n) / goalTarget)) : 0;
+  const goalRemaining = goalTarget > turnover ? goalTarget - turnover : 0n;
+
+  const avgCrown = crowns > 0 ? turnover / BigInt(crowns) : 0n;
+
   return (
     <div className="flex flex-col gap-8">
-      {/* Header */}
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <h1 className="text-display-l text-fg">@{channel.handle}</h1>
-          <span
-            className={cn(
-              "rounded-full border px-2 py-0.5 text-caption uppercase tracking-wide",
-              channel.status === "ACTIVE" ? "border-status text-status" : "border-border text-fg-faint",
-            )}
-          >
-            {channel.status}
-          </span>
-        </div>
-        <Link
-          href={`/c/${channel.handle}`}
-          className="rounded-md border border-border px-3 py-1.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
-        >
-          View public →
-        </Link>
-      </header>
+      <DashHeader handle={channel.handle} status={channel.status} />
 
       {/* Needs attention — the moderation queue */}
       {pending > 0 ? (
@@ -143,14 +135,55 @@ export function RealmDashboard() {
         </Link>
       ) : null}
 
-      {/* KPI */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <Kpi label="Crowned" value={money(turnover)} tone="money" />
-        <Kpi label="Net earned" value={money(net)} sub="97%" tone="money" />
-        <Kpi label="Last 7 days" value={money(last7d)} tone="money" />
-        <Kpi label="Supporters" value={num(patrons)} />
-        <Kpi label="Crowns" value={num(crowns)} />
-        <Kpi label="The Crown" value={topPatronName} crown />
+      {/* Hero — earnings on the left, The Crown on the right. Folds the old 6-KPI row into two focused cards. */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="relative overflow-hidden rounded-2xl border border-border bg-surface p-6 lg:col-span-2">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full"
+            style={{ background: "radial-gradient(circle, rgba(228,179,76,0.07), transparent 70%)" }}
+          />
+          <span className="text-caption uppercase tracking-wide text-fg-faint">Crowned · all time</span>
+          <div className="mt-1">
+            <Amount micro={turnover} variant="money" className="font-display text-display-l leading-none" />
+          </div>
+          <div className="mt-6 flex flex-wrap gap-x-10 gap-y-4 border-t border-border pt-5">
+            <Stat label="Net earned" value={money(net)} sub="97% to you" tone="money" />
+            <Stat label="Last 7 days" value={money(last7d)} />
+            <Stat label="Avg crown" value={money(avgCrown)} />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-6">
+          <span className="flex items-center gap-1.5 text-caption uppercase tracking-wide text-status">
+            <CrownLogo size={15} className="text-money" /> The Crown
+          </span>
+          {topPatron ? (
+            <div className="flex items-center gap-3">
+              <span
+                className="grid h-11 w-11 flex-none place-items-center rounded-full border font-display"
+                style={{
+                  borderColor: topPatron.tier?.color ?? "var(--border)",
+                  color: topPatron.tier?.color ?? "var(--text-faint)",
+                }}
+                aria-hidden
+              >
+                {(topPatron.tier?.name ?? "—").slice(0, 1).toUpperCase()}
+              </span>
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate text-body text-fg">{topPatronName}</span>
+                <span className="text-caption text-status">{num(topPatron.points)} Reign</span>
+              </div>
+              <span className="mono ml-auto font-display text-money">{money(topPatron.totalDonated)}</span>
+            </div>
+          ) : (
+            <p className="text-small text-fg-faint">No supporters yet — crowns build your court.</p>
+          )}
+          <div className="mt-auto flex gap-8 border-t border-border pt-4">
+            <Stat label="Supporters" value={num(patrons)} />
+            <Stat label="Crowns" value={num(crowns)} />
+          </div>
+        </div>
       </div>
 
       {/* Analytics */}
@@ -188,6 +221,42 @@ export function RealmDashboard() {
             />
           </ChartCard>
         </div>
+      </section>
+
+      {/* Fundraising goal — mirrors the OBS "goal" overlay; the target is set in Widgets → Donation goal. */}
+      <section className="flex flex-col gap-3">
+        <SectionHead title="Fundraising goal" hint="The same progress your goal overlay shows" />
+        {goalTarget > 0n ? (
+          <div className="flex flex-wrap items-center gap-8 rounded-lg border border-border bg-surface p-6">
+            <div className="relative grid place-items-center">
+              <ProgressRing pct={goalPct} />
+              <div className="absolute flex flex-col items-center gap-0.5">
+                <span className="font-display text-h2 text-fg">{goalPct}%</span>
+                <span className="mono text-caption text-fg-faint">
+                  {money(turnover)} / {money(goalTarget)}
+                </span>
+              </div>
+            </div>
+            <div className="flex min-w-0 flex-col gap-4">
+              <span className="truncate text-body font-medium text-fg">{goalLabel}</span>
+              <div className="flex flex-col gap-1">
+                <span className="mono font-display text-h2 text-money">{money(turnover)}</span>
+                <span className="text-caption uppercase tracking-wide text-fg-faint">Collected</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="mono font-display text-h2 text-fg">{money(goalRemaining)}</span>
+                <span className="text-caption uppercase tracking-wide text-fg-faint">Remaining</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-small text-fg-faint">
+            No goal set.{" "}
+            <Link href="/space?tab=realm-widgets" className="text-money transition-colors hover:text-money-bright">
+              Set one in Widgets →
+            </Link>
+          </p>
+        )}
       </section>
 
       {/* The Crown + Tier distribution */}
@@ -240,36 +309,95 @@ export function RealmDashboard() {
   );
 }
 
-function Kpi({
+/** Compact stat: big value + a small caption (optional " · sub"). Used inside the hero cards. */
+function Stat({
   label,
   value,
   sub,
   tone,
-  crown,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone?: "money";
-  crown?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-4 py-3">
-      <span className="text-caption uppercase tracking-wide text-fg-faint">{label}</span>
+    <div className="flex flex-col gap-1">
       <span
         className={cn(
-          "truncate font-display text-xl font-semibold",
-          tone === "money" || crown ? "text-money" : "text-fg",
+          "mono font-display text-h3 font-semibold leading-none",
+          tone === "money" ? "text-money" : "text-fg",
         )}
-        title={value}
       >
-        {crown && value !== "—" ? (
-          <CrownLogo size={18} className="mr-1 inline-block align-[-3px] text-money" />
-        ) : null}
         {value}
       </span>
-      {sub ? <span className="text-caption text-fg-faint">{sub}</span> : null}
+      <span className="text-caption uppercase tracking-wide text-fg-faint">
+        {label}
+        {sub ? <span className="normal-case text-fg-faint/80"> · {sub}</span> : null}
+      </span>
     </div>
+  );
+}
+
+/** Dashboard header: @handle + status pill, with copy-link and view-public actions. Shared by both states. */
+function DashHeader({ handle, status }: { handle: string; status: string }) {
+  const [copied, mark] = useCopied();
+  return (
+    <header className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <h1 className="text-display-l text-fg">@{handle}</h1>
+        <span
+          className={cn(
+            "rounded-full border px-2 py-0.5 text-caption uppercase tracking-wide",
+            status === "ACTIVE" ? "border-status text-status" : "border-border text-fg-faint",
+          )}
+        >
+          {status}
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={async () => {
+            await navigator.clipboard.writeText(`${window.location.origin}/c/${handle}`);
+            mark();
+          }}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
+        >
+          {copied ? <CheckIcon className="h-4 w-4 text-status" /> : <CopyIcon className="h-4 w-4" />}
+          {copied ? "Copied" : "Copy link"}
+        </button>
+        <Link
+          href={`/c/${handle}`}
+          className="rounded-md border border-border px-3 py-1.5 text-small text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
+        >
+          View public →
+        </Link>
+      </div>
+    </header>
+  );
+}
+
+/** Circular goal progress (0–100). Track = border token, fill = money; starts at 12 o'clock. */
+function ProgressRing({ pct }: { pct: number }) {
+  const r = 62;
+  const c = 2 * Math.PI * r;
+  return (
+    <svg width={150} height={150} viewBox="0 0 150 150" className="-rotate-90" aria-hidden>
+      <circle cx={75} cy={75} r={r} fill="none" stroke="var(--border)" strokeWidth={9} />
+      <circle
+        cx={75}
+        cy={75}
+        r={r}
+        fill="none"
+        stroke="var(--money)"
+        strokeWidth={9}
+        strokeLinecap="round"
+        strokeDasharray={c}
+        strokeDashoffset={c * (1 - Math.min(100, Math.max(0, pct)) / 100)}
+        className="transition-[stroke-dashoffset] duration-500"
+      />
+    </svg>
   );
 }
 

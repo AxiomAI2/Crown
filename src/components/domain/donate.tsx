@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { useDonate, useMyBlock } from "@/lib/data/hooks";
+import { donateAmounts } from "@/lib/page-widgets";
 import { pointsForAmount } from "@/lib/reputation";
 import { cn, formatPoints, toMicro } from "@/lib/utils";
 import type {
@@ -29,8 +30,6 @@ import type {
   Session,
   ViewerStanding,
 } from "@/lib/data/types";
-
-const PRESETS = [5, 10, 25, 100];
 const SOFT_WORDS = ["worst", "loser", "scam", "idiot"];
 
 const USDC_DECIMALS = 6; // USDC precision: there are no more decimal places than this in micro-USDC
@@ -88,9 +87,17 @@ export function DonateWidget({
   });
 
   const connected = Boolean(session.address);
-  // Streamer's page-theme accent (Customization → Page): tints the Crown CTA + the selected preset. Undefined → default.
+  // Suggested quick-pick amounts, configurable in Customization → Page (Crown form). Falls back to the default.
+  const presets = donateAmounts(config.pageTheme);
+  // Streamer's page-theme (Customization → Page): tints the Crown CTA + the selected preset, custom label,
+  // and an optional banner image above the form. Undefined → default Crown look.
   const accent = config.pageTheme?.accent;
-  const accentStyle = accent ? { background: accent, borderColor: accent, color: "#0d0d0d" } : undefined;
+  const buttonTextColor = config.pageTheme?.buttonTextColor ?? "#0d0d0d";
+  const accentStyle = accent
+    ? { background: accent, borderColor: accent, color: buttonTextColor }
+    : undefined;
+  const crownLabel = config.pageTheme?.buttonText?.trim() || "Crown";
+  const headerImage = config.pageTheme?.headerImage?.trim();
   const isBasic = channel.status === "BASIC";
   const amountNum = Number(amount);
   const amountPositive = amount !== "" && Number.isFinite(amountNum) && amountNum > 0;
@@ -156,6 +163,12 @@ export function DonateWidget({
 
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-border bg-[var(--bg)] p-4">
+      {headerImage ? (
+        // Streamer's "image above the form" (Customization → Page). Decorative, capped height so it can't push
+        // the form off-screen.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={headerImage} alt="" className="-mx-4 -mt-4 h-28 w-[calc(100%+2rem)] rounded-t-lg object-cover" />
+      ) : null}
       {!connected ? (
         <>
           <h3 className="text-h3 text-fg">Crown</h3>
@@ -228,8 +241,11 @@ export function DonateWidget({
             </button>
           </div>
         ) : null}
-        <div className="grid grid-cols-4 gap-2">
-          {PRESETS.map((p) => {
+        <div
+          className="grid gap-2"
+          style={{ gridTemplateColumns: `repeat(${Math.min(presets.length, 4)}, minmax(0,1fr))` }}
+        >
+          {presets.map((p) => {
             const selected = amount !== "" && amountNum === p;
             return (
               <Button
@@ -297,7 +313,7 @@ export function DonateWidget({
         className="border-border-strong bg-[var(--bg)] hover:bg-surface-raised"
         style={accentStyle}
       >
-        Crown
+        {crownLabel}
       </Button>
 
       <Dialog

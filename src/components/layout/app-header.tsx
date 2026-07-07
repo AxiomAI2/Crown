@@ -55,31 +55,9 @@ export function AppHeader() {
           )}
         </nav>
 
-        {/* Account actions — a single cluster on the right, shared height/shape (h-9, rounded-lg). */}
+        {/* Account — ONE control on the right. Create realm / Personal Space / Profile / Disconnect all live
+            inside the identity dropdown (no separate header buttons). */}
         <div className="ml-auto flex items-center gap-2">
-          {/* Studio lives in Personal Space; for a connected user without a realm — a prominent gold create CTA. */}
-          {session?.address && !session?.isCreator ? (
-            <Link
-              href="/space?tab=realm-create"
-              className="inline-flex h-9 items-center rounded-lg border border-money-dim bg-money-bg/40 px-3.5 text-small font-semibold text-money transition-colors hover:border-money hover:bg-money-bg"
-            >
-              Create realm
-            </Link>
-          ) : null}
-          {session?.address ? (
-            <Link
-              href="/space"
-              aria-current={isActive("/space") ? "page" : undefined}
-              className={cn(
-                "inline-flex h-9 items-center rounded-lg border px-3.5 text-small transition-colors",
-                isActive("/space")
-                  ? "border-border-strong text-fg"
-                  : "border-border text-fg-muted hover:border-border-strong hover:text-fg",
-              )}
-            >
-              Personal Space
-            </Link>
-          ) : null}
           {/* chain → real wallet + SIWS (ChainConnect); mock/api → dev stub (sign in by address). */}
           {IS_CHAIN ? <ConnectWalletButton /> : <CrownWallet />}
         </div>

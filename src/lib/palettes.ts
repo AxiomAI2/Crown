@@ -16,7 +16,9 @@ function bg(base: string, surface: string, surface2: string): Record<string, str
 }
 
 export const PALETTES: Palette[] = [
-  { id: "black", name: "Pure black (default)", dot: "#000000", vars: bg("#000000", "#0f0f0f", "#191919") },
+  // Slightly cool gray: a truly neutral gray reads warm/yellowish next to the gold accents.
+  { id: "darkgray", name: "Dark gray (default)", dot: "#15171a", vars: bg("#15171a", "#1e2024", "#292b30") },
+  { id: "black", name: "Pure black", dot: "#000000", vars: bg("#000000", "#0f0f0f", "#191919") },
   { id: "obsidian", name: "Obsidian (warm near-black)", dot: "#0a0806", vars: bg("#080706", "#12100c", "#1c1913") },
   { id: "charcoal", name: "Charcoal (neutral)", dot: "#0d0d0f", vars: bg("#0d0d0f", "#17171a", "#222228") },
   { id: "graphite", name: "Graphite (soft, lifted)", dot: "#101012", vars: bg("#101012", "#1a1a1f", "#26262c") },
@@ -28,7 +30,7 @@ export const PALETTES: Palette[] = [
   { id: "forest", name: "Forest (green-black)", dot: "#060a08", vars: bg("#060a08", "#0f1512", "#19211c") },
 ];
 
-export const DEFAULT_PALETTE_ID = "black";
+export const DEFAULT_PALETTE_ID = "darkgray";
 
 // The variables the test touches (to clear previous overrides on change).
 const ALL_KEYS = Array.from(new Set(PALETTES.flatMap((p) => Object.keys(p.vars))));

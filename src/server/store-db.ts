@@ -7,6 +7,7 @@ import type {
   ChannelConfig,
   Donation,
   IncidentLog,
+  GoalTheme,
   LedgerEvent,
   LightProfile,
   MessageRef,
@@ -82,13 +83,15 @@ export async function saveConfigs(
         `INSERT INTO channel_configs
            (channel_id, version, hash, description, tiers, min_donation, min_donation_with_text,
             message_max_len, name_mode, text_show_mode, moderators, enabled_games,
-            min_reputation_to_task, min_reputation_to_dispute, goal_target, goal_label, updated_at, page_theme)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+            min_reputation_to_task, min_reputation_to_dispute, goal_target, goal_label, updated_at, page_theme,
+            blocked_words, remove_links, goal_start, goal_deadline, goal_theme)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
          ON CONFLICT (channel_id, version) DO UPDATE SET
            hash=$3, description=$4, tiers=$5, min_donation=$6, min_donation_with_text=$7,
            message_max_len=$8, name_mode=$9, text_show_mode=$10, moderators=$11, enabled_games=$12,
            min_reputation_to_task=$13, min_reputation_to_dispute=$14, goal_target=$15, goal_label=$16,
-           updated_at=$17, page_theme=$18`,
+           updated_at=$17, page_theme=$18, blocked_words=$19, remove_links=$20,
+           goal_start=$21, goal_deadline=$22, goal_theme=$23`,
         [
           cfg.channelId,
           cfg.version,
@@ -108,6 +111,11 @@ export async function saveConfigs(
           cfg.goalLabel ?? null,
           cfg.updatedAt,
           cfg.pageTheme != null ? JSON.stringify(cfg.pageTheme) : null,
+          JSON.stringify(cfg.blockedWords ?? []),
+          cfg.removeLinks ?? false,
+          cfg.goalStart != null ? String(cfg.goalStart) : null,
+          cfg.goalDeadline ?? null,
+          cfg.goalTheme != null ? JSON.stringify(cfg.goalTheme) : null,
         ],
       );
     }
@@ -127,6 +135,9 @@ export async function loadConfigs(db: PGlite): Promise<Map<string, ChannelConfig
       description: (row.description as string | null) ?? undefined,
       goalTarget: row.goal_target != null ? BigInt(row.goal_target as string) : undefined,
       goalLabel: (row.goal_label as string | null) ?? undefined,
+      goalStart: row.goal_start != null ? BigInt(row.goal_start as string) : undefined,
+      goalDeadline: row.goal_deadline != null ? toIso(row.goal_deadline) : undefined,
+      goalTheme: asJson<GoalTheme | undefined>(row.goal_theme, undefined),
       pageTheme: asJson<PageTheme | undefined>(row.page_theme, undefined),
       tiers: asJson(row.tiers, []),
       minDonation: BigInt(row.min_donation as string),
@@ -137,6 +148,8 @@ export async function loadConfigs(db: PGlite): Promise<Map<string, ChannelConfig
       nameMode: row.name_mode as ChannelConfig["nameMode"],
       textShowMode: row.text_show_mode as ChannelConfig["textShowMode"],
       moderators: asJson(row.moderators, []),
+      blockedWords: asJson(row.blocked_words, []),
+      removeLinks: Boolean(row.remove_links),
       enabledGames: asJson(row.enabled_games, []),
       updatedAt: toIso(row.updated_at),
     };
