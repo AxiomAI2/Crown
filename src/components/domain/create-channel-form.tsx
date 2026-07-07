@@ -3,6 +3,12 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AvatarEditor } from "@/components/domain/avatar-editor";
+import {
+  inputsFromLinks,
+  LinkEditor,
+  type LinkInputs,
+  linksFromInputs,
+} from "@/components/domain/link-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,6 +49,9 @@ export function CreateChannelForm() {
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [description, setDescription] = useState("");
+  // Social links — validated against each platform's OFFICIAL domain (LinkEditor / normalizeChannelLink):
+  // a YouTube link must be youtube.com/@…, an X link x.com/… etc. Phishing/scam URLs are rejected inline.
+  const [linkInputs, setLinkInputs] = useState<LinkInputs>([]);
   const [tiers, setTiers] = useState<TierDraft[]>(() =>
     DEFAULT_TIERS.map((t) => ({
       name: t.name,
@@ -80,6 +89,7 @@ export function CreateChannelForm() {
     if (seeded || profileTouched || !profile) return;
     if (profile.displayName) setDisplayName(profile.displayName);
     if (profile.avatarUrl) setAvatarUrl(profile.avatarUrl);
+    if (profile.links?.length) setLinkInputs(inputsFromLinks(profile.links));
     setSeeded(true);
   }, [seeded, profileTouched, profile]);
 
@@ -161,15 +171,19 @@ export function CreateChannelForm() {
 
     // The realm now EXISTS. Everything below is optional setup: a failure here is partial, never "not created".
     const nextName = displayName.trim();
+    // Canonical, validated links (invalid/phishing dropped by linksFromInputs → normalizeChannelLink).
+    const nextLinks = linksFromInputs(linkInputs);
     const profileChanged =
       (nextName !== "" && nextName !== (profile?.displayName ?? "")) ||
-      (avatar !== "" && avatar !== (profile?.avatarUrl ?? ""));
+      (avatar !== "" && avatar !== (profile?.avatarUrl ?? "")) ||
+      JSON.stringify(nextLinks) !== JSON.stringify(profile?.links ?? []);
     try {
-      // Only write the profile when the name/avatar actually changed — never silently re-stamp the personal profile.
+      // Only write the profile when the name/avatar/links actually changed — never silently re-stamp the personal profile.
       if (profileChanged) {
         await provider.updateProfile({
           displayName: nextName || undefined,
           avatarUrl: avatar || undefined,
+          links: nextLinks,
         });
       }
       const sorted = [...tiers]
@@ -236,6 +250,14 @@ export function CreateChannelForm() {
             onChange={(e) => setDescription(e.target.value)}
             maxLength={280}
           />
+          <div className="flex flex-col gap-1.5">
+            <span className="text-small text-fg-muted">Socials (optional)</span>
+            <LinkEditor value={linkInputs} onChange={setLinkInputs} />
+            <p className="text-caption text-fg-faint">
+              Only official profile links are accepted — YouTube must be youtube.com, X must be x.com, etc.
+              Anything else is rejected (no phishing).
+            </p>
+          </div>
         </section>
       ) : null}
 
