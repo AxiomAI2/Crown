@@ -105,6 +105,16 @@ export function ChannelFeed({
         <EmptyState
           title="Nothing found"
           description={query ? "Try a different search." : "No crowns yet."}
+          action={
+            query ? undefined : (
+              <a
+                href={`/c/${handle}#crown`}
+                className="inline-flex h-9 items-center rounded-lg border border-money-dim bg-money-bg/40 px-4 text-small font-semibold text-money transition-colors hover:border-money hover:bg-money-bg"
+              >
+                Crown first →
+              </a>
+            )
+          }
         />
       ) : (
         <>

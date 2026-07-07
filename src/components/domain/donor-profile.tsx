@@ -92,6 +92,49 @@ function monthYear(iso?: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
+/** Share button — copies the profile's public link (mirrors the realm's Share action). */
+function ShareProfileButton({ address }: { address: string }) {
+  const [copied, markCopied] = useCopied();
+  return (
+    <button
+      type="button"
+      title="Share profile (copy link)"
+      aria-label="Share profile"
+      className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
+      onClick={async () => {
+        const url =
+          typeof window !== "undefined" ? `${window.location.origin}/u/${address}` : `/u/${address}`;
+        try {
+          await navigator.clipboard.writeText(url);
+          markCopied();
+          toast({ variant: "success", title: "Profile link copied" });
+        } catch {
+          toast({ variant: "error", title: "Couldn't copy" });
+        }
+      }}
+    >
+      {copied ? (
+        <CheckIcon className="h-[18px] w-[18px]" />
+      ) : (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-[18px] w-[18px]"
+          aria-hidden="true"
+        >
+          <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+          <path d="M12 16V4" />
+          <path d="m7 9 5-5 5 5" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 /** Icon "copy" button (address / link) with a checkmark confirmation. */
 function CopyIconButton({ value, title }: { value: string; title: string }) {
   const [copied, markCopied] = useCopied();
@@ -474,6 +517,7 @@ function DonorDashboard({
               ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              <ShareProfileButton address={overview.address} />
               <CopyIconButton value={overview.address} title="Copy address" />
               {editable ? <ProfileEditDialog /> : null}
             </div>

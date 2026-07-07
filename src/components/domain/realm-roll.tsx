@@ -57,7 +57,12 @@ export function RealmRoll({
       ) : error ? (
         <p className="text-small text-fg-faint">Couldn&apos;t load the roll.</p>
       ) : top.length === 0 ? (
-        <p className="text-small text-fg-muted">No crowns yet — be the first.</p>
+        <div className="flex flex-col items-start gap-2">
+          <p className="text-small text-fg-muted">No crowns yet — be the first.</p>
+          <a href={`/c/${handle}#crown`} className="text-small font-semibold text-money hover:underline">
+            Crown first →
+          </a>
+        </div>
       ) : (
         <ol className="flex flex-col gap-0.5">
           {top.map((e, i) => (

@@ -33,7 +33,11 @@ export default function SupportersPage() {
         ) : !channel ? (
           <EmptyState title="Realm not found" description={`Realm @${handle} doesn't exist.`} />
         ) : (
-          <Leaderboard channelId={channel.id} currentAddress={address} />
+          <Leaderboard
+            channelId={channel.id}
+            currentAddress={address}
+            crownHref={`/c/${handle}#crown`}
+          />
         )}
       </main>
     </>
