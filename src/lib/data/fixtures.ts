@@ -8,6 +8,10 @@ import type { ChannelConfig, Tier } from "./types";
 // Cap on the number of tiers per realm (anti-"infinite list"). Default is 5, cap is 20.
 export const MAX_TIERS = 20;
 
+// Caps for the realm's banned-words list (anti-DoS on top of the UI).
+export const MAX_BLOCKED_WORDS = 200;
+export const BLOCKED_WORD_MAX_LEN = 40;
+
 // Length limit for a tier description (UGC, optional). Shorter than a realm description — it's a caption for a tier, not a block of text.
 export const TIER_DESC_MAX = 140;
 
@@ -60,6 +64,7 @@ export function defaultChannelConfig(channelId: string): ChannelConfig {
     nameMode: "addresses_only",
     textShowMode: "manual",
     moderators: [],
+    blockedWords: [], // owner-set banned words/symbols in crown text (empty = none)
     enabledGames: [], // mini-games are disabled by default (cold-start; ADR 0016)
     updatedAt: new Date().toISOString(),
   };

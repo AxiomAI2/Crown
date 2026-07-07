@@ -7,6 +7,7 @@ import { ModerationItem } from "./moderation";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
 import { ChevronDownIcon } from "@/components/ui/icons";
+import { Input } from "@/components/ui/input";
 import { Pager, usePager } from "@/components/ui/pager";
 import { Select } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
@@ -236,16 +237,43 @@ function ModerationSettings({ channelId }: { channelId: string }) {
   const [open, setOpen] = useState(false);
 
   const [mods, setMods] = useState<ModeratorRef[]>([]);
-  const [modsSeeded, setModsSeeded] = useState(false);
+  const [words, setWords] = useState<string[]>([]);
+  const [wordDraft, setWordDraft] = useState("");
+  const [seeded, setSeeded] = useState(false);
   useEffect(() => {
-    if (config && !modsSeeded) {
+    if (config && !seeded) {
       setMods(config.moderators);
-      setModsSeeded(true);
+      setWords(config.blockedWords ?? []);
+      setSeeded(true);
     }
-  }, [config, modsSeeded]);
+  }, [config, seeded]);
 
   if (!config) return null;
   const modsDirty = JSON.stringify(mods) !== JSON.stringify(config.moderators);
+  const wordsDirty = JSON.stringify(words) !== JSON.stringify(config.blockedWords ?? []);
+
+  function addWords() {
+    const parts = wordDraft
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!parts.length) return;
+    setWords((prev) => {
+      const next = [...prev];
+      for (const p of parts) if (!next.some((x) => x.toLowerCase() === p.toLowerCase())) next.push(p);
+      return next;
+    });
+    setWordDraft("");
+  }
+  function saveWords() {
+    update.mutate(
+      { blockedWords: words },
+      {
+        onSuccess: () => toast({ variant: "success", title: "Banned words saved" }),
+        onError: (e) => toast({ variant: "error", title: "Couldn't save", description: String(e) }),
+      },
+    );
+  }
 
   function setMode(mode: ChannelConfig["textShowMode"]) {
     if (mode === config!.textShowMode) return;
@@ -280,6 +308,7 @@ function ModerationSettings({ channelId }: { channelId: string }) {
           <span className="text-caption text-fg-faint">
             {config.textShowMode === "manual" ? "Manual approval" : "Auto-show if clean"}
             {config.moderators.length > 0 ? ` · ${config.moderators.length} mod` : ""}
+            {(config.blockedWords?.length ?? 0) > 0 ? ` · ${config.blockedWords!.length} banned` : ""}
           </span>
         </span>
         <ChevronDownIcon className={cn("h-4 w-4 text-fg-faint transition-transform", open && "rotate-180")} />
@@ -327,6 +356,68 @@ function ModerationSettings({ channelId }: { channelId: string }) {
                   Save moderators
                 </Button>
                 <Button variant="ghost" size="sm" disabled={update.isPending} onClick={() => setMods(config.moderators)}>
+                  Reset
+                </Button>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Banned words / symbols — realm-specific. A hit holds the text; the crown & Reign still count. */}
+          <div className="flex flex-col gap-2">
+            <span className="text-caption uppercase tracking-wide text-fg-faint">Banned words &amp; symbols</span>
+            <p className="text-small text-fg-faint">
+              Crown text containing any of these is held here for your review — it never auto-publishes. The
+              crown and Reign still count. Case-insensitive; matches inside longer text too.
+            </p>
+            {words.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {words.map((w) => (
+                  <span
+                    key={w}
+                    className="inline-flex items-center gap-1 rounded-pill border border-border bg-[var(--bg)] py-0.5 pl-2.5 pr-1 text-small"
+                  >
+                    <span className="mono text-fg">{w}</span>
+                    <button
+                      type="button"
+                      onClick={() => setWords(words.filter((x) => x !== w))}
+                      aria-label={`Remove ${w}`}
+                      className="grid h-4 w-4 place-items-center rounded-full text-fg-faint transition-colors hover:bg-surface-2 hover:text-danger"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <div className="flex items-end gap-2">
+              <Input
+                label="Add word or symbol"
+                value={wordDraft}
+                onChange={(e) => setWordDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addWords();
+                  }
+                }}
+                placeholder="e.g. scam, gg, 🤡  (comma-separated)"
+                className="flex-1"
+              />
+              <Button variant="secondary" onClick={addWords} disabled={!wordDraft.trim()}>
+                Add
+              </Button>
+            </div>
+            {wordsDirty ? (
+              <div className="flex gap-2 pt-1">
+                <Button variant="money" size="sm" loading={update.isPending} onClick={saveWords}>
+                  Save banned words
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={update.isPending}
+                  onClick={() => setWords(config.blockedWords ?? [])}
+                >
                   Reset
                 </Button>
               </div>

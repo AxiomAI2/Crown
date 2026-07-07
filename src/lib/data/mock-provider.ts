@@ -5,7 +5,13 @@ import { computePoints, computePointsAsOf, pointsForAmount, resolveTier } from "
 import { isLikelyBase58Address, toMicro } from "../utils";
 import { dispatchGame, GAME_HANDLERS, GameBusError, type GameContext } from "../../games";
 import { DEMO_CHANNELS, DEMO_NAMES, DEMO_TASKS, demoAddress } from "./demo-seed";
-import { defaultChannelConfig, MAX_TIERS, TIER_DESC_MAX } from "./fixtures";
+import {
+  BLOCKED_WORD_MAX_LEN,
+  defaultChannelConfig,
+  MAX_BLOCKED_WORDS,
+  MAX_TIERS,
+  TIER_DESC_MAX,
+} from "./fixtures";
 import { classifyTaskText, resolveAutoModerator, runPipeline, taskTextCommitment } from "./moderation";
 import {
   DataError,
@@ -812,8 +818,27 @@ export class MockDataProvider implements DataProvider {
         "CHANNEL_BLOCKED",
         "The description did not pass moderation (banned/hard content).",
       );
+    // Banned words/symbols (owner-set): trim, drop empties, dedupe (case-insensitive), cap count & length.
+    let cleanBlocked: string[] | undefined;
+    if (patch.blockedWords !== undefined) {
+      const seen = new Set<string>();
+      cleanBlocked = [];
+      for (const raw of patch.blockedWords) {
+        const w = raw.trim().slice(0, BLOCKED_WORD_MAX_LEN);
+        const key = w.toLowerCase();
+        if (!w || seen.has(key)) continue;
+        seen.add(key);
+        cleanBlocked.push(w);
+        if (cleanBlocked.length >= MAX_BLOCKED_WORDS) break;
+      }
+    }
     // The Reign rate is fixed → nothing to version. Tiers/minimums/settings apply immediately.
-    const updated: ChannelConfig = { ...current, ...patch, updatedAt: this.now() };
+    const updated: ChannelConfig = {
+      ...current,
+      ...patch,
+      ...(cleanBlocked !== undefined ? { blockedWords: cleanBlocked } : {}),
+      updatedAt: this.now(),
+    };
     list[list.length - 1] = updated;
     return updated;
   }
@@ -1208,7 +1233,17 @@ export class MockDataProvider implements DataProvider {
       this.modCache.delete(oldest);
     }
     const isHardBlock = verdict === "HARD_BLOCK";
-    const autoShow = !isHardBlock && cfg.textShowMode === "auto_if_clean" && verdict === "CLEAR";
+    // Realm's own banned words/symbols (owner-set): a case-insensitive substring hit holds the text for review
+    // — it never auto-publishes — while the crown & Reign still count (§4.7 money ≠ text).
+    const hay = text.toLowerCase();
+    const blockedHit = (cfg.blockedWords ?? []).some((w) => {
+      const term = w.trim().toLowerCase();
+      return term.length > 0 && hay.includes(term);
+    });
+    const effVerdict: MessageRef["autoVerdict"] =
+      blockedHit && verdict === "CLEAR" ? "FLAG" : verdict;
+    const autoShow =
+      !isHardBlock && !blockedHit && cfg.textShowMode === "auto_if_clean" && verdict === "CLEAR";
     const messageId = this.nextId("m");
     const message: MessageRef = {
       id: messageId,
@@ -1217,7 +1252,7 @@ export class MockDataProvider implements DataProvider {
       text,
       lang,
       state: isHardBlock ? "QUARANTINED" : autoShow ? "SHOWN" : "HELD",
-      autoVerdict: verdict,
+      autoVerdict: effVerdict,
       contentHash,
       shownAt: autoShow ? ts : undefined,
       createdAt: ts,

@@ -103,6 +103,9 @@ export interface ChannelConfig {
   nameMode: "addresses_only" | "allow_display_names";
   textShowMode: "manual" | "auto_if_clean";
   moderators: ModeratorRef[];
+  /** Realm-specific banned words/symbols in crown text (owner-set). A case-insensitive substring match holds
+   *  the text for review (never auto-published) — the crown & Reign still count (§4.7 money ≠ text). */
+  blockedWords?: string[];
   /** Mini-games enabled on the realm — ids from the `src/games` registry (ADR 0016). Empty by default: the streamer
    *  enables a game when the community is ready (cold-start, game spec §8). Stored as opaque strings —
    *  the core doesn't know about specific games; id validation is at the games layer (game-bus, G1.2). */
@@ -388,6 +391,7 @@ export type ConfigPatch = Partial<
     | "nameMode"
     | "textShowMode"
     | "moderators"
+    | "blockedWords"
     | "enabledGames"
   >
 >;
