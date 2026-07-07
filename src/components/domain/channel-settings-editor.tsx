@@ -94,7 +94,16 @@ function UsdcAmountInput({
  * Self-contained: pulls its own realm (useMyChannel) and config. Used both in the Studio and in the personal
  * space (Customization) — a single source, no duplication.
  */
-export function ChannelSettingsEditor({ title = "Realm settings" }: { title?: string }) {
+/** Groups the config sections into sub-pages (Widgets & Customization folder). Omit → the whole editor. */
+export type CustomGroup = "description" | "ranks" | "crowns" | "messages" | "payout";
+
+export function ChannelSettingsEditor({
+  title = "Realm settings",
+  group,
+}: {
+  title?: string;
+  group?: CustomGroup;
+}) {
   const myChannelQ = useMyChannel();
   const channelId = myChannelQ.data?.id;
   const configQ = useChannelConfig(channelId);
@@ -134,6 +143,8 @@ export function ChannelSettingsEditor({ title = "Realm settings" }: { title?: st
   const dirty = Object.keys(patch).length > 0;
   const set = <K extends keyof Draft>(key: K, val: Draft[K]) =>
     setDraft({ ...draft, [key]: val } as Draft);
+  // Which sub-page (group) to render; omit → the whole editor. Text/Audio/Names/Moderators share "messages".
+  const show = (g: CustomGroup) => !group || group === g;
 
   function save() {
     update.mutate(patch, {
@@ -147,8 +158,11 @@ export function ChannelSettingsEditor({ title = "Realm settings" }: { title?: st
       <h1 className="text-display-l text-fg">{title}</h1>
 
       {/* H1 payout attestation — chain/icp only; pins the payout address by owner signature. */}
-      {IS_CHAIN && myChannelQ.data ? <PayoutAttestationSection channel={myChannelQ.data} /> : null}
+      {show("payout") && IS_CHAIN && myChannelQ.data ? (
+        <PayoutAttestationSection channel={myChannelQ.data} />
+      ) : null}
 
+      {show("description") ? (
       <Section title="Realm description">
         <p className="text-small text-fg-muted">
           Your realm name and links come from your{" "}
@@ -166,7 +180,9 @@ export function ChannelSettingsEditor({ title = "Realm settings" }: { title?: st
           onChange={(e) => set("description", e.target.value)}
         />
       </Section>
+      ) : null}
 
+      {show("ranks") ? (
       <Section title="Tiers and participation thresholds">
         <p className="text-small text-fg-muted">
           Reign accrues at a fixed rate: <span className="mono">1 USDC = 1 Reign</span>. Here you
@@ -174,7 +190,9 @@ export function ChannelSettingsEditor({ title = "Realm settings" }: { title?: st
         </p>
         <TierEditor value={draft.tiers} onChange={(t) => set("tiers", t)} />
       </Section>
+      ) : null}
 
+      {show("crowns") ? (
       <Section title="Crowns">
         <div className="grid gap-4 sm:grid-cols-2">
           <UsdcAmountInput
@@ -189,7 +207,10 @@ export function ChannelSettingsEditor({ title = "Realm settings" }: { title?: st
           />
         </div>
       </Section>
+      ) : null}
 
+      {show("messages") ? (
+      <>
       <Section title="Text messages">
         <label className="flex flex-col gap-2">
           <span className="text-small text-fg-muted">Character limit</span>
@@ -257,6 +278,8 @@ export function ChannelSettingsEditor({ title = "Realm settings" }: { title?: st
       <Section title="Moderators">
         <ModeratorEditor value={draft.moderators} onChange={(m) => set("moderators", m)} />
       </Section>
+      </>
+      ) : null}
 
       {dirty ? (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-raised">
