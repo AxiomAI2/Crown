@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { CrownLogo } from "@/components/crown-logo";
+import { CreateRealmButton } from "@/components/domain/create-realm-button";
 import { AppHeader } from "@/components/layout/app-header";
 import { SiteFooter } from "@/components/layout/site-footer";
 
@@ -10,13 +11,11 @@ export const metadata: Metadata = {
     "Supporters crown you in USDC on Solana and climb the ranks you set. You keep 97%, straight to your wallet. Non-custodial, free to start.",
 };
 
-const CREATE_HREF = "/space?tab=realm-create";
-
 // Money register (design-system §1): the numbers that matter, quiet and exact, in mono.
 const FACTS = [
   { figure: "97%", label: "of every crown is yours", accent: true },
   { figure: "3%", label: "flat fee — nothing hidden", accent: false },
-  { figure: "$2", label: "one-time to activate your realm", accent: false },
+  { figure: "$0", label: "to open your realm — free", accent: false },
 ];
 
 const STEPS = [
@@ -76,15 +75,12 @@ export default function ForStreamersPage() {
           </p>
 
           <div className="flex flex-col items-center gap-4 pt-2 sm:flex-row">
-            <Link
-              href={CREATE_HREF}
-              className="group inline-flex h-12 items-center gap-2 rounded-lg bg-money px-7 text-body font-semibold text-[var(--bg)] shadow-[0_10px_34px_-10px_rgba(228,179,76,0.55)] transition-all duration-200 ease-ease hover:-translate-y-0.5 hover:brightness-110"
-            >
+            <CreateRealmButton className="group inline-flex h-12 items-center gap-2 rounded-lg bg-money px-7 text-body font-semibold text-[var(--bg)] shadow-[0_10px_34px_-10px_rgba(228,179,76,0.55)] transition-all duration-200 ease-ease hover:-translate-y-0.5 hover:brightness-110">
               Open your realm
               <span aria-hidden className="transition-transform duration-200 group-hover:translate-x-0.5">
                 →
               </span>
-            </Link>
+            </CreateRealmButton>
             <Link
               href="/"
               className="inline-flex h-12 items-center rounded-lg border border-border px-6 text-body text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
@@ -145,15 +141,12 @@ export default function ForStreamersPage() {
           <p className="max-w-md text-body text-fg-muted">
             Give it a crown. Open your realm in under a minute — nothing to install, nothing upfront.
           </p>
-          <Link
-            href={CREATE_HREF}
-            className="group inline-flex h-12 items-center gap-2 rounded-lg bg-money px-7 text-body font-semibold text-[var(--bg)] shadow-[0_10px_34px_-10px_rgba(228,179,76,0.55)] transition-all duration-200 ease-ease hover:-translate-y-0.5 hover:brightness-110"
-          >
+          <CreateRealmButton className="group inline-flex h-12 items-center gap-2 rounded-lg bg-money px-7 text-body font-semibold text-[var(--bg)] shadow-[0_10px_34px_-10px_rgba(228,179,76,0.55)] transition-all duration-200 ease-ease hover:-translate-y-0.5 hover:brightness-110">
             Open your realm
             <span aria-hidden className="transition-transform duration-200 group-hover:translate-x-0.5">
               →
             </span>
-          </Link>
+          </CreateRealmButton>
           <span className="text-caption text-fg-faint">
             Non-custodial · money is final · Reign is never for sale.
           </span>

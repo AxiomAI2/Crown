@@ -7,37 +7,62 @@ import { cn } from "@/lib/utils";
 /**
  * A compact magnifier that grows into a full search field on click/focus (width animation); filters the list
  * live. Collapses back into an icon on blur if empty. Respects reduced-motion (a global rule in
- * globals.css neutralizes the transition). A shared control: the realm catalog on the home page and the realm feed.
+ * globals.css neutralizes the transition). Shared: the realm catalog (size "lg") and the realm feed ("md").
  */
 export function ExpandingSearch({
   value,
   onChange,
   placeholder = "Search…",
   label = "Search",
+  size = "md",
+  alwaysOpen = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   label?: string;
+  size?: "md" | "lg";
+  /** Start already open (visible field, not just the magnifier) and never collapse. */
+  alwaysOpen?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
-  const expanded = focused || value.length > 0;
+  const expanded = alwaysOpen || focused || value.length > 0;
+  const lg = size === "lg";
+
+  // Height GROWS on focus (taller field) — the main "increase" the field animates.
+  const hBase = lg ? "h-14" : "h-10";
+  const hFocus = lg ? "h-16" : "h-12";
+  const h = focused ? hFocus : hBase;
+  const square = lg ? "w-14" : "w-10";
+  // Open width: a base, and a WIDER width on focus → the field still animates (grows) even when always-open.
+  const openBase = lg ? "w-72 sm:w-[32rem]" : "w-52 sm:w-72";
+  const openWide = lg ? "w-80 sm:w-[42rem]" : "w-56 sm:w-80";
+  const width = alwaysOpen ? (focused ? openWide : openBase) : expanded ? openBase : square;
+  const pl = lg ? "pl-14" : "pl-10";
+  const pr = lg ? "pr-14" : "pr-9";
+  const icon = lg ? "h-6 w-6" : "h-[18px] w-[18px]";
+  const text = lg ? "text-lg" : "text-small";
 
   return (
     <div
       className={cn(
-        "relative flex h-10 flex-none items-center transition-[width] duration-slow ease-ease",
-        expanded ? "w-52 sm:w-72" : "w-10",
+        "relative flex flex-none items-center transition-[width,height] duration-slow ease-ease",
+        h,
+        width,
       )}
     >
       <button
         type="button"
         aria-label={label}
         onClick={() => inputRef.current?.focus()}
-        className="absolute left-0 z-10 grid h-10 w-10 flex-none place-items-center text-fg-faint transition-colors hover:text-fg"
+        className={cn(
+          "absolute left-0 z-10 grid flex-none place-items-center text-fg-faint transition-[color,height] duration-slow ease-ease hover:text-fg",
+          h,
+          square,
+        )}
       >
-        <SearchIcon className="h-[18px] w-[18px]" />
+        <SearchIcon className={icon} />
       </button>
       <input
         ref={inputRef}
@@ -49,10 +74,14 @@ export function ExpandingSearch({
         placeholder={placeholder}
         aria-label={label}
         className={cn(
-          "h-10 w-full rounded-lg border bg-surface pl-10 pr-9 text-small text-fg outline-none",
-          "transition-[opacity,border-color] duration-slow ease-ease placeholder:text-fg-faint",
+          "w-full rounded-lg border bg-surface text-fg outline-none",
+          h,
+          pl,
+          pr,
+          text,
+          "transition-[opacity,border-color,box-shadow,height] duration-slow ease-ease placeholder:text-fg-faint",
           expanded
-            ? "border-border opacity-100 focus:border-border-strong"
+            ? "border-border opacity-100 focus:border-money-dim focus:shadow-[0_12px_44px_-14px_rgba(228,179,76,0.35)]"
             : "cursor-pointer border-transparent bg-transparent opacity-0",
         )}
       />
@@ -64,9 +93,13 @@ export function ExpandingSearch({
             onChange("");
             inputRef.current?.focus();
           }}
-          className="absolute right-0 z-10 grid h-10 w-10 flex-none place-items-center text-fg-faint transition-colors hover:text-fg"
+          className={cn(
+            "absolute right-0 z-10 grid flex-none place-items-center text-fg-faint transition-[color,height] duration-slow ease-ease hover:text-fg",
+            h,
+            square,
+          )}
         >
-          <XIcon className="h-4 w-4" />
+          <XIcon className={icon} />
         </button>
       ) : null}
     </div>

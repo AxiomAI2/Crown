@@ -311,7 +311,7 @@ const SCOPE_LABEL: Record<ModeratorRef["scope"], string> = {
   queue_and_block: "Queue and blocks",
 };
 
-function ModeratorEditor({
+export function ModeratorEditor({
   value,
   onChange,
 }: {

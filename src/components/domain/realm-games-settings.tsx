@@ -64,6 +64,8 @@ export function RealmGamesSettings() {
   }
 
   const enabled = new Set(config.enabledGames);
+  // Only games that are actually shippable — hide in-development ones from the owner's settings.
+  const readyGames = GAMES.filter((g) => g.status !== "building");
 
   function toggle(g: GameModule, on: boolean) {
     const next = on ? [...new Set([...enabled, g.id])] : [...enabled].filter((id) => id !== g.id);
@@ -102,10 +104,9 @@ export function RealmGamesSettings() {
         </p>
       </div>
 
-      {/* Game catalog from the registry — the on/off state is stored in enabledGames */}
+      {/* Game catalog from the registry — only READY games (in-development ones are hidden here). */}
       <div className="flex flex-col gap-3">
-        {GAMES.map((g) => {
-          const building = g.status === "building";
+        {readyGames.map((g) => {
           const isOn = enabled.has(g.id);
           return (
             <div
@@ -113,25 +114,13 @@ export function RealmGamesSettings() {
               className="flex items-start gap-4 rounded-lg border border-border bg-surface p-4"
             >
               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-display text-fg">{g.title}</span>
-                  {building ? (
-                    <span className="text-caption rounded-pill border border-border px-2 py-0.5 text-fg-faint">
-                      in development
-                    </span>
-                  ) : null}
-                </div>
+                <span className="font-display text-fg">{g.title}</span>
                 <p className="text-small text-fg-muted">{g.tagline}</p>
-                {building ? (
-                  <p className="text-small text-fg-faint">
-                    You&apos;ll be able to enable it once the game is ready.
-                  </p>
-                ) : null}
               </div>
               <div className="shrink-0 pt-0.5">
                 <Switch
                   checked={isOn}
-                  disabled={building || update.isPending}
+                  disabled={update.isPending}
                   onCheckedChange={(on) => toggle(g, on)}
                 />
               </div>

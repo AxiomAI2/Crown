@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChannelSettingsEditor } from "@/components/domain/channel-settings-editor";
 import { ChannelStatusBanner } from "@/components/domain/channel-status";
+import { ChannelView } from "@/components/domain/channel-view";
 import { CreateChannelForm } from "@/components/domain/create-channel-form";
 import { ModerationQueue } from "@/components/domain/moderation-queue";
 import { RealmBlocklist } from "@/components/domain/realm-blocklist";
@@ -28,6 +29,7 @@ import { cn } from "@/lib/utils";
 
 type SectionKey =
   | "realm-create"
+  | "realm-view"
   | "realm-dashboard"
   | "realm-queue"
   | "realm-games"
@@ -38,6 +40,7 @@ type SectionKey =
 
 // The "My Realm" items depend on whether the user has their own realm. The entire Studio moved here.
 const REALM_OWNED: { key: SectionKey; label: string }[] = [
+  { key: "realm-view", label: "Realm page" },
   { key: "realm-dashboard", label: "Dashboard" },
   { key: "realm-queue", label: "Moderation queue" },
   { key: "realm-games", label: "Mini-games" },
@@ -52,7 +55,9 @@ const TAB_ALIAS: Record<string, SectionKey> = {
   dashboard: "realm-dashboard",
   create: "realm-create",
   "realm-create": "realm-create",
-  realm: "realm-dashboard",
+  realm: "realm-view",
+  "realm-view": "realm-view",
+  view: "realm-view",
   "realm-dashboard": "realm-dashboard",
   customization: "realm-customization",
   "realm-customization": "realm-customization",
@@ -80,7 +85,7 @@ export default function SpacePage() {
   const myChannelQ = useMyChannel();
   const hasRealm = !!myChannelQ.data;
   const realmKnown = !myChannelQ.isLoading;
-  const [section, setSection] = useState<SectionKey>("realm-dashboard");
+  const [section, setSection] = useState<SectionKey>("realm-view");
   const { collapsed, toggle } = useRailCollapsed("space-rail");
   const searchParams = useSearchParams();
 
@@ -101,7 +106,7 @@ export default function SpacePage() {
   // Keep the section consistent with realm ownership (after creation / if there is no realm yet).
   useEffect(() => {
     if (!address || !realmKnown) return;
-    if (hasRealm && section === "realm-create") setSection("realm-dashboard");
+    if (hasRealm && section === "realm-create") setSection("realm-view");
     else if (!hasRealm && section.startsWith("realm-") && section !== "realm-create")
       setSection("realm-create");
   }, [address, realmKnown, hasRealm, section]);
@@ -130,7 +135,7 @@ export default function SpacePage() {
             title={wantsCreate ? "Connect your wallet to open your realm" : "Connect your wallet"}
             description={
               wantsCreate
-                ? "Your realm is free on BASIC — one realm per wallet. Connect to set it up."
+                ? "Opening a realm is free — one realm per wallet. Connect to set it up."
                 : "Connect to enter your personal space."
             }
             action={<ConnectWalletButton />}
@@ -165,6 +170,13 @@ export default function SpacePage() {
             </div>
           ) : null}
           {section === "realm-create" ? <CreateChannelForm /> : null}
+          {section === "realm-view" ? (
+            myChannelQ.data ? (
+              <ChannelView handle={myChannelQ.data.handle} />
+            ) : (
+              <Skeleton className="h-64 w-full rounded-xl" />
+            )
+          ) : null}
           {section === "realm-dashboard" ? <RealmDashboard /> : null}
           {section === "realm-queue" ? <ModerationQueue /> : null}
           {section === "realm-games" ? <RealmGamesSettings /> : null}

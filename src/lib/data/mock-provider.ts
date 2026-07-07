@@ -727,7 +727,10 @@ export class MockDataProvider implements DataProvider {
       payoutAddress: input.payoutAddress,
       payoutAttestation: attestation,
       handle,
-      status: "BASIC",
+      // Activation fee removed — realms are ACTIVE on creation (crowns-with-text + public indexing unlocked,
+      // no one-time $2 gate). BASIC no longer occurs in mock; the status banner has no activation prompt.
+      status: "ACTIVE",
+      activatedAt: this.now(),
       configVersion: 1,
       createdAt: this.now(),
     };

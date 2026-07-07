@@ -165,10 +165,12 @@ function RealmsShowcase() {
 
   return (
     <section className="flex flex-col gap-5">
-      {/* Search only — the expanding magnifier (no title, no divider). */}
+      {/* Search only — always-open, grows on focus (no title, no divider). Centered. */}
       {hasRealms ? (
-        <div className="flex justify-end">
+        <div className="flex justify-center">
           <ExpandingSearch
+            size="lg"
+            alwaysOpen
             value={query}
             onChange={setQuery}
             placeholder="Search realms…"

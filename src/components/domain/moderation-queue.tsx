@@ -1,27 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Amount } from "./amount";
+import { ModeratorEditor } from "./channel-settings-editor";
 import { ModerationItem } from "./moderation";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/feedback";
+import { ChevronDownIcon } from "@/components/ui/icons";
 import { Pager, usePager } from "@/components/ui/pager";
 import { Select } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import { useEscrowAction, useEscrowTasks } from "@/games/escrow-task/hooks";
 import { dueResolution } from "@/games/escrow-task/machine";
 import {
+  useChannelConfig,
   useDonations,
   useManagedChannels,
   useModerationQueue,
+  useMyChannel,
   useSetMessageState,
+  useUpdateConfig,
 } from "@/lib/data/hooks";
-import { collapseWhitespace, shortAddress } from "@/lib/utils";
+import type { ChannelConfig, ModeratorRef } from "@/lib/data/types";
+import { cn, collapseWhitespace, shortAddress } from "@/lib/utils";
 
 /** Moderation queue (Personal Space → My Realm). Realms: owner OR moderator (useManagedChannels). */
 export function ModerationQueue() {
   const managedQ = useManagedChannels();
   const channels = managedQ.data ?? [];
+  const myChannelId = useMyChannel().data?.id;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const channelId = selectedId ?? channels[0]?.id;
 
@@ -48,8 +55,10 @@ export function ModerationQueue() {
     );
   }
 
-  const heldCount = (queueQ.data ?? []).length + heldTasks.length;
+  const messages = queueQ.data ?? [];
+  const heldCount = messages.length + heldTasks.length;
   const currentChannel = channels.find((c) => c.id === channelId);
+  const isOwner = !!channelId && channelId === myChannelId; // only the OWNER edits realm settings
 
   function act(messageId: string, state: "SHOWN" | "HIDDEN") {
     setState.mutate(
@@ -107,85 +116,224 @@ export function ModerationQueue() {
         ) : null}
       </div>
 
+      {/* Settings live right here (owner only) — the policy that governs this very queue. */}
+      {isOwner && channelId ? <ModerationSettings channelId={channelId} /> : null}
+
       {queueQ.isLoading || tasksQ.isLoading ? (
-        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-40 w-full rounded-lg" />
       ) : queueQ.error ? (
         <ErrorState description="Couldn't load the queue." onRetry={() => queueQ.refetch()} />
-      ) : (queueQ.data ?? []).length === 0 && heldTasks.length === 0 ? (
-        <EmptyState
-          title="Queue is clear"
-          description="New messages and tasks awaiting moderation will show up here."
-        />
+      ) : messages.length === 0 && heldTasks.length === 0 ? (
+        <div className="rounded-lg border border-border bg-surface">
+          <EmptyState
+            title="Queue is clear"
+            description="New crowns-with-text and tasks awaiting your decision will show up here."
+          />
+        </div>
       ) : (
         <div className="flex flex-col gap-6">
-          {(queueQ.data ?? []).length > 0 ? (
-            <div className="flex flex-col">
-              <div className="flex flex-col [&>:last-child]:border-b-0">
-                {pg.pageItems.map((m) => {
-                  const d = byDonation.get(m.donationId);
-                  return (
-                    <ModerationItem
-                      key={m.id}
-                      message={m}
-                      donor={d?.donor}
-                      donorName={d?.donorName}
-                      amount={d?.amount}
-                      pending={setState.isPending && setState.variables?.messageId === m.id}
-                      onShow={() => act(m.id, "SHOWN")}
-                      onHide={() => act(m.id, "HIDDEN")}
+          {messages.length > 0 ? (
+            <section className="flex flex-col gap-3">
+              <h2 className="text-caption uppercase tracking-wide text-fg-faint">
+                Messages · {messages.length}
+              </h2>
+              <div className="rounded-lg border border-border bg-surface px-4">
+                <div className="flex flex-col [&>:last-child]:border-b-0">
+                  {pg.pageItems.map((m) => {
+                    const d = byDonation.get(m.donationId);
+                    return (
+                      <ModerationItem
+                        key={m.id}
+                        message={m}
+                        donor={d?.donor}
+                        donorName={d?.donorName}
+                        amount={d?.amount}
+                        pending={setState.isPending && setState.variables?.messageId === m.id}
+                        onShow={() => act(m.id, "SHOWN")}
+                        onHide={() => act(m.id, "HIDDEN")}
+                      />
+                    );
+                  })}
+                </div>
+                {pg.pageCount > 1 ? (
+                  <div className="border-t border-border py-3">
+                    <Pager
+                      page={pg.page}
+                      pageCount={pg.pageCount}
+                      total={pg.total}
+                      pageSize={pg.pageSize}
+                      setPage={pg.setPage}
+                      setPageSize={pg.setPageSize}
                     />
-                  );
-                })}
+                  </div>
+                ) : null}
               </div>
-              <div className="pt-4">
-                <Pager
-                  page={pg.page}
-                  pageCount={pg.pageCount}
-                  total={pg.total}
-                  pageSize={pg.pageSize}
-                  setPage={pg.setPage}
-                  setPageSize={pg.setPageSize}
-                />
-              </div>
-            </div>
+            </section>
           ) : null}
 
           {heldTasks.length > 0 ? (
             <section className="flex flex-col gap-3">
-              <h2 className="text-h3 text-fg">Tasks in moderation · {heldTasks.length}</h2>
-              <div className="flex flex-col [&>:last-child]:border-b-0">
-                {heldTasks.map((t) => (
-                  <div key={t.id} className="flex flex-col gap-2 border-b border-border py-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="mono truncate text-small text-fg">{shortAddress(t.donor)}</span>
-                      <Amount micro={BigInt(t.amount)} />
+              <h2 className="text-caption uppercase tracking-wide text-fg-faint">
+                Tasks · {heldTasks.length}
+              </h2>
+              <div className="rounded-lg border border-border bg-surface px-4">
+                <div className="flex flex-col [&>:last-child]:border-b-0">
+                  {heldTasks.map((t) => (
+                    <div key={t.id} className="flex flex-col gap-2 border-b border-border py-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="mono truncate text-small text-fg">{shortAddress(t.donor)}</span>
+                        <Amount micro={BigInt(t.amount)} variant="money" />
+                      </div>
+                      <p className="break-words text-body text-fg">{collapseWhitespace(t.text)}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={taskAction.isPending}
+                          onClick={() => taskAct(t.id, "SHOWN")}
+                        >
+                          Show
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={taskAction.isPending}
+                          onClick={() => taskAct(t.id, "HIDDEN")}
+                        >
+                          Reject
+                        </Button>
+                      </div>
                     </div>
-                    <p className="break-words text-body text-fg">{collapseWhitespace(t.text)}</p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={taskAction.isPending}
-                        onClick={() => taskAct(t.id, "SHOWN")}
-                      >
-                        Show
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={taskAction.isPending}
-                        onClick={() => taskAct(t.id, "HIDDEN")}
-                      >
-                        Reject
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </section>
           ) : null}
         </div>
       )}
+    </div>
+  );
+}
+
+const TEXT_MODES: { value: ChannelConfig["textShowMode"]; label: string; hint: string }[] = [
+  { value: "manual", label: "Manual approval", hint: "Every crown text waits here for your Show / Hide." },
+  {
+    value: "auto_if_clean",
+    label: "Auto-show if clean",
+    hint: "Clean text publishes instantly; only flagged text is held here. Hard-block categories are never auto-shown.",
+  },
+];
+
+/**
+ * Moderation settings, inline in the queue tab (owner only) — the policy that decides what lands in THIS queue:
+ * how crown text is published (manual vs auto-if-clean, instant save) and who can moderate (moderators, saved
+ * on demand). The same config as Customization → My Realm, surfaced where it's acted on. Collapsed by default.
+ */
+function ModerationSettings({ channelId }: { channelId: string }) {
+  const configQ = useChannelConfig(channelId);
+  const update = useUpdateConfig(channelId);
+  const config = configQ.data;
+  const [open, setOpen] = useState(false);
+
+  const [mods, setMods] = useState<ModeratorRef[]>([]);
+  const [modsSeeded, setModsSeeded] = useState(false);
+  useEffect(() => {
+    if (config && !modsSeeded) {
+      setMods(config.moderators);
+      setModsSeeded(true);
+    }
+  }, [config, modsSeeded]);
+
+  if (!config) return null;
+  const modsDirty = JSON.stringify(mods) !== JSON.stringify(config.moderators);
+
+  function setMode(mode: ChannelConfig["textShowMode"]) {
+    if (mode === config!.textShowMode) return;
+    update.mutate(
+      { textShowMode: mode },
+      {
+        onSuccess: () => toast({ variant: "success", title: "Moderation mode saved" }),
+        onError: (e) => toast({ variant: "error", title: "Couldn't save", description: String(e) }),
+      },
+    );
+  }
+  function saveMods() {
+    update.mutate(
+      { moderators: mods },
+      {
+        onSuccess: () => toast({ variant: "success", title: "Moderators saved" }),
+        onError: (e) => toast({ variant: "error", title: "Couldn't save", description: String(e) }),
+      },
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-surface">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      >
+        <span className="flex items-center gap-2 text-small text-fg">
+          Moderation settings
+          <span className="text-caption text-fg-faint">
+            {config.textShowMode === "manual" ? "Manual approval" : "Auto-show if clean"}
+            {config.moderators.length > 0 ? ` · ${config.moderators.length} mod` : ""}
+          </span>
+        </span>
+        <ChevronDownIcon className={cn("h-4 w-4 text-fg-faint transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open ? (
+        <div className="flex flex-col gap-6 border-t border-border p-4">
+          {/* Text publishing policy — instant save (like a toggle). */}
+          <div className="flex flex-col gap-2">
+            <span className="text-caption uppercase tracking-wide text-fg-faint">How crown text is published</span>
+            <div className="inline-flex w-fit rounded-lg border border-border bg-[var(--bg)] p-0.5">
+              {TEXT_MODES.map((m) => (
+                <button
+                  key={m.value}
+                  type="button"
+                  onClick={() => setMode(m.value)}
+                  disabled={update.isPending}
+                  aria-pressed={config.textShowMode === m.value}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-small transition-colors",
+                    config.textShowMode === m.value
+                      ? "bg-money-bg text-money"
+                      : "text-fg-muted hover:text-fg",
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-small text-fg-faint">
+              {TEXT_MODES.find((m) => m.value === config.textShowMode)?.hint}
+            </p>
+          </div>
+
+          {/* Moderators — draft + explicit save. */}
+          <div className="flex flex-col gap-2">
+            <span className="text-caption uppercase tracking-wide text-fg-faint">Moderators</span>
+            <p className="text-small text-fg-faint">
+              Wallets you trust to work this queue on your behalf.
+            </p>
+            <ModeratorEditor value={mods} onChange={setMods} />
+            {modsDirty ? (
+              <div className="flex gap-2 pt-1">
+                <Button variant="money" size="sm" loading={update.isPending} onClick={saveMods}>
+                  Save moderators
+                </Button>
+                <Button variant="ghost" size="sm" disabled={update.isPending} onClick={() => setMods(config.moderators)}>
+                  Reset
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
